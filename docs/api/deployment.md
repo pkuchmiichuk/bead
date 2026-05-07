@@ -42,3 +42,15 @@ Stage 5 of the bead pipeline: jsPsych 8.x batch experiment generation for JATOS.
     options:
       show_root_heading: true
       show_source: false
+
+## Protocol-Layer Bridge
+
+Single canonical bridge from a configured
+:class:`~bead.protocol.AnnotationProtocol` and a sequence of
+:class:`~bead.protocol.ProtocolContext` records to a flat list of
+jsPsych trial dicts.
+
+::: bead.deployment.protocol_trials
+    options:
+      show_root_heading: true
+      show_source: false

@@ -22,3 +22,14 @@ Data retrieval and integration from JATOS and Prolific platforms.
     options:
       show_root_heading: true
       show_source: false
+
+## Annotation-Record Bridge
+
+Single canonical conversion from raw JATOS results to bead
+:class:`~bead.evaluation.AnnotationRecord` instances, the input shape
+consumed by every reliability and inter-annotator-agreement check.
+
+::: bead.data_collection.records
+    options:
+      show_root_heading: true
+      show_source: false

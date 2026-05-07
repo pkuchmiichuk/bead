@@ -7,9 +7,9 @@ from typing import Literal
 import didactic.api as dx
 
 __all__ = [
-    "VarianceComponents",
-    "RandomEffectsSpec",
     "MixedEffectsConfig",
+    "RandomEffectsSpec",
+    "VarianceComponents",
 ]
 
 

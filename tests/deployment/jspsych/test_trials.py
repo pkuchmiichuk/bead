@@ -26,7 +26,6 @@ from bead.deployment.jspsych.trials import (
     SpanColorMap,
     _assign_span_colors,
     _generate_stimulus_html,
-    _parse_prompt_references,
     _resolve_prompt_references,
     create_completion_trial,
     create_consent_trial,
@@ -42,6 +41,7 @@ from bead.items.item_template import (
     TaskSpec,
 )
 from bead.items.spans import Span, SpanLabel, SpanSegment
+from bead.labels import parse_label_refs
 
 
 class TestCreateTrial:
@@ -499,17 +499,17 @@ class TestSpecialTrials:
 
 
 class TestParsePromptReferences:
-    """Tests for _parse_prompt_references()."""
+    """Tests for parse_label_refs()."""
 
     def test_no_references(self) -> None:
-        """Plain text without references returns an empty list."""
-        refs = _parse_prompt_references("How natural is this sentence?")
+        """Plain text without references returns an empty tuple."""
+        refs = parse_label_refs("How natural is this sentence?")
 
-        assert refs == []
+        assert refs == ()
 
     def test_auto_fill_reference(self) -> None:
         """Single auto-fill reference is parsed with label and no display_text."""
-        refs = _parse_prompt_references("How natural is [[agent]]?")
+        refs = parse_label_refs("How natural is [[agent]]?")
 
         assert len(refs) == 1
         assert refs[0].label == "agent"
@@ -517,7 +517,7 @@ class TestParsePromptReferences:
 
     def test_explicit_text_reference(self) -> None:
         """Explicit text reference is parsed with both label and display_text."""
-        refs = _parse_prompt_references("Did [[event:the breaking]] happen?")
+        refs = parse_label_refs("Did [[event:the breaking]] happen?")
 
         assert len(refs) == 1
         assert refs[0].label == "event"
@@ -525,7 +525,7 @@ class TestParsePromptReferences:
 
     def test_multiple_references(self) -> None:
         """Multiple references are parsed in order of appearance."""
-        refs = _parse_prompt_references("Did [[agent]] cause [[event:the breaking]]?")
+        refs = parse_label_refs("Did [[agent]] cause [[event:the breaking]]?")
 
         assert len(refs) == 2
         assert refs[0].label == "agent"

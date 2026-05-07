@@ -17,11 +17,12 @@ bead implements a 6-stage pipeline for linguistic experiment design:
 
 - **Stand-off annotation** with UUID-based references for provenance tracking
 - **9 task types**: forced-choice, ordinal scale, binary, categorical, multi-select, magnitude, free text, cloze, span labeling
+- **Annotation protocols**: type-theoretic stack of anchors, contexts, realization strategies, and drift guards, composed into conditional protocols ([overview](user-guide/protocols.md))
 - **GLMM support**: Generalized Linear Mixed Models with random effects
 - **Batch deployment**: server-side list distribution via JATOS batch sessions
 - **Language-agnostic**: works with any language supported by UniMorph
 - **Configuration-first**: single YAML file orchestrates entire pipeline
-- **Type-safe**: full Python 3.13 type hints with Pydantic v2 validation
+- **Type-safe**: full Python 3.14 type hints with didactic validation
 
 ## Quick Links
 

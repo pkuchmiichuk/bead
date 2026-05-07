@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "bead"
-version = "0.3.0"
+version = "0.4.0"
 description = "Lexicon and Template Collection Construction Pipeline for Acceptability and Inference Judgment Data"
 authors = [{name = "Aaron Steven White", email = "aaron.white@rochester.edu"}]
 readme = "README.md"
@@ -70,6 +70,8 @@ dev = [
     "ruff>=0.1.0",
     "pyright>=1.1.0",
     "pandas-stubs>=2.0.0",
+    "spacy>=3.7",
+    "stanza>=1.8",
 ]
 api = [
     "openai>=1.0.0",

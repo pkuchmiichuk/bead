@@ -19,6 +19,15 @@ bead implements a 6-stage pipeline for constructing, deploying, and analyzing la
 
 Each stage reads data from the previous stage using UUID references, processes it, adds metadata, and writes new data with its own UUIDs. This creates an unbroken chain of provenance from lexical resources to trained models.
 
+The `bead.protocol` package sits *across* the 6-stage pipeline, not
+inside it. Anchors, contexts, realization strategies, and drift
+guards together define *what question is being asked* of an
+annotator and *how it is phrased*; the resulting prompt strings flow
+into Stage 3 item construction, and annotator responses flow back to
+Stage 6 training and evaluation. The protocol layer is intentionally
+domain-neutral and pipeline-orthogonal so that any annotation domain
+can reuse the same anchor / drift / realization machinery.
+
 ### Data Flow Example
 
 A typical experiment follows this data flow:
@@ -158,6 +167,35 @@ bead consists of 17 top-level modules organized by function:
 
 - `convergence.py`: ConvergenceDetector (Krippendorff's alpha)
 - `interannotator.py`: InterAnnotatorMetrics (Cohen, Fleiss, Krippendorff)
+- `reliability.py`: AnnotationRecord, AnnotatorReliability,
+  per-annotator Shannon-entropy diagnostics, and
+  `low_entropy_annotators` flagger
+
+**bead/protocol/** - Annotation-protocol primitives (cross-cutting layer)
+
+- `anchor.py`: SemanticAnchor (the *type* of a question), ResponseSpace,
+  SemanticPoles
+- `context.py`: ProtocolContext (the dependent *index*), ContextItem,
+  context-predicate registry (`register_context_predicate`,
+  `get_context_predicate`, `list_context_predicates`)
+- `realization.py`: RealizationStrategy Protocol with three
+  implementations (TemplateRealization,
+  ContextualTemplateRealization, LMRealization), TemplateVariant,
+  LMClient Protocol
+- `drift.py`: DriftScore, DriftValidator Protocol, three concrete
+  validators (StructuralDriftValidator, EmbeddingDriftValidator,
+  PerplexityDriftValidator), DriftGuard composite, plus
+  EmbeddingAdapter and PerplexityAdapter Protocols for backends
+- `family.py`: QuestionFamily (Pi(ctx). Question(ctx)),
+  AnnotationProtocol (the iterated dependent product, with
+  `depends_on` graph validation), QuestionRealization
+- `encoding.py`: ScaleType (binary / ordinal / nominal),
+  ResponseEncoding (likelihood-agnostic, with invariant validators
+  for `n_levels == len(labels)`, label uniqueness, and
+  BINARY-must-have-2-levels), `encode_response_space` bridge
+- `diagnostics.py`: DiagnosticLevel, DiagnosticRecord, DatasetReport
+  (immutable; `with_*` mutators), ConditionalObservationValidator
+  (drives off `QuestionFamily.depends_on`), RecordLike Protocol
 
 **bead/simulation/** - Simulation framework
 

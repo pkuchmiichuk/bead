@@ -135,7 +135,10 @@ class TestEvaluateCommand:
                 f.write("0\n")
 
         # Mock model loading and prediction
-        with patch("bead.cli.training._import_class") as mock_import:
+        with (
+            patch("bead.cli.training.model_class_for_task_type") as mock_import,
+            patch("bead.cli.training.config_class_for_task_type") as _,
+        ):
             mock_model_class = MagicMock()
             mock_model = MagicMock()
             mock_model.predict.return_value = [0] * 10  # Perfect predictions
@@ -191,7 +194,10 @@ class TestEvaluateCommand:
 
         output_file = tmp_path / "results.json"
 
-        with patch("bead.cli.training._import_class") as mock_import:
+        with (
+            patch("bead.cli.training.model_class_for_task_type") as mock_import,
+            patch("bead.cli.training.config_class_for_task_type") as _,
+        ):
             mock_model_class = MagicMock()
             mock_model = MagicMock()
             mock_model.predict.return_value = [1, 1, 1, 0, 1]
@@ -297,7 +303,10 @@ class TestCrossValidateCommand:
         )
 
         # Mock model training and prediction
-        with patch("bead.cli.training._import_class") as mock_import:
+        with (
+            patch("bead.cli.training.model_class_for_task_type") as mock_import,
+            patch("bead.cli.training.config_class_for_task_type") as _,
+        ):
             mock_model_class = MagicMock()
             mock_model = MagicMock()
 
@@ -364,7 +373,10 @@ class TestCrossValidateCommand:
 
         output_file = tmp_path / "cv_results.json"
 
-        with patch("bead.cli.training._import_class") as mock_import:
+        with (
+            patch("bead.cli.training.model_class_for_task_type") as mock_import,
+            patch("bead.cli.training.config_class_for_task_type") as _,
+        ):
             mock_model_class = MagicMock()
             mock_model = MagicMock()
 
@@ -443,7 +455,10 @@ class TestLearningCurveCommand:
             )
         )
 
-        with patch("bead.cli.training._import_class") as mock_import:
+        with (
+            patch("bead.cli.training.model_class_for_task_type") as mock_import,
+            patch("bead.cli.training.config_class_for_task_type") as _,
+        ):
             mock_model_class = MagicMock()
             mock_model = MagicMock()
             mock_model.predict.side_effect = lambda items, **kwargs: [0] * len(items)
@@ -500,7 +515,10 @@ class TestLearningCurveCommand:
 
         output_file = tmp_path / "learning_curve.json"
 
-        with patch("bead.cli.training._import_class") as mock_import:
+        with (
+            patch("bead.cli.training.model_class_for_task_type") as mock_import,
+            patch("bead.cli.training.config_class_for_task_type") as _,
+        ):
             mock_model_class = MagicMock()
             mock_model = MagicMock()
             mock_model.predict.side_effect = lambda items, **kwargs: [0] * len(items)

@@ -60,6 +60,7 @@ nav:
     - Overview: user-guide/index.md
     - Core Concepts: user-guide/concepts.md
     - Configuration: user-guide/configuration.md
+    - Annotation Protocols: user-guide/protocols.md
     - CLI Guide:
       - Overview: user-guide/cli/index.md
       - Resources: user-guide/cli/resources.md
@@ -89,6 +90,8 @@ nav:
     - bead.active_learning: api/active_learning.md
     - bead.simulation: api/simulation.md
     - bead.evaluation: api/evaluation.md
+    - bead.labels: api/labels.md
+    - bead.protocol: api/protocol.md
     - bead.dsl: api/dsl.md
     - bead.behavioral: api/behavioral.md
     - bead.participants: api/participants.md

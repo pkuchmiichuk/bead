@@ -8,7 +8,6 @@ forced choice, binary choice, and span labeling trials. Composite tasks
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass
 
 from bead.data.base import JsonValue
@@ -24,6 +23,7 @@ from bead.deployment.jspsych.config import (
 from bead.items.item import Item
 from bead.items.item_template import ItemTemplate
 from bead.items.spans import Span
+from bead.labels import parse_label_refs
 from bead.transforms.base import TransformContext, TransformRegistry
 
 
@@ -1090,62 +1090,6 @@ def _generate_span_stimulus_html(
 
 # prompt span reference resolution
 
-_SPAN_REF_PATTERN = re.compile(r"\[\[([^\]:|]+?)(?::([^\]|]+?))?(?:\|([^\]]+?))?\]\]")
-
-
-@dataclass(frozen=True)
-class _SpanReference:
-    """A parsed ``[[label]]``, ``[[label:text]]``, or ``[[label|transform]]``."""
-
-    label: str
-    display_text: str | None
-    transforms: list[str]
-    match_start: int
-    match_end: int
-
-
-def _parse_prompt_references(prompt: str) -> list[_SpanReference]:
-    """Parse span references from a prompt string.
-
-    Supports three syntax forms (and their combinations):
-
-    - ``[[label]]`` — auto-fill display text from span tokens
-    - ``[[label:text]]`` — explicit display text
-    - ``[[label|transform1|transform2]]`` — auto-fill with transforms
-    - ``[[label:text|transform1]]`` — explicit text with transforms
-
-    Parameters
-    ----------
-    prompt : str
-        Prompt string potentially containing span references.
-
-    Returns
-    -------
-    list[_SpanReference]
-        Parsed references in order of appearance.
-    """
-    refs: list[_SpanReference] = []
-
-    for m in _SPAN_REF_PATTERN.finditer(prompt):
-        raw_transforms = m.group(3)
-        transform_names = (
-            [t.strip() for t in raw_transforms.split("|") if t.strip()]
-            if raw_transforms
-            else []
-        )
-
-        refs.append(
-            _SpanReference(
-                label=m.group(1).strip(),
-                display_text=m.group(2).strip() if m.group(2) else None,
-                transforms=transform_names,
-                match_start=m.start(),
-                match_end=m.end(),
-            )
-        )
-
-    return refs
-
 
 def _auto_fill_span_text(label: str, item: Item) -> str:
     """Reconstruct display text from a span's tokens.
@@ -1240,7 +1184,7 @@ def _resolve_prompt_references(
     KeyError
         If a transform name is not found in the registry.
     """
-    refs = _parse_prompt_references(prompt)
+    refs = parse_label_refs(prompt)
     if not refs:
         return prompt
 
@@ -1264,7 +1208,7 @@ def _resolve_prompt_references(
         # apply transforms if requested and a registry is available
         if ref.transforms and transform_registry is not None:
             context = _build_transform_context(ref.label, item)
-            pipeline = transform_registry.resolve_pipeline(ref.transforms)
+            pipeline = transform_registry.resolve_pipeline(list(ref.transforms))
             display = pipeline(display, context)
 
         light = color_map.light_by_label.get(ref.label, "#BBDEFB")
@@ -1275,7 +1219,7 @@ def _resolve_prompt_references(
             f'<span class="bead-q-chip" style="background:{dark}">'
             f"{ref.label}</span></span>"
         )
-        result = result[: ref.match_start] + html + result[ref.match_end :]
+        result = result[: ref.start_offset] + html + result[ref.end_offset :]
 
     return result
 

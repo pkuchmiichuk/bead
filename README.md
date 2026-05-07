@@ -92,6 +92,7 @@ lists.save("lists/experiment.jsonl")
 - **Constraint satisfaction**: batch and list-level constraints for balanced designs
 - **Model integration**: HuggingFace, OpenAI, Anthropic with caching
 - **Active learning**: uncertainty sampling with convergence detection
+- **Annotation protocols**: type-theoretic stack of `SemanticAnchor` (the question type), `ProtocolContext` (the dependent index), `RealizationStrategy` (template / contextual / LM phrasings), and `DriftGuard` (the type-checker over realized prompts), composed into conditional `AnnotationProtocol`s
 - **jsPsych 8.x**: Material Design UI with JATOS deployment
 
 ## CLI

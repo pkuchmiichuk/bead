@@ -12,6 +12,7 @@ from bead.config.item import ItemConfig
 from bead.config.list import ListConfig
 from bead.config.logging import LoggingConfig
 from bead.config.paths import PathsConfig
+from bead.config.protocol import ProtocolConfig
 from bead.config.resources import ResourceConfig
 from bead.config.template import TemplateConfig
 
@@ -48,6 +49,10 @@ def _default_logging() -> LoggingConfig:
     return LoggingConfig()
 
 
+def _default_protocol() -> ProtocolConfig:
+    return ProtocolConfig()
+
+
 class BeadConfig(dx.Model):
     """Main configuration for the bead package.
 
@@ -71,6 +76,8 @@ class BeadConfig(dx.Model):
         Active learning configuration.
     logging : LoggingConfig
         Logging configuration.
+    protocol : ProtocolConfig
+        Annotation-protocol configuration.
     """
 
     profile: str = "default"
@@ -86,6 +93,7 @@ class BeadConfig(dx.Model):
         default_factory=_default_active_learning
     )
     logging: dx.Embed[LoggingConfig] = dx.field(default_factory=_default_logging)
+    protocol: dx.Embed[ProtocolConfig] = dx.field(default_factory=_default_protocol)
 
     def to_dict(self) -> dict[str, Any]:
         """Render the configuration as a plain ``dict``."""

@@ -157,7 +157,7 @@ wheels = [
 
 [[package]]
 name = "bead"
-version = "0.2.1"
+version = "0.4.0"
 source = { editable = "." }
 dependencies = [
     { name = "accelerate" },
@@ -208,6 +208,8 @@ dev = [
     { name = "pytest-examples" },
     { name = "pytest-mock" },
     { name = "ruff" },
+    { name = "spacy" },
+    { name = "stanza" },
 ]
 stats = [
     { name = "statsmodels" },
@@ -230,7 +232,7 @@ requires-dist = [
     { name = "anthropic", marker = "extra == 'api'", specifier = ">=0.8.0" },
     { name = "click", specifier = ">=8.0.0" },
     { name = "datasets", specifier = ">=2.14.0" },
-    { name = "didactic", specifier = ">=0.4.3" },
+    { name = "didactic", specifier = ">=0.6.2" },
     { name = "evaluate", specifier = ">=0.4.0" },
     { name = "glazing", specifier = ">=0.2.0" },
     { name = "google-generativeai", marker = "extra == 'api'", specifier = ">=0.3.0" },
@@ -261,7 +263,9 @@ requires-dist = [
     { name = "scipy", specifier = ">=1.11.0" },
     { name = "sentence-transformers", specifier = ">=2.0.0" },
     { name = "slopit", marker = "extra == 'behavioral-analysis'", specifier = ">=0.1.0" },
+    { name = "spacy", marker = "extra == 'dev'", specifier = ">=3.7" },
     { name = "spacy", marker = "extra == 'tokenization'", specifier = ">=3.7" },
+    { name = "stanza", marker = "extra == 'dev'", specifier = ">=1.8" },
     { name = "stanza", marker = "extra == 'tokenization'", specifier = ">=1.8" },
     { name = "statsmodels", specifier = ">=0.14.6" },
     { name = "statsmodels", marker = "extra == 'stats'", specifier = ">=0.14.0" },
@@ -507,15 +511,15 @@ wheels = [
 
 [[package]]
 name = "didactic"
-version = "0.4.3"
+version = "0.6.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "annotated-types" },
     { name = "panproto" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/2b/04/aad0b04f350050f847fe9609e422456e73f48fbf7a10429d2090079f01d6/didactic-0.4.3.tar.gz", hash = "sha256:71c0988b5da6dd2965e46d279c1774cd2abf64373ff4c45c32f595f0699eb434", size = 100240, upload-time = "2026-05-05T18:55:41.239Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/82/49/f20c2d920359c35a3196af220bd97e87e81d4fe4a93b1c604d5a14f4ae88/didactic-0.6.2.tar.gz", hash = "sha256:e782eeae17b03b027f6119dafcaeef7224c23468e255a7b0a487f9b437b92cb4", size = 108463, upload-time = "2026-05-06T20:03:47.514Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/17/a5/3ac3da8c62e8181592e6baeb8a09b9add914a6013a19b6c6f9b5929080b1/didactic-0.4.3-py3-none-any.whl", hash = "sha256:729943219fc6675433b3462c4585bcd8fe7f39b454534f14afd2ce52e6a26a41", size = 125863, upload-time = "2026-05-05T18:55:39.832Z" },
+    { url = "https://files.pythonhosted.org/packages/77/95/3f1e20bb65e78fea6d936ac94c79907bf36c28bf5c332b7e60b88546e124/didactic-0.6.2-py3-none-any.whl", hash = "sha256:34ef2e4df0b938ee7fbd4b352903b85dd3a959b34c2ee3e2b987773426dd2dfb", size = 134154, upload-time = "2026-05-06T20:03:45.934Z" },
 ]
 
 [[package]]

@@ -5,6 +5,143 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-05-07
+
+### Added
+
+#### Pipeline-wide integration of the protocol layer
+
+- `bead.labels` is the single canonical home for the
+  `[[label]]` / `[[label:text]]` / `[[label|transform]]` syntax.
+  `parse_label_refs`, `find_label_names`, and `replace_label_refs`
+  replace the three independent regex implementations that previously
+  lived in `bead.protocol.drift`, `bead.deployment.jspsych.trials`,
+  and `bead.items.span_labeling`.
+- `bead.config.protocol.ProtocolConfig` plugs into `BeadConfig.protocol`
+  with declarative TOML/YAML configuration: anchor specs, drift
+  settings, realization strategies (template / contextual / lm), and
+  family composition. `ProtocolConfig.build(lm_client=..., cache=...)`
+  materializes a live `AnnotationProtocol`.
+- `bead.protocol.items` provides the canonical
+  `QuestionRealization → Item` and protocol-wide
+  `family_to_item_template` / `protocol_to_item_templates` /
+  `realize_protocol_to_items` bridges, plus `scale_type_to_task_type`
+  as the single canonical mapping from `ScaleType` to `TaskType`.
+- `bead.active_learning.models.registry` exposes
+  `MODEL_CLASSES` / `CONFIG_CLASSES` and
+  `model_class_for_task_type` / `config_class_for_task_type` /
+  `model_class_for_encoding` / `config_class_for_encoding` as the
+  single canonical task-type → model-class / config-class registry.
+  `bead.cli.models` and `bead.cli.training` consume the registry
+  directly, replacing two parallel string-keyed dicts and a dynamic
+  `_import_class` helper.
+- `bead.deployment.protocol_trials.protocol_to_jspsych_trials` is the
+  canonical end-to-end bridge from an `AnnotationProtocol` and a
+  sequence of `ProtocolContext` records to a flat list of jsPsych
+  trial dicts.
+- `bead.data_collection.jatos_results_to_annotation_records` converts
+  raw JATOS results into `AnnotationRecord` instances, the input
+  shape consumed by `annotator_reliability` and
+  `InterAnnotatorMetrics`.
+- `bead protocol` CLI subcommand: `bead protocol validate`,
+  `bead protocol realize`, `bead protocol items` drive the
+  configured protocol from the shell.
+
+### Changed
+
+- `LMRealization` accepts a `ModelOutputCache` (the bead-wide
+  content-addressable cache) via its required `cache` keyword and a
+  required `model_name` keyword for cache-key isolation. The internal
+  FIFO dict and the `cache` / `max_cache_size` / `clear_cache` /
+  `cache_size` parameters and methods are removed; the
+  `ModelOutputCache` is the single canonical caching surface.
+- `bead.cli.models` no longer maintains `TASK_TYPE_MODELS` /
+  `TASK_TYPE_CONFIGS` string-path dicts or the `_import_class`
+  helper; they are replaced by direct calls into
+  `bead.active_learning.models.registry`. `bead.cli.training` follows
+  the same pattern.
+- `bead.deployment.jspsych.trials._parse_prompt_references`,
+  `_SpanReference`, `_SPAN_REF_PATTERN`, and the duplicated
+  `_SPAN_REF_PATTERN` in `bead.items.span_labeling` are removed in
+  favor of `bead.labels.parse_label_refs` / `LabelRef`.
+
+#### `bead.protocol`: annotation protocol primitives
+
+A new top-level package providing a type-theoretic stack for defining
+annotation protocols: anchors as types, contexts as dependent
+indices, realization strategies as computational content, and drift
+guards as type-checkers.
+
+- `bead.protocol.anchor` defines `SemanticAnchor` (the type-level
+  spec of a question, with required span labels, required keywords,
+  optional embedding center and `max_drift`) and `ResponseSpace` /
+  `SemanticPoles`.
+- `bead.protocol.context` defines a generic `ProtocolContext` and
+  `ContextItem` plus a module-level **predicate registry**
+  (`register_context_predicate`, `get_context_predicate`,
+  `list_context_predicates`) for callers to register named context
+  predicates at import time.
+- `bead.protocol.realization` provides `RealizationStrategy`
+  (`typing.Protocol`), `TemplateRealization`,
+  `ContextualTemplateRealization` (rule-based selection from ranked
+  variants), and `LMRealization` (with caching and FIFO eviction)
+  plus an `LMClient` `Protocol` with explicit
+  `temperature` / `max_tokens` keyword parameters.
+- `bead.protocol.drift` defines `DriftScore`, the `DriftValidator`
+  `Protocol`, and three concrete validators
+  (`StructuralDriftValidator`, `EmbeddingDriftValidator`,
+  `PerplexityDriftValidator`) plus a composite `DriftGuard`. The
+  embedding and perplexity validators consume narrow
+  `EmbeddingAdapter` / `PerplexityAdapter` `Protocol`s, so any object
+  exposing the right method (including bead's
+  `bead.items.adapters.ModelAdapter`) conforms.
+- `bead.protocol.family` defines `QuestionFamily` (with explicit
+  `depends_on` for conditional dependencies) and `AnnotationProtocol`
+  (the iterated dependent product), with `realize_all` threading
+  responses through the context. `AnnotationProtocol` rejects
+  duplicate anchor names, self-dependencies, and forward / unknown
+  `depends_on` references at construction and on `append`.
+- `bead.protocol.encoding` defines `ScaleType`
+  (`StrEnum: binary / ordinal / nominal`) and `ResponseEncoding` (with
+  invariant validators for `n_levels == len(labels)`, label
+  uniqueness, and `BINARY` having exactly 2 levels), plus
+  `encode_response_space` as the bridge from `ResponseSpace`.
+- `bead.protocol.diagnostics` defines `DiagnosticLevel`,
+  `DiagnosticRecord`, `DatasetReport` (immutable, with `with_*`
+  mutators), `ConditionalObservationValidator` (which operates on
+  `AnnotationProtocol.depends_on`), and the `RecordLike` `Protocol`
+  for the structural record shape consumed by the validator.
+- `LMRealization` raises `RuntimeError` on backend failures and on
+  empty / whitespace-only responses (instead of caching an empty
+  string).
+
+#### `bead.evaluation.reliability`: per-annotator reliability
+
+- `AnnotationRecord` is a `BeadBaseModel` with the canonical
+  `(annotator_id, item_id, question_name, response_label)` shape.
+- `annotator_reliability(records, encodings=...)` returns
+  per-annotator response distributions and Shannon entropy in bits,
+  optionally filtering unrecognized labels.
+- `low_entropy_annotators(profiles, threshold=...)` flags annotators
+  who collapse the response space.
+
+### Documentation
+
+- `docs/api/protocol.md` and `docs/api/evaluation.md` updates expose
+  the new modules through `mkdocstrings`.
+- `docs/user-guide/protocols.md` walks through anchors, contexts
+  (including the predicate registry and per-dependent attributes),
+  the three realization strategies, drift validation (with the named
+  `EmbeddingAdapter` and `PerplexityAdapter` Protocols), protocol
+  composition, the structural construction-time invariants, the
+  `encode_response_space` bridge to modeling, conditional-observation
+  diagnostics (including the `RecordLike` Protocol), and reliability.
+- The protocol layer is cross-linked from
+  `docs/user-guide/concepts.md`, `docs/user-guide/index.md`,
+  `docs/index.md`, the project `README.md`, and a new "Protocol layer"
+  paragraph in `docs/developer-guide/architecture.md` that places it
+  as a cross-cutting layer feeding into the existing 6-stage pipeline.
+
 ## [0.3.0] - 2026-05-06
 
 ### Changed

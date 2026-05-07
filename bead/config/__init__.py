@@ -25,6 +25,14 @@ from bead.config.profiles import (
     get_profile,
     list_profiles,
 )
+from bead.config.protocol import (
+    AnchorSpec,
+    DriftConfig,
+    FamilySpec,
+    ProtocolConfig,
+    RealizationKind,
+    TemplateVariantSpec,
+)
 from bead.config.resources import ResourceConfig
 from bead.config.serialization import save_yaml, to_yaml
 from bead.config.template import SlotStrategyConfig, TemplateConfig
@@ -44,6 +52,13 @@ __all__ = [
     "DeploymentConfig",
     "ActiveLearningConfig",
     "LoggingConfig",
+    "ProtocolConfig",
+    # protocol sub-specs
+    "AnchorSpec",
+    "TemplateVariantSpec",
+    "FamilySpec",
+    "DriftConfig",
+    "RealizationKind",
     # defaults
     "DEFAULT_CONFIG",
     "get_default_config",

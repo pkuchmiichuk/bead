@@ -11,78 +11,78 @@ from bead.deployment.jspsych.trials import (
     SpanColorMap,
     _assign_span_colors,
     _build_transform_context,
-    _parse_prompt_references,
     _resolve_prompt_references,
 )
 from bead.items.item import Item
 from bead.items.spans import Span, SpanLabel, SpanSegment
+from bead.labels import parse_label_refs
 from bead.transforms.base import TransformRegistry
 
 
 class TestParsePromptReferencesWithTransforms:
-    """Tests for _parse_prompt_references() transform syntax."""
+    """Tests for parse_label_refs() transform syntax."""
 
     def test_no_transforms(self) -> None:
         """Plain label has empty transforms list."""
-        refs = _parse_prompt_references("[[agent]]")
+        refs = parse_label_refs("[[agent]]")
 
-        assert refs[0].transforms == []
+        assert refs[0].transforms == ()
 
     def test_single_transform(self) -> None:
         """Single transform after pipe is captured."""
-        refs = _parse_prompt_references("[[situation|gerund]]")
+        refs = parse_label_refs("[[situation|gerund]]")
 
         assert refs[0].label == "situation"
         assert refs[0].display_text is None
-        assert refs[0].transforms == ["gerund"]
+        assert refs[0].transforms == ("gerund",)
 
     def test_multiple_transforms(self) -> None:
         """Chained transforms are split on pipe."""
-        refs = _parse_prompt_references("[[situation|gerund|lower]]")
+        refs = parse_label_refs("[[situation|gerund|lower]]")
 
         assert refs[0].label == "situation"
-        assert refs[0].transforms == ["gerund", "lower"]
+        assert refs[0].transforms == ("gerund", "lower")
 
     def test_explicit_text_with_transform(self) -> None:
         """Display text and transforms can coexist."""
-        refs = _parse_prompt_references("[[event:the running|upper]]")
+        refs = parse_label_refs("[[event:the running|upper]]")
 
         assert refs[0].label == "event"
         assert refs[0].display_text == "the running"
-        assert refs[0].transforms == ["upper"]
+        assert refs[0].transforms == ("upper",)
 
     def test_backward_compatible_colon_syntax(self) -> None:
         """Existing [[label:text]] syntax still works."""
-        refs = _parse_prompt_references("[[event:the breaking]]")
+        refs = parse_label_refs("[[event:the breaking]]")
 
         assert refs[0].label == "event"
         assert refs[0].display_text == "the breaking"
-        assert refs[0].transforms == []
+        assert refs[0].transforms == ()
 
     def test_backward_compatible_plain_label(self) -> None:
         """Existing [[label]] syntax still works."""
-        refs = _parse_prompt_references("[[agent]]")
+        refs = parse_label_refs("[[agent]]")
 
         assert refs[0].label == "agent"
         assert refs[0].display_text is None
-        assert refs[0].transforms == []
+        assert refs[0].transforms == ()
 
     def test_mixed_references(self) -> None:
         """Various syntax forms in one prompt are parsed correctly."""
         prompt = "Did [[agent]] do [[event|gerund]] to [[patient:the vase|upper]]?"
-        refs = _parse_prompt_references(prompt)
+        refs = parse_label_refs(prompt)
 
         assert len(refs) == 3
 
         assert refs[0].label == "agent"
-        assert refs[0].transforms == []
+        assert refs[0].transforms == ()
 
         assert refs[1].label == "event"
-        assert refs[1].transforms == ["gerund"]
+        assert refs[1].transforms == ("gerund",)
 
         assert refs[2].label == "patient"
         assert refs[2].display_text == "the vase"
-        assert refs[2].transforms == ["upper"]
+        assert refs[2].transforms == ("upper",)
 
 
 class TestResolvePromptReferencesWithTransforms:

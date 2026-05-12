@@ -81,17 +81,43 @@ from bead.config import load_from_env
 config = load_from_env(config)
 ```
 
-Merge multiple configurations:
+Compose multiple configurations and apply CLI-style overrides:
 
 ```python
-from bead.config import merge_configs
+from bead.config import load_config
 
-base = load_config("base.yaml")
-overrides = load_config("overrides.yaml")
-
-# Later configs override earlier ones
-merged = merge_configs([base, overrides])
+# extra files overlay after the primary YAML
+# overrides are dotted-key=value strings (YAML-parsed for typing)
+config = load_config(
+    "config.yaml",
+    extra=["overlays/local.yaml"],
+    overrides=["paths.data_dir=/tmp/data", "logging.level=DEBUG"],
+)
 ```
+
+Configs may also reference each other through a top-level
+`defaults:` list (paths resolve next to the primary YAML; bare
+names resolve to `.yaml` or `.toml`):
+
+```yaml
+defaults:
+  - protocol/argument_structure   # protocol/argument_structure.yaml
+  - logging/verbose
+paths:
+  data_dir: "${oc.env:BEAD_DATA,/tmp/data}"
+  out_dir: "${paths.data_dir}/out"
+```
+
+Interpolation follows the OmegaConf grammar:
+`${section.field}` absolute references, `${.x}` / `${..y}`
+relative references, `${a.b[0]}` and `${a.b.0}` list indexing,
+`${a.${b}}` nested expressions, `\${literal}` escape, and the
+built-in resolvers (`oc.env`, `oc.select`, `oc.decode`,
+`oc.deprecated`, `oc.create`, `oc.dict.keys`, `oc.dict.values`).
+Register custom resolvers with
+`bead.config.compose.register_resolver(name, fn)`.
+
+TOML configs (`.toml`) load the same way as YAML.
 
 ## Configuration Profiles
 

@@ -9,6 +9,7 @@ import pytest
 from bead.active_learning.config import MixedEffectsConfig
 from bead.active_learning.models.ordinal_scale import OrdinalScaleModel
 from bead.config.active_learning import OrdinalScaleModelConfig
+from bead.data.range import Range
 from bead.items.item import Item
 
 # mark all tests in this module as slow model training tests
@@ -31,9 +32,8 @@ class TestFixedEffectsMode:
         )
         model = OrdinalScaleModel(config)
 
-        # Fixed effects: use placeholder participant_ids
-        participant_ids = ["default"] * len(sample_items)
-        metrics = model.train(sample_items, sample_labels, participant_ids)
+        # Fixed effects: participant_ids are not used.
+        metrics = model.train(sample_items, sample_labels)
 
         assert "train_mse" in metrics
         assert "train_loss" in metrics
@@ -53,11 +53,8 @@ class TestFixedEffectsMode:
         )
         model = OrdinalScaleModel(config)
 
-        participant_ids = ["default"] * len(sample_items)
-        model.train(sample_items, sample_labels, participant_ids)
-
-        # Predict with same participant_ids
-        predictions = model.predict(sample_items[:5], participant_ids[:5])
+        model.train(sample_items, sample_labels)
+        predictions = model.predict(sample_items[:5])
 
         assert len(predictions) == 5
         for pred in predictions:
@@ -110,10 +107,9 @@ class TestFixedEffectsMode:
 
         # Label outside bounds
         labels = ["0.5"] * 19 + ["1.5"]  # 1.5 > scale_max=1.0
-        participant_ids = ["default"] * len(sample_items)
 
         with pytest.raises(ValueError, match="outside bounds"):
-            model.train(sample_items, labels, participant_ids)
+            model.train(sample_items, labels)
 
 
 class TestRandomInterceptsMode:
@@ -341,11 +337,10 @@ class TestPredictProba:
         )
         model = OrdinalScaleModel(config)
 
-        participant_ids = ["default"] * len(sample_items)
-        model.train(sample_items, sample_labels, participant_ids)
+        model.train(sample_items, sample_labels)
 
         # predict_proba should return μ values
-        proba = model.predict_proba(sample_items[:5], participant_ids[:5])
+        proba = model.predict_proba(sample_items[:5])
         assert proba.shape == (5, 1)
         assert all(0.0 <= val[0] <= 1.0 for val in proba)
 
@@ -447,8 +442,7 @@ class TestEndpointHandling:
         )
         model = OrdinalScaleModel(config)
 
-        participant_ids = ["default"] * len(sample_items)
-        metrics = model.train(sample_items, sample_endpoint_labels, participant_ids)
+        metrics = model.train(sample_items, sample_endpoint_labels)
 
         # Should train successfully with endpoints
         assert "train_mse" in metrics
@@ -463,16 +457,13 @@ class TestEndpointHandling:
             num_epochs=1,
             batch_size=4,
             device="cpu",
-            scale_min=0.0,
-            scale_max=1.0,
+            scale=Range[float](min=0.0, max=1.0),
             mixed_effects=MixedEffectsConfig(mode="fixed"),
         )
         model = OrdinalScaleModel(config)
 
-        participant_ids = ["default"] * len(sample_items)
-        model.train(sample_items, sample_labels, participant_ids)
-
-        predictions = model.predict(sample_items, participant_ids)
+        model.train(sample_items, sample_labels)
+        predictions = model.predict(sample_items)
 
         # All predictions should be in bounds
         for pred in predictions:

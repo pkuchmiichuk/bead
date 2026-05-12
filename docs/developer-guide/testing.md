@@ -299,7 +299,7 @@ uv run pytest tests/ --cov=bead --cov-report=term-missing
 Output shows coverage per file with uncovered line numbers:
 
 ```
----------- coverage: platform darwin, python 3.13.0 -----------
+---------- coverage: platform darwin, python 3.14.0 -----------
 Name                                   Stmts   Miss  Cover   Missing
 --------------------------------------------------------------------
 bead/__init__.py                           3      0   100%
@@ -761,7 +761,7 @@ Tests run automatically in CI on every push and pull request.
 
 The CI workflow (if configured) runs:
 
-1. Install Python 3.13
+1. Install Python 3.14
 2. Install dependencies: `uv sync --all-extras`
 3. Run linters: `uv run ruff check bead/`
 4. Run type checker: `uv run pyright bead/`

@@ -153,14 +153,9 @@ model = ForcedChoiceModel(config=config)
 
 # Prepare training data
 labels = [0, 1, 0, 1, 0]  # Human judgments (0 or 1 for 2AFC)
-participant_ids = ["p1", "p1", "p2", "p2", "p1"]  # Participant IDs
 
-# Train model
-model.train(
-    items=training_items,
-    labels=labels,
-    participant_ids=participant_ids,
-)
+# Train model (fixed-effects mode does not use participant_ids)
+model.train(items=training_items, labels=labels)
 
 # After training, predict on new items
 print(f"Model trained on {len(training_items)} items")

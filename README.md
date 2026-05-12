@@ -1,9 +1,9 @@
 # bead
 
 [![CI](https://github.com/FACTSlab/bead/actions/workflows/ci.yml/badge.svg)](https://github.com/FACTSlab/bead/actions/workflows/ci.yml)
-[![Python 3.13](https://img.shields.io/badge/python-3.13-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.14](https://img.shields.io/badge/python-3.14-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Documentation](https://img.shields.io/badge/docs-readthedocs-blue.svg)](https://bead.readthedocs.io)
+[![Documentation](https://img.shields.io/badge/docs-readthedocs-blue.svg)](https://factslab.io/bead/)
 
 A Python framework for constructing, deploying, and analyzing large-scale linguistic judgment experiments with active learning.
 
@@ -41,37 +41,69 @@ Always use `uv run` to execute commands.
 ## Quick Start
 
 ```python
-from bead.resources import LexicalItem, Template, Lexicon
-from bead.templates import TemplateFiller
-from bead.items import ItemConstructor
-from bead.lists import ListPartitioner
+from bead.items.forced_choice import create_forced_choice_item
+from bead.lists.partitioner import ListPartitioner
+from bead.protocol import (
+    AnnotationProtocol,
+    QuestionFamily,
+    ResponseSpace,
+    ScaleType,
+    SemanticAnchor,
+)
+from bead.protocol.items import family_to_item_template
 
-# 1. Define resources
-verbs = Lexicon(items=[
-    LexicalItem(lemma="walk", pos="VERB", features={"transitive": False}),
-    LexicalItem(lemma="eat", pos="VERB", features={"transitive": True}),
-])
+# 1. Declare the question being asked
+anchor = SemanticAnchor(
+    name="acceptability",
+    target_property="acceptability",
+    canonical_prompt="Which sentence sounds more natural?",
+    response_space=ResponseSpace(
+        options=("first", "second"),
+        is_ordered=False,
+        scale_type=ScaleType.FORCED_CHOICE,
+    ),
+    required_keywords=frozenset({"natural"}),
+)
+protocol = AnnotationProtocol(families=[QuestionFamily(anchor=anchor)])
 
-template = Template(
-    text="The person {verb} the thing",
-    slots=["verb"],
-    language_code="en"
+# 2. Build the deployable item template from the protocol
+template = family_to_item_template(
+    protocol.family_by_name("acceptability"),
+    judgment_type="acceptability",
 )
 
-# 2. Fill templates
-filler = TemplateFiller(strategy="exhaustive")
-filled = filler.fill(templates=[template], lexicons={"verbs": verbs})
+# 3. Build forced-choice items (one per minimal pair)
+items = [
+    create_forced_choice_item(
+        "The cat sat on the mat.",
+        "The cats sat on the mat.",
+        item_template_id=template.id,
+        metadata={"anchor": "acceptability", "contrast": "number"},
+    ),
+    # ... more pairs
+]
 
-# 3. Construct items
-constructor = ItemConstructor(models=["gpt2"])
-items = constructor.construct_forced_choice_items(filled, n_alternatives=2)
+# 4. Partition into experiment lists
+partitioner = ListPartitioner(random_seed=42)
+lists = partitioner.partition(
+    [item.id for item in items],
+    n_lists=4,
+    metadata={item.id: dict(item.item_metadata) for item in items},
+)
+```
 
-# 4. Partition into lists
-partitioner = ListPartitioner()
-lists = partitioner.partition(items.get_uuids(), n_lists=4)
+Or, drive the same pipeline from a single declarative config:
 
-# 5. Deploy
-lists.save("lists/experiment.jsonl")
+```python
+from bead.config import load_config
+
+# Composes profile defaults → defaults: [...] entries → primary YAML
+# → extras → CLI-style overrides → resolves ${...} interpolation
+config = load_config(
+    "config.yaml",
+    overrides=["paths.data_dir=/tmp/data"],
+)
+protocol = config.protocol.build()
 ```
 
 ## Pipeline Stages
@@ -93,27 +125,36 @@ lists.save("lists/experiment.jsonl")
 - **Model integration**: HuggingFace, OpenAI, Anthropic with caching
 - **Active learning**: uncertainty sampling with convergence detection
 - **Annotation protocols**: type-theoretic stack of `SemanticAnchor` (the question type), `ProtocolContext` (the dependent index), `RealizationStrategy` (template / contextual / LM phrasings), and `DriftGuard` (the type-checker over realized prompts), composed into conditional `AnnotationProtocol`s
+- **Config composer** (`bead.config.compose`): the full OmegaConf interpolation grammar — `${section.field}`, `${.x}` / `${..y}` relative references, `${a.b[0]}` / `${a.b.0}` list indexing, `${a.${b}}` nesting, `\${literal}` escape, built-in resolvers (`oc.env`, `oc.select`, `oc.decode`, `oc.deprecated`, `oc.create`, `oc.dict.keys`, `oc.dict.values`); `defaults: [...]` composition; strict-merge against didactic schemas; YAML and TOML
 - **jsPsych 8.x**: Material Design UI with JATOS deployment
 
 ## CLI
 
 ```bash
-bead init my-experiment     # Create project structure
-bead templates fill         # Fill templates
-bead items construct        # Construct items
-bead lists partition        # Create experiment lists
-bead deploy                 # Generate jsPsych experiment
-bead training run           # Train with active learning
+bead init my-experiment            # Create project structure
+bead templates fill                # Fill templates
+bead items construct               # Construct items
+bead lists partition               # Create experiment lists
+bead deploy                        # Generate jsPsych experiment
+bead training run                  # Train with active learning
+bead protocol validate             # Validate the protocol section of a config
+bead protocol realize              # Materialize realizations for contexts
+bead protocol items                # Bridge a protocol to item templates
 ```
+
+Every command accepts repeatable `--set KEY=VALUE` overrides applied
+through the config composer, so any field of `BeadConfig` (including
+nested `paths.data_dir`, `protocol.drift.min_length`, etc.) can be
+overridden from the shell without editing the YAML.
 
 ## Documentation
 
-Full documentation: [bead.readthedocs.io](https://bead.readthedocs.io)
+Full documentation: [bead.readthedocs.io](https://factslab.io/bead/)
 
-- [Installation Guide](https://bead.readthedocs.io/installation/)
-- [User Guide](https://bead.readthedocs.io/user-guide/)
-- [API Reference](https://bead.readthedocs.io/api/)
-- [Gallery Examples](https://bead.readthedocs.io/examples/)
+- [Installation Guide](https://factslab.io/bead/installation/)
+- [User Guide](https://factslab.io/bead/user-guide/)
+- [API Reference](https://factslab.io/bead/api/)
+- [Gallery Examples](https://factslab.io/bead/examples/)
 
 ## Contributing
 

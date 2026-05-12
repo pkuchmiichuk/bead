@@ -19,6 +19,7 @@ class TestScaleType:
         assert ScaleType.BINARY.value == "binary"
         assert ScaleType.ORDINAL.value == "ordinal"
         assert ScaleType.NOMINAL.value == "nominal"
+        assert ScaleType.FORCED_CHOICE.value == "forced_choice"
 
 
 class TestResponseEncoding:
@@ -56,6 +57,39 @@ class TestResponseEncoding:
             enc.index_to_label(-1)
         with pytest.raises(IndexError):
             enc.index_to_label(5)
+
+    def test_forced_choice_encoding(self) -> None:
+        enc = ResponseEncoding(
+            name="acceptability",
+            n_levels=2,
+            scale_type=ScaleType.FORCED_CHOICE,
+            labels=("first", "second"),
+        )
+        assert enc.is_forced_choice
+        assert not enc.is_binary
+
+    def test_forced_choice_requires_two_or_more_levels(self) -> None:
+        with pytest.raises(Exception, match="at least 2 levels"):
+            ResponseEncoding(
+                name="x",
+                n_levels=1,
+                scale_type=ScaleType.FORCED_CHOICE,
+                labels=("only",),
+            )
+
+    def test_encode_response_space_with_explicit_forced_choice(self) -> None:
+        rs = ResponseSpace(
+            options=("first", "second"),
+            is_ordered=False,
+            scale_type=ScaleType.FORCED_CHOICE,
+        )
+        enc = encode_response_space("acceptability", rs)
+        assert enc.is_forced_choice
+
+    def test_encode_response_space_scale_type_arg_overrides(self) -> None:
+        rs = ResponseSpace(options=("a", "b"), is_ordered=False)
+        enc = encode_response_space("x", rs, scale_type=ScaleType.FORCED_CHOICE)
+        assert enc.is_forced_choice
 
     def test_scale_predicates(self) -> None:
         enc = self._build()

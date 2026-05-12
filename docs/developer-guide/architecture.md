@@ -349,7 +349,7 @@ experiment_list.metadata = {
 
 ### 3. Type Safety
 
-bead uses full Python 3.13 type hints with Pydantic v2 validation. No `Any` or `object` types appear in core code (only in adapters for external APIs with dynamic types).
+bead uses full Python 3.14 type hints with Pydantic v2 validation. No `Any` or `object` types appear in core code (only in adapters for external APIs with dynamic types).
 
 **Type annotations**:
 ```python
@@ -382,7 +382,7 @@ class ExperimentList(BeadBaseModel):
 ```toml
 [tool.pyright]
 typeCheckingMode = "strict"
-pythonVersion = "3.13"
+pythonVersion = "3.14"
 exclude = [
     "tests/**",  # Tests don't require full type checking
     "bead/items/adapters/**",  # External APIs have dynamic types
@@ -936,7 +936,7 @@ bead's architecture prioritizes:
 
 1. **Provenance**: UUID-based stand-off annotation creates unbroken provenance chains
 2. **Modularity**: 17 modules organized by function, 6 pipeline stages
-3. **Type Safety**: Full Python 3.13 type hints with Pydantic v2 validation
+3. **Type Safety**: Full Python 3.14 type hints with Pydantic v2 validation
 4. **Flexibility**: Configuration-first design, 9 task types, 12 constraint types
 5. **Research Validity**: GLMM support, batch deployment, convergence detection
 

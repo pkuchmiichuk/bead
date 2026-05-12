@@ -20,6 +20,7 @@ Subcommands:
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from pathlib import Path
 
 import click
@@ -38,9 +39,17 @@ from bead.protocol import (
 )
 
 
-def _load_protocol(config_path: Path | None, profile: str) -> AnnotationProtocol:
+def _load_protocol(
+    config_path: Path | None,
+    profile: str,
+    overrides: Sequence[str] = (),
+) -> AnnotationProtocol:
     """Load a :class:`BeadConfig` and materialize its protocol."""
-    config = load_config(config_path=config_path, profile=profile)
+    config = load_config(
+        config_path=config_path,
+        profile=profile,
+        overrides=overrides,
+    )
     cache = ModelOutputCache(
         cache_dir=config.paths.cache_dir / "models",
         backend="filesystem",
@@ -77,7 +86,12 @@ def protocol() -> None:
     help="Path to a project config file (defaults to bead.toml).",
 )
 @click.option("--profile", default="default", help="Configuration profile.")
-def validate(config_file: Path | None, profile: str) -> None:
+@click.pass_context
+def validate(
+    ctx: click.Context,
+    config_file: Path | None,
+    profile: str,
+) -> None:
     """Validate the protocol configuration and report its families.
 
     Loads the configured :class:`AnnotationProtocol`, prints a one-line
@@ -85,8 +99,9 @@ def validate(config_file: Path | None, profile: str) -> None:
     declared dependencies), and exits non-zero on any construction
     error.
     """
+    set_overrides: tuple[str, ...] = ctx.obj.get("set_overrides", ()) if ctx.obj else ()
     try:
-        proto = _load_protocol(config_file, profile)
+        proto = _load_protocol(config_file, profile, set_overrides)
     except Exception as exc:  # noqa: BLE001
         print_error(f"Protocol failed to materialize: {exc}")
         raise SystemExit(1) from exc
@@ -125,7 +140,9 @@ def validate(config_file: Path | None, profile: str) -> None:
     default="acceptability",
     help=("Judgment type for emitted ItemTemplates (used when --emit-items is set)."),
 )
+@click.pass_context
 def realize(
+    ctx: click.Context,
     contexts_file: Path,
     output_file: Path,
     config_file: Path | None,
@@ -139,7 +156,8 @@ def realize(
     (one per line). OUTPUT_FILE will be written as JSONL with one
     record per realized question (skipping non-applicable families).
     """
-    proto = _load_protocol(config_file, profile)
+    set_overrides: tuple[str, ...] = ctx.obj.get("set_overrides", ()) if ctx.obj else ()
+    proto = _load_protocol(config_file, profile, set_overrides)
     if len(proto) == 0:
         print_error(
             "Configured protocol is empty; nothing to realize. Add "
@@ -187,7 +205,9 @@ def realize(
     default="acceptability",
     help="Judgment type assigned to every ItemTemplate.",
 )
+@click.pass_context
 def items(
+    ctx: click.Context,
     output_file: Path,
     config_file: Path | None,
     profile: str,
@@ -199,7 +219,8 @@ def items(
     family in the configured protocol and writes them to OUTPUT_FILE
     as JSONL. The resulting file feeds Stage 3 (item construction).
     """
-    proto = _load_protocol(config_file, profile)
+    set_overrides: tuple[str, ...] = ctx.obj.get("set_overrides", ()) if ctx.obj else ()
+    proto = _load_protocol(config_file, profile, set_overrides)
     if len(proto) == 0:
         print_error("Configured protocol is empty; no templates to emit.")
         raise SystemExit(1)

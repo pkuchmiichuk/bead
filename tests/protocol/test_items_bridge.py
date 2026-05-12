@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 
+from bead.active_learning.models import ForcedChoiceModel, model_class_for_encoding
 from bead.items.item_template import ItemTemplate, PresentationSpec
 from bead.protocol import (
     AnnotationProtocol,
@@ -13,6 +14,7 @@ from bead.protocol import (
     ResponseSpace,
     ScaleType,
     SemanticAnchor,
+    encode_response_space,
     family_to_item_template,
     protocol_to_item_templates,
     realization_to_item,
@@ -32,6 +34,42 @@ class TestScaleTypeToTaskType:
 
     def test_nominal_maps(self) -> None:
         assert scale_type_to_task_type(ScaleType.NOMINAL) == "categorical"
+
+    def test_forced_choice_maps(self) -> None:
+        assert scale_type_to_task_type(ScaleType.FORCED_CHOICE) == "forced_choice"
+
+
+def _build_forced_choice_anchor() -> SemanticAnchor:
+    return SemanticAnchor(
+        name="acceptability",
+        target_property="acceptability",
+        canonical_prompt="Which sentence sounds more natural?",
+        response_space=ResponseSpace(
+            options=("first", "second"),
+            is_ordered=False,
+            scale_type=ScaleType.FORCED_CHOICE,
+        ),
+        required_keywords=frozenset({"natural"}),
+    )
+
+
+class TestForcedChoiceFamilyTemplate:
+    """family_to_item_template handles forced_choice anchors."""
+
+    def test_forced_choice_template(self) -> None:
+        family = QuestionFamily(anchor=_build_forced_choice_anchor())
+        template = family_to_item_template(family, judgment_type="acceptability")
+        assert template.task_type == "forced_choice"
+        # forced-choice templates carry no per-template options;
+        # the per-item alternatives live on each Item.
+        assert template.task_spec.options is None
+        assert template.task_spec.scale_bounds is None
+        assert template.task_spec.scale_labels == ()
+
+    def test_model_class_for_forced_choice_encoding(self) -> None:
+        anchor = _build_forced_choice_anchor()
+        encoding = encode_response_space(anchor.name, anchor.response_space)
+        assert model_class_for_encoding(encoding) is ForcedChoiceModel
 
 
 def _build_binary_anchor() -> SemanticAnchor:

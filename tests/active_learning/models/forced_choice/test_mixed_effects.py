@@ -56,8 +56,7 @@ class TestFixedEffectsMode:
         model = ForcedChoiceModel(config)
 
         # Fixed effects: use placeholder participant_ids
-        participant_ids = ["default"] * len(sample_items)
-        metrics = model.train(sample_items, sample_labels, participant_ids)
+        metrics = model.train(sample_items, sample_labels)
 
         assert "train_accuracy" in metrics
         assert "train_loss" in metrics
@@ -76,30 +75,25 @@ class TestFixedEffectsMode:
             mixed_effects=MixedEffectsConfig(mode="fixed"),
         )
         model = ForcedChoiceModel(config)
-
-        participant_ids = ["default"] * len(sample_items)
-        model.train(sample_items, sample_labels, participant_ids)
+        model.train(sample_items, sample_labels)
 
         # Predict with same participant_ids
-        predictions = model.predict(sample_items[:5], participant_ids[:5])
+        predictions = model.predict(sample_items[:5])
 
         assert len(predictions) == 5
         for pred in predictions:
             assert pred.predicted_class in ["option_a", "option_b"]
             assert 0.0 <= pred.confidence <= 1.0
 
-    def test_train_requires_participant_ids(
+    def test_train_accepts_default_fixed_mode(
         self, sample_items: list[Item], sample_labels: list[str]
     ) -> None:
-        """Test that train requires participant_ids parameter."""
+        """Default mixed_effects.mode is 'fixed'; train runs without participant_ids."""
         config = ForcedChoiceModelConfig(
             model_name="bert-base-uncased", num_epochs=1, device="cpu"
         )
         model = ForcedChoiceModel(config)
-
-        # Should work with participant_ids
-        participant_ids = ["default"] * len(sample_items)
-        model.train(sample_items, sample_labels, participant_ids)
+        model.train(sample_items, sample_labels)
 
     def test_train_validates_participant_ids_length(
         self, sample_items: list[Item], sample_labels: list[str]
@@ -338,11 +332,9 @@ class TestPredictProba:
             mixed_effects=MixedEffectsConfig(mode="fixed"),
         )
         model = ForcedChoiceModel(config)
+        model.train(sample_items, sample_labels)
 
-        participant_ids = ["default"] * len(sample_items)
-        model.train(sample_items, sample_labels, participant_ids)
-
-        proba = model.predict_proba(sample_items[:5], participant_ids[:5])
+        proba = model.predict_proba(sample_items[:5])
 
         assert proba.shape == (5, 2)
         # Each row should sum to 1
@@ -378,11 +370,14 @@ class TestPredictProba:
     ) -> None:
         """Test that predict_proba validates participant_ids length."""
         config = ForcedChoiceModelConfig(
-            model_name="bert-base-uncased", num_epochs=1, device="cpu"
+            model_name="bert-base-uncased",
+            num_epochs=1,
+            device="cpu",
+            mixed_effects=MixedEffectsConfig(mode="random_intercepts"),
         )
         model = ForcedChoiceModel(config)
 
-        participant_ids = ["default"] * len(sample_items)
+        participant_ids = ["alice", "bob"] * (len(sample_items) // 2)
         model.train(sample_items, sample_labels, participant_ids)
 
         # Wrong length for predict_proba

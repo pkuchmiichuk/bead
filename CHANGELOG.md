@@ -5,6 +5,70 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-05-12
+
+### Added
+
+#### `bead.config.compose` — didactic-grounded config composer
+
+- New subpackage `bead.config.compose` replaces the hand-rolled config
+  loader. Generic over any `dx.Model` schema; supports the full
+  OmegaConf interpolation grammar (`${section.field}`, `${.x}` /
+  `${..x}` relative, `${a.b[0]}` and `${a.b.0}` list indexing,
+  `${a.${b}}` nested, `\${literal}` escape, cycle detection).
+- Built-in resolvers: `oc.env`, `oc.env:VAR,default`, `oc.select`,
+  `oc.decode` (base64), `oc.deprecated`, `oc.create`,
+  `oc.dict.keys`, `oc.dict.values`. Application-specific resolvers
+  register via `bead.config.compose.register_resolver`.
+- Bead-specific resolvers in `bead.config.resolvers`:
+  `${bead.path:rel}` joins against the active root's
+  `paths.data_dir`; `${bead.anchor:name[,attr]}` post-validation
+  expansion.
+- `defaults: [...]` composition at the top of any YAML/TOML config
+  composes referenced files left-to-right before the primary body.
+- Strict-merge rejects unknown keys with the dotted path to the
+  offending site, walking nested `dx.Embed[T]` models from
+  `__field_specs__`.
+- TOML configs (`.toml`) supported alongside YAML out of the box.
+- `bead.config.load_config` is now a thin wrapper around
+  `compose(schema=BeadConfig, ...)`. The previous
+  `load_yaml_file` / `merge_configs` helpers are removed.
+- CLI: every `bead ...` invocation accepts repeatable
+  `--set KEY=VALUE` overrides threaded into the compose pipeline.
+
+#### `ScaleType.FORCED_CHOICE`
+
+- New `ScaleType.FORCED_CHOICE` variant covers N-alternative
+  forced-choice tasks where per-item options vary across items
+  (response space is a fixed positional label set, e.g.
+  `("first", "second")`, but each `Item` carries its own
+  alternatives). `family_to_item_template` and the
+  active-learning model registry route forced-choice anchors to
+  `ForcedChoiceModel`.
+- `AnchorSpec.scale_type` is an optional explicit override so config
+  files declare the task type alongside the response space.
+
+#### Gallery: `gallery/eng/argument_structure/` v0.4.0 wiring
+
+- New `protocol.py` module exposes `build_protocol()` /
+  `acceptability_family()` / `acceptability_anchor()`. The 2AFC
+  acceptability question is declared once in `config.yaml` under
+  `protocol:` and consumed by every script.
+- `generate_deployment.py` and `simulate_pipeline.py` build their
+  `ItemTemplate` via `family_to_item_template` instead of literal
+  prompt strings.
+- `create_2afc_pairs.py` threads the protocol anchor name
+  (`"acceptability"`) into every pair's `item_metadata` so the
+  JATOS-result → `AnnotationRecord` bridge can match responses
+  back to the canonical anchor.
+- `make validate-protocol` builds the live `AnnotationProtocol`
+  from `config.yaml` and prints the family, prompt, and scale
+  type. Wired in as a prerequisite to `make data`.
+- `tests/test_protocol.py` covers the config-to-protocol round
+  trip, the forced-choice scale type, the `family_to_item_template`
+  prompt agreement, and the active-learning model selection for
+  the resulting encoding.
+
 ## [0.4.0] - 2026-05-07
 
 ### Added

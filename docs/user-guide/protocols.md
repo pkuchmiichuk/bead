@@ -405,6 +405,34 @@ for realization, item in pairs:
 in the active-learning registry. There is no other mapping: every
 protocol family produces exactly one `ItemTemplate`.
 
+### Forced-choice anchors
+
+`ScaleType.FORCED_CHOICE` covers N-alternative forced-choice
+questions where the *response space* is a fixed positional label
+set (e.g. `("first", "second")`) but the per-item alternatives
+vary across items. Declare the scale type explicitly on the
+anchor — it cannot be inferred from the response space alone:
+
+```python
+anchor = SemanticAnchor(
+    name="acceptability",
+    canonical_prompt="Which sentence sounds more natural?",
+    response_space=ResponseSpace(
+        options=("first", "second"),
+        is_ordered=False,
+        scale_type=ScaleType.FORCED_CHOICE,
+    ),
+    ...,
+)
+```
+
+`family_to_item_template` maps `FORCED_CHOICE` to
+`task_type="forced_choice"` with `task_spec.options=None`
+(per-item alternatives live on each `Item`); the active-learning
+registry routes the resulting encoding to `ForcedChoiceModel`.
+
+In YAML, set `scale_type: "forced_choice"` on the `AnchorSpec`.
+
 ## Bridging to deployment
 
 `bead.deployment.protocol_trials.protocol_to_jspsych_trials` is the

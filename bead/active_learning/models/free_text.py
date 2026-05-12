@@ -9,7 +9,6 @@ Architecture: T5-base or BART-base encoder-decoder model
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 import numpy as np
@@ -666,18 +665,18 @@ class FreeTextModel(ActiveLearningModel):
         self.model.save_pretrained(save_path / "model")
         self.tokenizer.save_pretrained(save_path / "model")
 
-    def _load_model_components(self, load_path: Path) -> None:
+    def _load_model_components(
+        self, load_path: Path, config_dict: dict[str, object]
+    ) -> None:
         """Load model-specific components (model, tokenizer).
 
         Parameters
         ----------
         load_path : Path
             Directory path to load the model from.
+        config_dict : dict[str, object]
+            Schema-only config dict.
         """
-        # Load config.json to reconstruct config
-        with open(load_path / "config.json") as f:
-            config_dict = json.load(f)
-
         # Reconstruct MixedEffectsConfig if needed
         if "mixed_effects" in config_dict and isinstance(
             config_dict["mixed_effects"], dict

@@ -7,13 +7,20 @@ development, testing, and production environments.
 from __future__ import annotations
 
 from bead.config.active_learning import ActiveLearningConfig
+from bead.config.compose import (
+    ComposeValue,
+    ConfigError,
+    InterpolationError,
+    compose,
+    register_resolver,
+)
 from bead.config.config import BeadConfig
 from bead.config.defaults import DEFAULT_CONFIG, get_default_config
 from bead.config.deployment import DeploymentConfig
 from bead.config.env import load_from_env
 from bead.config.item import ItemConfig
 from bead.config.list import ListConfig
-from bead.config.loader import load_config, load_yaml_file, merge_configs
+from bead.config.loader import load_config
 from bead.config.logging import LoggingConfig
 from bead.config.model import ModelConfig
 from bead.config.paths import PathsConfig
@@ -69,10 +76,13 @@ __all__ = [
     "PROFILES",
     "get_profile",
     "list_profiles",
-    # loading
+    # loading + composition
+    "ComposeValue",
+    "ConfigError",
+    "InterpolationError",
+    "compose",
     "load_config",
-    "load_yaml_file",
-    "merge_configs",
+    "register_resolver",
     # environment
     "load_from_env",
     # validation

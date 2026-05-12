@@ -27,7 +27,12 @@ from typing import TYPE_CHECKING, Literal
 import didactic.api as dx
 
 from bead.data.base import BeadBaseModel
-from bead.protocol.anchor import ResponseSpace, SemanticAnchor, SemanticPoles
+from bead.protocol.anchor import (
+    ResponseSpace,
+    ScaleType,
+    SemanticAnchor,
+    SemanticPoles,
+)
 from bead.protocol.context import get_context_predicate
 from bead.protocol.drift import (
     DriftGuard,
@@ -120,6 +125,13 @@ class AnchorSpec(BeadBaseModel):
         Low-pole label, when ordered. Defaults to ``None``.
     semantic_pole_high : str | None
         High-pole label, when ordered. Defaults to ``None``.
+    scale_type : ScaleType | None
+        Explicit scale-type override. Set to
+        :attr:`ScaleType.FORCED_CHOICE` for N-alternative
+        forced-choice questions whose options are positional labels
+        (``("first", "second")``) and whose per-item alternatives
+        vary across items. Defaults to ``None`` (inferred from
+        ``options`` and ``is_ordered``).
     required_span_labels : frozenset[str]
         Span labels every realization must reference. Defaults to
         the empty set.
@@ -142,6 +154,7 @@ class AnchorSpec(BeadBaseModel):
     is_ordered: bool = True
     semantic_pole_low: str | None = None
     semantic_pole_high: str | None = None
+    scale_type: ScaleType | None = None
     required_span_labels: frozenset[str] = dx.field(default_factory=frozenset)
     required_keywords: frozenset[str] = dx.field(default_factory=frozenset)
     embedding_center: tuple[float, ...] | None = None
@@ -178,6 +191,7 @@ class AnchorSpec(BeadBaseModel):
             options=self.options,
             is_ordered=self.is_ordered,
             semantic_poles=poles,
+            scale_type=self.scale_type,
         )
         return SemanticAnchor(
             name=self.name,

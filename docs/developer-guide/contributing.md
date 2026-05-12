@@ -335,7 +335,7 @@ uv run ruff format bead/
 
 **Configuration** (from pyproject.toml):
 - Line length: 88 characters
-- Target: Python 3.13
+- Target: Python 3.14
 - Conventions: PEP 8, NumPy docstrings
 - Rules: E (errors), F (PyFlakes), I (imports), N (naming), D (docstrings), UP (upgrades), ANN (annotations), B (bugbear), A (builtins), C4 (comprehensions), PLC (Pylint)
 
@@ -367,7 +367,7 @@ def partition_items(
 
 **Configuration** (from pyproject.toml):
 - Mode: strict
-- Python version: 3.13
+- Python version: 3.14
 - Excluded: tests/, adapters/ (external APIs have dynamic types)
 
 ### Running All Checks

@@ -105,6 +105,25 @@ template:
     # adjectives: mlm (unconstrained)
     adjective: { strategy: "mlm", beam_size: 3, max_fills: 5, enforce_unique: true }
 
+# protocol: canonical declaration of the question being asked
+protocol:
+  name: "argument-structure-acceptability"
+  drift:
+    min_length: 10
+    require_question_mark: true
+    keyword_case_sensitive: false
+  families:
+    - anchor:
+        name: "acceptability"
+        target_property: "acceptability"
+        canonical_prompt: "Which sentence sounds more natural?"
+        options: ["first", "second"]
+        is_ordered: false
+        scale_type: "forced_choice"
+        required_keywords: ["natural"]
+        description: "2AFC acceptability judgment over a minimal pair."
+      realization_kind: "template"
+
 # items
 items:
   judgment_type: "forced_choice"

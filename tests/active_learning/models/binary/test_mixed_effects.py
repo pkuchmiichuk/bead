@@ -33,9 +33,8 @@ class TestFixedEffectsMode:
         )
         model = BinaryModel(config)
 
-        # Fixed effects: use placeholder participant_ids
-        participant_ids = ["default"] * len(sample_items)
-        metrics = model.train(sample_items, sample_labels, participant_ids)
+        # Fixed effects: participant_ids are not used.
+        metrics = model.train(sample_items, sample_labels)
 
         assert "train_accuracy" in metrics
         assert "train_loss" in metrics
@@ -55,11 +54,8 @@ class TestFixedEffectsMode:
         )
         model = BinaryModel(config)
 
-        participant_ids = ["default"] * len(sample_items)
-        model.train(sample_items, sample_labels, participant_ids)
-
-        # Predict with same participant_ids
-        predictions = model.predict(sample_items[:5], participant_ids[:5])
+        model.train(sample_items, sample_labels)
+        predictions = model.predict(sample_items[:5])
 
         assert len(predictions) == 5
         for pred in predictions:
@@ -327,10 +323,8 @@ class TestPredictProba:
         )
         model = BinaryModel(config)
 
-        participant_ids = ["default"] * len(sample_items)
-        model.train(sample_items, sample_labels, participant_ids)
-
-        proba = model.predict_proba(sample_items[:5], participant_ids[:5])
+        model.train(sample_items, sample_labels)
+        proba = model.predict_proba(sample_items[:5])
 
         assert proba.shape == (5, 2)  # 2 classes for binary
         # Each row should sum to 1
@@ -362,16 +356,19 @@ class TestPredictProba:
     ) -> None:
         """Test that predict_proba validates participant_ids length."""
         config = BinaryModelConfig(
-            model_name="bert-base-uncased", num_epochs=1, device="cpu"
+            model_name="bert-base-uncased",
+            num_epochs=1,
+            device="cpu",
+            mixed_effects=MixedEffectsConfig(mode="random_intercepts"),
         )
         model = BinaryModel(config)
 
-        participant_ids = ["default"] * len(sample_items)
+        participant_ids = ["alice", "bob"] * (len(sample_items) // 2)
         model.train(sample_items, sample_labels, participant_ids)
 
         # Wrong length for predict_proba
         with pytest.raises(ValueError, match="Length mismatch"):
-            model.predict_proba(sample_items[:5], ["default"] * 3)
+            model.predict_proba(sample_items[:5], ["alice"] * 3)
 
 
 class TestSaveLoad:
@@ -528,9 +525,8 @@ class TestBinarySpecifics:
         model = BinaryModel(config)
 
         labels = ["yes" if i % 2 == 0 else "no" for i in range(20)]
-        participant_ids = ["default"] * 20
 
-        model.train(sample_items, labels, participant_ids)
+        model.train(sample_items, labels)
         # num_classes=1 for true binary classification (single output unit)
         assert model.num_classes == 1
         # But we still have 2 label names
@@ -549,12 +545,11 @@ class TestBinarySpecifics:
 
         # Use "true" and "false" instead of "yes" and "no"
         labels = ["true" if i % 2 == 0 else "false" for i in range(20)]
-        participant_ids = ["default"] * 20
 
-        model.train(sample_items, labels, participant_ids)
+        model.train(sample_items, labels)
         assert model.label_names == ["false", "true"]  # Sorted alphabetically
 
-        predictions = model.predict(sample_items[:5], participant_ids[:5])
+        predictions = model.predict(sample_items[:5])
         for pred in predictions:
             assert pred.predicted_class in ["true", "false"]
 
@@ -593,10 +588,8 @@ class TestBinarySpecifics:
         )
         model = BinaryModel(config)
 
-        participant_ids = ["default"] * len(sample_items)
-        model.train(sample_items, sample_labels, participant_ids)
-
-        predictions = model.predict(sample_items[:5], participant_ids[:5])
+        model.train(sample_items, sample_labels)
+        predictions = model.predict(sample_items[:5])
         for pred in predictions:
             # Sum of probabilities should be 1.0
             prob_sum = sum(pred.probabilities.values())
@@ -611,7 +604,6 @@ class TestBinarySpecifics:
 
         # Three different labels (not binary!) - must match sample_items length
         labels = (["yes", "no", "maybe"] * 6) + ["yes", "no"]
-        participant_ids = ["default"] * 20
 
         with pytest.raises(ValueError, match="exactly 2 classes"):
-            model.train(sample_items, labels, participant_ids)
+            model.train(sample_items, labels)

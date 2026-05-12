@@ -852,20 +852,18 @@ class BinaryModel(ActiveLearningModel):
         self.label_names = config_dict.pop("label_names")
         self.positive_class = config_dict.pop("positive_class")
 
-    def _load_model_components(self, load_path: Path) -> None:
+    def _load_model_components(
+        self, load_path: Path, config_dict: dict[str, object]
+    ) -> None:
         """Load model-specific components.
 
         Parameters
         ----------
         load_path : Path
             Directory to load from.
+        config_dict : dict[str, object]
+            Schema-only config dict.
         """
-        # Load config.json to reconstruct config
-        with open(load_path / "config.json") as f:
-            import json  # noqa: PLC0415
-
-            config_dict = json.load(f)
-
         # Reconstruct MixedEffectsConfig if needed
         if "mixed_effects" in config_dict and isinstance(
             config_dict["mixed_effects"], dict

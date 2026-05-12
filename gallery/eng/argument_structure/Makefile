@@ -89,8 +89,21 @@ all: data pipeline-dry-run ## Run complete pipeline with test data
 	@echo "$(GREEN)✓ Complete pipeline executed successfully$(NC)"
 
 .PHONY: data
-data: lexicons templates fill-templates cross-product 2afc-pairs ## Generate all data files
+data: validate-protocol lexicons templates fill-templates cross-product 2afc-pairs ## Generate all data files
 	@echo "$(GREEN)✓ All data files generated$(NC)"
+
+.PHONY: validate-protocol
+validate-protocol: ## Validate the protocol section of config.yaml builds cleanly
+	@echo "$(BLUE)Validating protocol declaration...$(NC)"
+	@$(PYTHON) -c "from protocol import build_protocol; \
+		p = build_protocol('config.yaml'); \
+		assert p.families, 'No families declared in protocol'; \
+		anchor = p.families[0].anchor; \
+		print('  protocol:', p.name); \
+		print('  family:', anchor.name); \
+		print('  prompt:', anchor.canonical_prompt); \
+		print('  scale_type:', anchor.response_space.scale_type)"
+	@echo "$(GREEN)✓ Protocol validated$(NC)"
 
 # ============================================================================
 # Data Generation Targets

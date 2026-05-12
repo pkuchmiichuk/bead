@@ -15,11 +15,41 @@ The anchor includes:
 
 from __future__ import annotations
 
+from enum import StrEnum
 from typing import Self
 
 import didactic.api as dx
 
 from bead.data.base import BeadBaseModel
+
+
+class ScaleType(StrEnum):
+    """Classification of response-scale structure.
+
+    Attributes
+    ----------
+    BINARY : str
+        Two unordered options with fixed, content-bearing labels (for
+        example ``("no", "yes")``). Modeled via Bernoulli likelihoods.
+        Wire value: ``"binary"``.
+    ORDINAL : str
+        Ordered options forming an ordinal scale. Wire value:
+        ``"ordinal"``.
+    NOMINAL : str
+        Unordered multi-option scale. Wire value: ``"nominal"``.
+    FORCED_CHOICE : str
+        N-alternative forced choice with *positional* response labels
+        (for example ``("first", "second")``). The per-item content
+        of the alternatives varies between items and lives on the
+        :class:`~bead.items.item.Item` itself; the encoding's labels
+        identify which alternative was chosen. Wire value:
+        ``"forced_choice"``.
+    """
+
+    BINARY = "binary"
+    ORDINAL = "ordinal"
+    NOMINAL = "nominal"
+    FORCED_CHOICE = "forced_choice"
 
 
 class SemanticPoles(BeadBaseModel):
@@ -72,6 +102,14 @@ class ResponseSpace(BeadBaseModel):
         Pole labels for ordered scales (for example ``low="never"``,
         ``high="always"``). ``None`` for unordered (categorical)
         response spaces. Defaults to ``None``.
+    scale_type : ScaleType | None
+        Explicit scale-type classification. ``None`` (default) leaves
+        :func:`~bead.protocol.encode_response_space` to infer the kind
+        from ``options`` and ``is_ordered``. Set explicitly to
+        :attr:`ScaleType.FORCED_CHOICE` when the labels are positional
+        and the per-item alternatives vary across items (the
+        2-option-unordered shape that the inference rule would
+        otherwise classify as ``BINARY``).
 
     Examples
     --------
@@ -92,6 +130,7 @@ class ResponseSpace(BeadBaseModel):
     options: tuple[str, ...]
     is_ordered: bool = True
     semantic_poles: dx.Embed[SemanticPoles] | None = None
+    scale_type: ScaleType | None = None
 
     def __len__(self) -> int:
         """Return the number of response options."""

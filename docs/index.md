@@ -48,7 +48,7 @@ uv sync --all-extras
 
 ## Requirements
 
-- Python 3.13+
+- Python 3.14+
 - Operating Systems: macOS, Linux, Windows (WSL recommended)
 
 ## Citation
@@ -58,10 +58,9 @@ If you use bead in your research, please cite:
 ```
 @software{white_bead_2026,
   author = {White, Aaron Steven},
-  title = {Bead: A python framework for linguistic judgment experiments with active learning},
+  title = {bead: A framework for large-scale linguistic judgment experiments},
   year = {2026},
-  url = {https://github.com/FACTSlab/bead},
-  version = {0.2.0}
+  url = {https://github.com/FACTSlab/bead}
 }
 ```
 

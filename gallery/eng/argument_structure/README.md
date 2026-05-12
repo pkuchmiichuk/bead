@@ -1,8 +1,19 @@
 # Argument Structure Active Learning Pipeline
 
-**Last Updated:** February 2026
+**Last Updated:** May 2026
 
 A framework for collecting human judgments on argument structure alternations using active learning with convergence detection to human-level inter-annotator agreement.
+
+The 2AFC acceptability question this gallery measures is declared once
+in `config.yaml` under `protocol:` as a `SemanticAnchor` with
+`scale_type: forced_choice`, materialized by
+`protocol.py:build_protocol()`, and threaded through every downstream
+stage — `create_2afc_pairs.py` writes the anchor name into every
+pair's `item_metadata`, `generate_deployment.py` builds its
+`ItemTemplate` via the canonical `family_to_item_template` bridge, and
+`simulate_pipeline.py` reads response-space labels off the same
+anchor. Run `make validate-protocol` to verify the protocol section
+builds cleanly before any data-generation step.
 
 ## Overview
 
@@ -98,15 +109,15 @@ Programmatic control using Python scripts. Best for batch operations, complex lo
 **Quick Example**:
 ```python
 from bead.resources.adapters.glazing import GlazingAdapter
-from bead.templates.filler import TemplateFiller
+from bead.templates.filler import CSPFiller
 
 # Stage 1: Import lexicons
 adapter = GlazingAdapter(resource="verbnet")
 items = adapter.fetch_items(query="break", language_code="en")
 
-# Stage 2: Fill templates
-filler = TemplateFiller(templates, lexicons)
-filled = filler.fill(strategy="exhaustive")
+# Stage 2: Fill templates (CSPFiller is the canonical concrete filler)
+filler = CSPFiller(lexicon)
+filled = list(filler.fill(template))
 
 # ... (6 stages total)
 ```
@@ -127,87 +138,87 @@ The pipeline consists of 10 main scripts organized into 4 stages:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│              Stage 1: Resource Generation                        │
+│              Stage 1: Resource Generation                       │
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                  │
+│                                                                 │
 │  1. generate_lexicons.py                                        │
-│     ├─ VerbNet verbs (via GlazingAdapter)                      │
-│     ├─ Morphological forms (via UniMorphAdapter)               │
-│     └─ Controlled lexicons (from resources/ CSVs)              │
-│     → Output: lexicons/*.jsonl (19,160+ entries)               │
-│                                                                  │
+│     ├─ VerbNet verbs (via GlazingAdapter)                       │
+│     ├─ Morphological forms (via UniMorphAdapter)                │
+│     └─ Controlled lexicons (from resources/ CSVs)               │
+│     → Output: lexicons/*.jsonl (19,160+ entries)                │
+│                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────┐
-│          Stage 2: Template Generation & Filling                  │
+│          Stage 2: Template Generation & Filling                 │
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                  │
+│                                                                 │
 │  2. generate_templates.py                                       │
-│     ├─ Extract all verb-specific VerbNet frames               │
-│     ├─ Map to MegaAttitude clausal structures                 │
-│     └─ Generate DSL constraints                               │
-│     → Output: templates/verbnet_frames.jsonl (21,453 templates)│
-│                                                                  │
-│  3. extract_generic_templates.py                               │
-│     └─ Abstract verb-specific → generic structures            │
-│     → Output: templates/generic_frames.jsonl (26 templates)    │
-│                                                                  │
-│  4. fill_templates.py                                          │
-│     ├─ Fill templates using MixedFillingStrategy              │
-│     ├─ Phase 1: Exhaustive filling (det, be, verb slots)      │
-│     └─ Phase 2: MLM-based filling (noun, prep, adj slots)     │
-│     → Output: filled_templates/generic_frames_filled.jsonl     │
-│                                                                  │
+│     ├─ Extract all verb-specific VerbNet frames                 │
+│     ├─ Map to MegaAttitude clausal structures                   │
+│     └─ Generate DSL constraints                                 │
+│     → Output: templates/verbnet_frames.jsonl (21,453 templates) │
+│                                                                 │
+│  3. extract_generic_templates.py                                │
+│     └─ Abstract verb-specific → generic structures              │
+│     → Output: templates/generic_frames.jsonl (26 templates)     │
+│                                                                 │
+│  4. fill_templates.py                                           │
+│     ├─ Fill templates using MixedFillingStrategy                │
+│     ├─ Phase 1: Exhaustive filling (det, be, verb slots)        │
+│     └─ Phase 2: MLM-based filling (noun, prep, adj slots)       │
+│     → Output: filled_templates/generic_frames_filled.jsonl      │
+│                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────┐
-│        Stage 3: Item Generation & List Partitioning              │
+│        Stage 3: Item Generation & List Partitioning             │
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                  │
-│  5. generate_cross_product.py                                  │
-│     └─ Cross all verbs × all generic frames                   │
-│     → Output: items/cross_product_items.jsonl (74,880 items)   │
-│                                                                  │
-│  6. create_2afc_pairs.py                                       │
-│     ├─ Load filled templates from previous step               │
-│     ├─ Score with language model (GPT-2)                      │
-│     ├─ Create minimal pairs (same_verb, different_verb)       │
-│     └─ Stratify by LM score quantiles                         │
-│     → Output: items/2afc_pairs.jsonl                           │
-│                                                                  │
-│  7. generate_lists.py                                          │
-│     ├─ Partition 2AFC pairs into balanced lists               │
-│     ├─ Apply list constraints (balance, uniqueness, etc.)     │
-│     └─ Apply batch constraints (coverage, diversity)          │
-│     → Output: lists/experiment_lists.jsonl                     │
-│                                                                  │
+│                                                                 │
+│  5. generate_cross_product.py                                   │
+│     └─ Cross all verbs × all generic frames                     │
+│     → Output: items/cross_product_items.jsonl (74,880 items)    │
+│                                                                 │
+│  6. create_2afc_pairs.py                                        │
+│     ├─ Load filled templates from previous step                 │
+│     ├─ Score with language model (GPT-2)                        │
+│     ├─ Create minimal pairs (same_verb, different_verb)         │
+│     └─ Stratify by LM score quantiles                           │
+│     → Output: items/2afc_pairs.jsonl                            │
+│                                                                 │
+│  7. generate_lists.py                                           │
+│     ├─ Partition 2AFC pairs into balanced lists                 │
+│     ├─ Apply list constraints (balance, uniqueness, etc.)       │
+│     └─ Apply batch constraints (coverage, diversity)            │
+│     → Output: lists/experiment_lists.jsonl                      │
+│                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────┐
-│      Stage 4: Deployment & Active Learning                       │
+│      Stage 4: Deployment & Active Learning                      │
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                  │
-│  8. generate_deployment.py                                     │
-│     ├─ Generate jsPsych experiments (local + JATOS versions)  │
-│     ├─ Local: Standalone for testing (no server required)     │
-│     ├─ JATOS: Production deployment with Prolific support     │
-│     └─ Create JATOS .jzip packages                            │
-│     → Output: deployment/local/* + deployment/jatos/*          │
-│                                                                  │
-│  9. simulate_pipeline.py (testing/validation)                  │
-│     ├─ Simulate human judgments (LM-based annotator)          │
-│     ├─ Test active learning loop                              │
-│     └─ Validate convergence detection                         │
-│     → Output: simulation_output/simulation_results.json        │
-│                                                                  │
-│  10. run_pipeline.py (production)                              │
-│      ├─ Load configuration (config.yaml)                      │
-│      ├─ Initialize convergence detector                       │
-│      ├─ Run active learning loop                              │
-│      ├─ Monitor human-model agreement                         │
-│      └─ Stop when converged to human IAA                      │
-│      → Output: results/pipeline_results.json                   │
-│                                                                  │
+│                                                                 │
+│  8. generate_deployment.py                                      │
+│     ├─ Generate jsPsych experiments (local + JATOS versions)    │
+│     ├─ Local: Standalone for testing (no server required)       │
+│     ├─ JATOS: Production deployment with Prolific support       │
+│     └─ Create JATOS .jzip packages                              │
+│     → Output: deployment/local/* + deployment/jatos/*           │
+│                                                                 │
+│  9. simulate_pipeline.py (testing/validation)                   │
+│     ├─ Simulate human judgments (LM-based annotator)            │
+│     ├─ Test active learning loop                                │
+│     └─ Validate convergence detection                           │
+│     → Output: simulation_output/simulation_results.json         │
+│                                                                 │
+│  10. run_pipeline.py (production)                               │
+│      ├─ Load configuration (config.yaml)                        │
+│      ├─ Initialize convergence detector                         │
+│      ├─ Run active learning loop                                │
+│      ├─ Monitor human-model agreement                           │
+│      └─ Stop when converged to human IAA                        │
+│      → Output: results/pipeline_results.json                    │
+│                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -234,11 +245,11 @@ Provides `OtherNounRenderer` class for handling repeated noun slots:
 
 ```python
 from utils.renderers import OtherNounRenderer
-from bead.templates.filler import TemplateFiller
+from bead.templates.filler import CSPFiller
 
 renderer = OtherNounRenderer()
-filler = TemplateFiller(templates, lexicons, renderer=renderer)
-filled = filler.fill(strategy="exhaustive")
+filler = CSPFiller(lexicon, renderer=renderer)
+filled = list(filler.fill(template))
 ```
 
 **Rendering rules**:
@@ -361,11 +372,40 @@ project:           # Project metadata
 paths:             # Directory structure
 resources:         # Lexicon and template paths
 template:          # Template filling strategies
+protocol:          # Annotation protocol declaration (anchor + drift)
 items:             # Item construction
 lists:             # List partitioning
 deployment:        # jsPsych/JATOS settings
 active_learning:   # Sampling strategy
 training:          # Convergence detection
+```
+
+**`protocol`** - Annotation Protocol Declaration
+
+The 2AFC acceptability question is declared once here as a
+`SemanticAnchor` with `scale_type: forced_choice`. Every downstream
+stage materializes the live `AnnotationProtocol` via
+`protocol.py:build_protocol()` rather than hard-coding prompt
+strings or response labels.
+
+```yaml
+protocol:
+  name: "argument-structure-acceptability"
+  drift:
+    min_length: 10
+    require_question_mark: true
+    keyword_case_sensitive: false
+  families:
+    - anchor:
+        name: "acceptability"
+        target_property: "acceptability"
+        canonical_prompt: "Which sentence sounds more natural?"
+        options: ["first", "second"]
+        is_ordered: false
+        scale_type: "forced_choice"
+        required_keywords: ["natural"]
+        description: "2AFC acceptability judgment over a minimal pair."
+      realization_kind: "template"
 ```
 
 #### Section Details
@@ -517,10 +557,10 @@ from utils.verbnet_parser import VerbNetExtractor
 
 # fill_templates.py
 from utils.renderers import OtherNounRenderer
-from bead.templates.filler import TemplateFiller
+from bead.templates.filler import CSPFiller
 
 renderer = OtherNounRenderer()
-filler = TemplateFiller(templates, lexicons, renderer=renderer)
+filler = CSPFiller(lexicon, renderer=renderer)
 ```
 
 This keeps the configuration file language-agnostic while allowing language-specific extensions through the plugin system.
@@ -1286,6 +1326,7 @@ make clean               # Remove generated files
 
 ### Data Generation
 ```bash
+make validate-protocol   # Build the AnnotationProtocol from config.yaml
 make lexicons            # Generate lexicon files
 make verbnet-templates   # Generate verb-specific VerbNet templates
 make templates           # Extract generic frame structures
@@ -1546,12 +1587,13 @@ gallery/eng/argument_structure/
 ├── Makefile                        # Build automation (500+ lines, 40+ targets)
 ├── config.yaml                     # Pipeline configuration
 │
+├── protocol.py                     # [0] Materialize AnnotationProtocol from config.yaml
 ├── generate_lexicons.py            # [1] Extract VerbNet verbs + bleached lexicons
 ├── generate_templates.py           # [2] Generate verb-specific VerbNet templates
 ├── extract_generic_templates.py    # [3] Extract 26 generic frame structures
 ├── fill_templates.py               # [4] Fill templates with MLM strategy (optional)
 ├── generate_cross_product.py       # [5] Generate verb × frame cross-product
-├── create_2afc_pairs.py            # [6] Create 2AFC pairs with LM scoring
+├── create_2afc_pairs.py            # [6] Create 2AFC pairs with LM scoring (anchor-tagged)
 ├── generate_lists.py               # [7] Partition pairs into experiment lists
 ├── generate_deployment.py          # [8] Generate jsPsych/JATOS deployment
 ├── simulate_pipeline.py            # [9] Simulate active learning (testing)
@@ -1567,6 +1609,7 @@ gallery/eng/argument_structure/
 │
 ├── tests/                          # Test suite
 │   ├── __init__.py
+│   ├── test_protocol.py           # AnnotationProtocol round-trip + bridge tests
 │   └── test_simulation.py         # Simulation tests
 │
 ├── resources/                      # Reference data

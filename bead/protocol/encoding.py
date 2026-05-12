@@ -26,32 +26,18 @@ class based on the scale type.
 
 from __future__ import annotations
 
-from enum import StrEnum
 from typing import Self
 
 import didactic.api as dx
 
 from bead.data.base import BeadBaseModel
-from bead.protocol.anchor import ResponseSpace, SemanticPoles
+from bead.protocol.anchor import ResponseSpace, ScaleType, SemanticPoles
 
-
-class ScaleType(StrEnum):
-    """Classification of response-scale structure.
-
-    Attributes
-    ----------
-    BINARY : str
-        Two unordered options. Wire value: ``"binary"``.
-    ORDINAL : str
-        Ordered options forming an ordinal scale. Wire value:
-        ``"ordinal"``.
-    NOMINAL : str
-        Unordered multi-option scale. Wire value: ``"nominal"``.
-    """
-
-    BINARY = "binary"
-    ORDINAL = "ordinal"
-    NOMINAL = "nominal"
+__all__ = [
+    "ResponseEncoding",
+    "ScaleType",
+    "encode_response_space",
+]
 
 
 class ResponseEncoding(BeadBaseModel):
@@ -126,6 +112,11 @@ class ResponseEncoding(BeadBaseModel):
                 f"BINARY scale must have exactly 2 levels, got "
                 f"{self.n_levels} in encoding {self.name!r}"
             )
+        if self.scale_type == ScaleType.FORCED_CHOICE and self.n_levels < 2:
+            raise ValueError(
+                f"FORCED_CHOICE scale must have at least 2 levels, "
+                f"got {self.n_levels} in encoding {self.name!r}"
+            )
         return self
 
     @property
@@ -142,6 +133,11 @@ class ResponseEncoding(BeadBaseModel):
     def is_nominal(self) -> bool:
         """Whether the response scale is unordered multi-option."""
         return self.scale_type == ScaleType.NOMINAL
+
+    @property
+    def is_forced_choice(self) -> bool:
+        """Whether the response scale uses positional forced-choice labels."""
+        return self.scale_type == ScaleType.FORCED_CHOICE
 
     def label_to_index(self, label: str) -> int:
         """Convert a response label to its integer index.
@@ -221,12 +217,15 @@ def _classify_scale(response_space: ResponseSpace) -> ScaleType:
 def encode_response_space(
     name: str,
     response_space: ResponseSpace,
+    *,
+    scale_type: ScaleType | None = None,
 ) -> ResponseEncoding:
     """Build a :class:`ResponseEncoding` from a :class:`ResponseSpace`.
 
     This is the primary bridge from the protocol layer to the modeling
     layer. The resulting encoding shares its labels with the response
-    space and inherits the space's ordering as a :class:`ScaleType`.
+    space and inherits the space's ordering as a :class:`ScaleType`,
+    unless ``scale_type`` is set to override the inferred kind.
 
     Parameters
     ----------
@@ -235,6 +234,11 @@ def encode_response_space(
         ``"completion"``).
     response_space : ResponseSpace
         The response space to encode.
+    scale_type : ScaleType | None, optional
+        Override the kind inferred from the response space. Required
+        when declaring a forced-choice encoding, since forced-choice
+        and binary share the "two unordered options" shape but are
+        modeled differently.
 
     Returns
     -------
@@ -251,12 +255,26 @@ def encode_response_space(
     <ScaleType.BINARY: 'binary'>
     >>> enc.is_binary
     True
+
+    >>> rs = ResponseSpace(
+    ...     options=("first", "second"), is_ordered=False
+    ... )
+    >>> enc = encode_response_space(
+    ...     "acceptability", rs, scale_type=ScaleType.FORCED_CHOICE
+    ... )
+    >>> enc.is_forced_choice
+    True
     """
-    scale_type = _classify_scale(response_space)
+    if scale_type is not None:
+        resolved = scale_type
+    elif response_space.scale_type is not None:
+        resolved = response_space.scale_type
+    else:
+        resolved = _classify_scale(response_space)
     return ResponseEncoding(
         name=name,
         n_levels=len(response_space.options),
-        scale_type=scale_type,
+        scale_type=resolved,
         labels=response_space.options,
         semantic_poles=response_space.semantic_poles,
     )

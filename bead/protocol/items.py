@@ -59,6 +59,7 @@ _SCALE_TO_TASK: Final[dict[ScaleType, TaskType]] = {
     ScaleType.BINARY: "binary",
     ScaleType.ORDINAL: "ordinal_scale",
     ScaleType.NOMINAL: "categorical",
+    ScaleType.FORCED_CHOICE: "forced_choice",
 }
 """The canonical :class:`ScaleType` → :class:`TaskType` mapping."""
 
@@ -103,7 +104,11 @@ def family_to_item_template(
     populate :attr:`TaskSpec.scale_bounds` (``0`` to ``n_levels - 1``)
     and :attr:`TaskSpec.scale_labels` (one
     :class:`ScalePointLabel` per option). Binary and nominal scales
-    populate :attr:`TaskSpec.options`.
+    populate :attr:`TaskSpec.options` with the anchor's labels.
+    Forced-choice scales leave :attr:`TaskSpec.options` unset (the
+    per-item alternatives live on each :class:`Item` rather than on
+    the template); the anchor's labels remain accessible via
+    ``family.anchor.response_space.options``.
 
     The ``prompt`` field of the template's :class:`TaskSpec` is the
     anchor's canonical prompt (with ``[[label]]`` references intact);
@@ -140,6 +145,12 @@ def family_to_item_template(
             for i, label in enumerate(encoding.labels)
         )
         options: tuple[str, ...] | None = None
+    elif encoding.is_forced_choice:
+        # forced-choice options live on each Item (the pair-specific
+        # text); the template carries no per-template options.
+        scale_bounds = None
+        scale_labels = ()
+        options = None
     else:
         scale_bounds = None
         scale_labels = ()

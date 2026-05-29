@@ -105,7 +105,7 @@ bead = "bead.cli.main:cli"
 
 [tool.pytest.ini_options]
 testpaths = ["tests", "docs/user-guide/cli"]
-norecursedirs = ["tests/fixtures"]
+norecursedirs = ["tests/fixtures", ".hypothesis"]
 addopts = ["-ra", "--strict-markers", "--cov=bead", "--cov-report=term-missing"]
 markers = [
     "slow_model_training: marks tests that train ML models (deselect with '-m \"not slow_model_training\"')",

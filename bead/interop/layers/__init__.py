@@ -18,12 +18,20 @@ from bead.interop.layers.graph_lens import (
     CorpusGraphLayersLens,
     graph_to_layers,
 )
+from bead.interop.layers.parse_lens import (
+    PARSED_SENTENCE_LAYERS,
+    ParsedSentenceLayersIso,
+    parse_to_layers,
+)
 
 __all__ = [
     "CORPUS_GRAPH_LAYERS",
+    "PARSED_SENTENCE_LAYERS",
     "RECORD_EXPRESSION",
     "CorpusGraphLayersLens",
+    "ParsedSentenceLayersIso",
     "RecordExpressionLens",
     "graph_to_layers",
+    "parse_to_layers",
     "record_to_expression",
 ]

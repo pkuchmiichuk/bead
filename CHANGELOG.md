@@ -5,6 +5,56 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+#### `bead.corpus` — streaming corpus ingestion and structural sampling
+
+- New subpackage `bead.corpus` for turning raw text corpora into experimental
+  `Item`s. `CorpusRecord` carries text plus flat provenance; `CorpusSource` is
+  a streaming-source protocol.
+- Sources: `JsonlCorpusSource` (JSON Lines, transparently decompressing
+  Zstandard `.zst` files), `CsvCorpusSource` (CSV/TSV), and
+  `CompletionCorpusSource` (a language model as a corpus source, via the new
+  `TextGenerator` protocol on the OpenAI and Anthropic adapters).
+- Lazy pipeline: `parse_records`, `filter_by_structure`, `sample_corpus`, and
+  `record_to_item` stream records through a dependency parser and keep only
+  those whose parse satisfies a structural DSL constraint, producing `Item`s
+  with standoff parse annotations and source provenance. The pipeline never
+  loads the full corpus into memory.
+- New `corpus` optional-dependency extra (`zstandard`).
+
+#### Dependency parsing in `bead.tokenization`
+
+- New `bead.tokenization.parsers`: `SpacyParser`, `StanzaParser`, and
+  `create_parser` produce a per-sentence `ParsedSentence` of `ParsedToken`
+  records (token, lemma, upos, xpos, head, deprel, morphology, offsets).
+- `parse_to_spans` projects a dependency parse onto the standoff `Span` +
+  `SpanRelation` models: one single-token span per token (with its governor as
+  `head_index` and its features in `span_metadata`) and one directed
+  head-to-dependent relation per syntactic arc.
+
+#### Structural-query builtins in the constraint DSL
+
+- New `bead.dsl` standard-library functions query a dependency parse stored on
+  an `Item`: `upos`, `xpos`, `lemma_of`, `form_of`, `deprel`, `morph`, `head`,
+  `dependents`, `has_relation`, `root`, `subtree`, `path_to_root`,
+  `tokens_with_upos`, `tokens_with_deprel`, `any_deprel`, and `filter_upos`.
+  Constraints can now match syntactic structure, e.g.
+  `upos(self, root(self)) == "VERB" and len(dependents(self, root(self), "obj")) > 0`.
+
+#### Text transforms for corpus cleanup
+
+- New transforms in `bead.transforms.text`: `MarkdownStripTransform`,
+  `RedditCleanupTransform`, and the `split_sentences` helper (parser-backed or
+  regex fallback). The first two are registered in the default transform
+  registry.
+
+### Changed
+
+- Minimum `didactic` raised to `>=0.7.2` and `panproto` to `>=0.51.0`.
+
 ## [0.5.0] - 2026-05-12
 
 ### Added

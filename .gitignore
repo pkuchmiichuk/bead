@@ -35,3 +35,5 @@ tests/fixtures/cli_work/
 /trial_config_*.json
 /*.jzip
 .claude/
+# Hypothesis example database
+.hypothesis/

@@ -144,6 +144,11 @@ Each stage has detailed documentation:
 - [Stage 5: Deployment](deployment.md) - jsPsych generation, JATOS export
 - [Stage 6: Training](training.md) - Active learning, convergence detection
 
+Upstream of Stage 1, you can build naturalistic stimuli directly from text:
+
+- [Corpus Ingestion](corpus.md) - Stream a corpus, dependency-parse it, and keep
+  only sentences whose syntactic structure matches a constraint
+
 ## Complete Workflow
 
 See [workflows.md](workflows.md) for complete end-to-end examples with all configuration options.

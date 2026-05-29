@@ -61,8 +61,22 @@ uv sync --extra api
 # Active learning with PyTorch
 uv sync --extra training
 
+# Tokenization and dependency parsing (spaCy, Stanza)
+uv sync --extra tokenization
+
+# Corpus ingestion, including Zstandard-compressed (.zst) files
+uv sync --extra corpus
+
 # All dependencies
 uv sync --all-extras
+```
+
+Structural corpus sampling (parsing a corpus and keeping only sentences whose
+dependency structure matches a constraint) needs both the `corpus` and
+`tokenization` extras:
+
+```bash
+uv sync --extra corpus --extra tokenization
 ```
 
 ## TypeScript Development (jsPsych Plugins)

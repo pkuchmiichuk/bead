@@ -31,14 +31,19 @@ from bead.transforms.morphology import (
 from bead.transforms.text import (
     CapitalizeTransform,
     LowerTransform,
+    MarkdownStripTransform,
+    RedditCleanupTransform,
     TitleTransform,
     UpperTransform,
+    split_sentences,
 )
 
 __all__ = [
     "CapitalizeTransform",
     "LowerTransform",
+    "MarkdownStripTransform",
     "MorphologicalTransform",
+    "RedditCleanupTransform",
     "SpanTextTransform",
     "TitleTransform",
     "TransformContext",
@@ -46,6 +51,7 @@ __all__ = [
     "TransformRegistry",
     "UpperTransform",
     "create_default_registry",
+    "split_sentences",
 ]
 
 
@@ -54,8 +60,9 @@ def create_default_registry(
 ) -> TransformRegistry:
     """Create a registry pre-loaded with the built-in transforms.
 
-    Text transforms (``lower``, ``upper``, ``capitalize``, ``title``) are
-    always registered.  If *language_code* is provided, morphological
+    Text transforms (``lower``, ``upper``, ``capitalize``, ``title``,
+    ``markdown_strip``, ``reddit_cleanup``) are always registered.  If
+    *language_code* is provided, morphological
     transforms (``gerund``, ``past_tense``, ``present_3sg``,
     ``past_participle``, ``infinitive``) are also registered using the
     UniMorph backend.
@@ -78,6 +85,8 @@ def create_default_registry(
     registry.register("upper", UpperTransform())
     registry.register("capitalize", CapitalizeTransform())
     registry.register("title", TitleTransform())
+    registry.register("markdown_strip", MarkdownStripTransform())
+    registry.register("reddit_cleanup", RedditCleanupTransform())
 
     # morphological transforms — require a language
     if language_code is not None:

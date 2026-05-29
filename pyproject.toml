@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "bead"
-version = "0.5.0"
+version = "0.6.0"
 description = "Lexicon and Template Collection Construction Pipeline for Acceptability and Inference Judgment Data"
 authors = [{name = "Aaron Steven White", email = "aaron.white@rochester.edu"}]
 readme = "README.md"
@@ -23,8 +23,8 @@ classifiers = [
 ]
 requires-python = ">=3.14"
 dependencies = [
-    "didactic>=0.6.2",
-    "panproto>=0.43",
+    "didactic>=0.7.2",
+    "panproto>=0.51.0",
     "pyyaml>=6.0.0",
     "jinja2>=3.0.0",
     "uuid-utils>=0.7.0",
@@ -72,6 +72,8 @@ dev = [
     "pandas-stubs>=2.0.0",
     "spacy>=3.7",
     "stanza>=1.8",
+    "zstandard>=0.22",
+    "hypothesis>=6.155.0",
 ]
 api = [
     "openai>=1.0.0",
@@ -95,13 +97,16 @@ tokenization = [
     "spacy>=3.7",
     "stanza>=1.8",
 ]
+corpus = [
+    "zstandard>=0.22",
+]
 
 [project.scripts]
 bead = "bead.cli.main:cli"
 
 [tool.pytest.ini_options]
 testpaths = ["tests", "docs/user-guide/cli"]
-norecursedirs = ["tests/fixtures"]
+norecursedirs = ["tests/fixtures", ".hypothesis"]
 addopts = ["-ra", "--strict-markers", "--cov=bead", "--cov-report=term-missing"]
 markers = [
     "slow_model_training: marks tests that train ML models (deselect with '-m \"not slow_model_training\"')",
@@ -111,7 +116,7 @@ markers = [
 [tool.ruff]
 line-length = 88
 target-version = "py314"
-exclude = ["gallery"]
+exclude = ["gallery", "vendor"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "D", "UP", "ANN", "B", "A", "C4", "PLC"]
@@ -177,4 +182,9 @@ exclude = [
     "bead/participants/merging.py",
     # Items cache has numpy ndarray type issues
     "bead/items/cache.py",
+]
+
+[dependency-groups]
+dev = [
+    "hypothesis>=6.155.0",
 ]

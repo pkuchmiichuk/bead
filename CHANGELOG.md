@@ -5,6 +5,94 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+## [0.6.0] - 2026-05-29
+
+### Added
+
+#### `bead.corpus` — streaming corpus ingestion and structural sampling
+
+- New subpackage `bead.corpus` for turning raw text corpora into experimental
+  `Item`s. `CorpusRecord` carries text plus flat provenance; `CorpusSource` is
+  a streaming-source protocol.
+- Sources: `JsonlCorpusSource` (JSON Lines, transparently decompressing
+  Zstandard `.zst` files), `CsvCorpusSource` (CSV/TSV), and
+  `CompletionCorpusSource` (a language model as a corpus source, via the new
+  `TextGenerator` protocol on the OpenAI and Anthropic adapters).
+- Lazy pipeline: `parse_records`, `filter_by_structure`, `sample_corpus`, and
+  `record_to_item` stream records through a dependency parser and keep only
+  those whose parse satisfies a structural DSL constraint, producing `Item`s
+  with standoff parse annotations and source provenance. The pipeline never
+  loads the full corpus into memory.
+- New `corpus` optional-dependency extra (`zstandard`).
+
+#### Dependency parsing in `bead.tokenization`
+
+- New `bead.tokenization.parsers`: `SpacyParser`, `StanzaParser`, and
+  `create_parser` produce a per-sentence `ParsedSentence` of `ParsedToken`
+  records (token, lemma, upos, xpos, head, deprel, morphology, offsets).
+- `parse_to_spans` projects a dependency parse onto the standoff `Span` +
+  `SpanRelation` models: one single-token span per token (with its governor as
+  `head_index` and its features in `span_metadata`) and one directed
+  head-to-dependent relation per syntactic arc.
+
+#### Structural-query builtins in the constraint DSL
+
+- New `bead.dsl` standard-library functions query a dependency parse stored on
+  an `Item`: `upos`, `xpos`, `lemma_of`, `form_of`, `deprel`, `morph`, `head`,
+  `dependents`, `has_relation`, `root`, `subtree`, `path_to_root`,
+  `tokens_with_upos`, `tokens_with_deprel`, `any_deprel`, and `filter_upos`.
+  Constraints can now match syntactic structure, e.g.
+  `upos(self, root(self)) == "VERB" and len(dependents(self, root(self), "obj")) > 0`.
+
+#### Text transforms for corpus cleanup
+
+- New transforms in `bead.transforms.text`: `MarkdownStripTransform`,
+  `RedditCleanupTransform`, and the `split_sentences` helper (parser-backed or
+  regex fallback). The first two are registered in the default transform
+  registry.
+
+#### `bead.corpus` buffering graph tier
+
+- New `bead.corpus.graph`: `CorpusGraph`, a typed directed multidigraph of
+  `CorpusNode`s and `CorpusEdge`s (parallel typed edges allowed; trees are a
+  special case), with traversal helpers (`children`, `parents`, `roots`,
+  `out_edges`, `in_edges`, `subtree`, `node_by_id`).
+- New `bead.corpus.assemble`: `assemble_graph` buffers a record stream into a
+  `CorpusGraph`, building edges from declarative `EdgeSpec`s or a runtime edge
+  function. Reconstructs thread structure such as Reddit reply trees from
+  `parent_id`/`link_id`. This tier is opt-in and layered on top of the
+  streaming pipeline, which is untouched.
+
+#### `bead.interop.layers` — lossless layers interop
+
+- New subpackage mapping bead data to and from the
+  [layers](https://github.com/layers-pub/layers) linguistic-annotation schema
+  as law-verified didactic lenses (`dx.Iso` for bijections, `dx.Lens` with a
+  complement for projections), so every round-trip is exact and verified.
+- Faithful mirror models for the layers shared defs and record types, each with
+  a generic lossless `MirrorIso` to and from layers-shaped JSON (snake/camel
+  case, feature maps, slug+uri enums, integer confidence, `$type` unions).
+- Bridge lenses map bead-native models onto layers constructs: `CorpusRecord`
+  to an `expression`, `CorpusGraph` to a property graph (`expression`s,
+  `graphNode`s, and a `graphEdgeSet`), and a dependency-parsed `ParsedSentence`
+  to a `tokenization` plus part-of-speech and dependency `annotationLayer`s. The
+  lens complement holds the bead-only remainder (framework identity and fields
+  layers has no slot for). Resource-overlap lenses map lexical items, lexicons,
+  and templates to the layers resource constructs.
+- Mappings are validated against the layers lexicons, vendored as the
+  `vendor/layers` git submodule, using the ATProto lexicon validator
+  (`@atproto/lexicon`), proving every mapping produces schema-valid layers.
+
+### Changed
+
+- Minimum `didactic` raised to `>=0.7.2` and `panproto` to `>=0.51.0`.
+- Streaming corpus ingestion is now lossless by default: `JsonlCorpusSource`
+  and `CsvCorpusSource` retain every field (not just a configured subset), and
+  non-scalar values round-trip through JSON rather than being stringified, so
+  no source information is dropped at ingestion.
+
 ## [0.5.0] - 2026-05-12
 
 ### Added
@@ -440,6 +528,10 @@ guards as type-checkers.
 - CI/CD: GitHub Actions for testing, docs, PyPI publishing
 - Read the Docs integration
 
-[Unreleased]: https://github.com/FACTSlab/bead/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/FACTSlab/bead/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/FACTSlab/bead/compare/v0.5.0...v0.6.0
+[0.5.0]: https://github.com/FACTSlab/bead/compare/v0.4.0...v0.5.0
+[0.4.0]: https://github.com/FACTSlab/bead/compare/v0.3.0...v0.4.0
+[0.3.0]: https://github.com/FACTSlab/bead/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/FACTSlab/bead/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/FACTSlab/bead/releases/tag/v0.1.0

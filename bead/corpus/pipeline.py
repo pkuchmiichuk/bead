@@ -7,8 +7,7 @@ filtered ``Item``s:
 
 The whole chain is lazy, so a structural query (a DSL constraint over the
 dependency parse, e.g. a transitive-verb pattern) can be run over a
-multi-gigabyte corpus without loading it into memory. This is the idiomatic
-replacement for stimulus-sampler's rejection-sampling class hierarchy.
+multi-gigabyte corpus without loading it into memory.
 """
 
 from __future__ import annotations

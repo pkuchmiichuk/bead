@@ -335,7 +335,7 @@ class Evaluator:
         if isinstance(obj, dict):
             if node.attribute not in obj:
                 raise EvaluationError(f"Dictionary does not have key: {node.attribute}")
-            return obj[node.attribute]  # type: ignore[reportUnknownVariableType]
+            return obj[node.attribute]
 
         # try attribute access
         try:
@@ -372,7 +372,7 @@ class Evaluator:
         index = self.evaluate(node.index, context)
 
         try:
-            return obj[index]  # type: ignore[reportUnknownVariableType]
+            return obj[index]
         except (KeyError, IndexError, TypeError) as e:
             obj_type = type(obj).__name__
             raise EvaluationError(

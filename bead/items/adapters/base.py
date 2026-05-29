@@ -233,4 +233,4 @@ class ModelAdapter(ABC):
             If NLI is not supported by the model type.
         """
         scores = self.compute_nli(premise, hypothesis)
-        return max(scores, key=scores.get)  # type: ignore[arg-type, return-value]
+        return max(scores, key=lambda label: scores[label])

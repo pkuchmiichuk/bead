@@ -11,6 +11,7 @@ import html
 import re
 from typing import TYPE_CHECKING
 
+from bead.tokenization.parsers import create_parser
 from bead.transforms.base import TransformContext
 
 if TYPE_CHECKING:
@@ -163,8 +164,6 @@ def split_sentences(
         The sentences, with surrounding whitespace stripped (empties dropped).
     """
     if tokenizer_config is not None and tokenizer_config.backend != "whitespace":
-        from bead.tokenization.parsers import create_parser  # noqa: PLC0415
-
         parser = create_parser(tokenizer_config)
         return tuple(
             sentence.original_text.strip()

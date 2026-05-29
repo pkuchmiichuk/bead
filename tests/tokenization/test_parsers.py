@@ -9,6 +9,7 @@ from bead.tokenization.parsers import (
     UNIVERSAL_DEPENDENCIES,
     ParsedSentence,
     ParsedToken,
+    StanzaParser,
     _parse_feats,
     create_parser,
     parse_to_spans,
@@ -155,9 +156,7 @@ def _require_stanza_en() -> None:
     Once the model is present, callers run the real parse so genuine parse or
     projection bugs surface as failures rather than being skipped.
     """
-    pytest.importorskip("stanza")
-    import stanza  # noqa: PLC0415
-
+    stanza = pytest.importorskip("stanza")
     try:
         stanza.download(
             "en", processors="tokenize,pos,lemma,depparse", verbose=False
@@ -171,8 +170,6 @@ class TestStanzaParserIntegration:
 
     def test_parse_transitive_sentence(self) -> None:
         _require_stanza_en()
-        from bead.tokenization.parsers import StanzaParser  # noqa: PLC0415
-
         # Real parse; errors here are genuine failures, not skips.
         sentences = StanzaParser(language="en")("The dog chased the cat.")
 
@@ -187,11 +184,6 @@ class TestStanzaParserIntegration:
 
     def test_parse_projects_to_spans(self) -> None:
         _require_stanza_en()
-        from bead.tokenization.parsers import (  # noqa: PLC0415
-            StanzaParser,
-            parse_to_spans,
-        )
-
         sentences = StanzaParser(language="en")("The dog chased the cat.")
         spans, relations = parse_to_spans(
             sentences[0], tokenization_id="tok-1", tool="stanza"

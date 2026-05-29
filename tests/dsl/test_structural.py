@@ -55,7 +55,7 @@ def _parsed_item() -> Item:
     )
 
 
-def _eval(expression: str) -> object:
+def _eval(expression: str) -> bool | str | int | float | list[int]:
     item = _parsed_item()
     return DSLEvaluator().evaluate(expression, {"self": item, "item": item})
 
@@ -175,13 +175,17 @@ class TestLayersNoDropSmoke:
         """Reconstruct (id, form, upos, head, deprel) rows from the Item."""
         item = _parsed_item()
         evaluator = DSLEvaluator()
-        rows: list[tuple[int, str | None, int | None, str | None]] = []
+        rows = []
         for index in range(5):
             ctx = {"self": item, "item": item}
-            up = evaluator.evaluate(f"upos(self, {index})", ctx)
-            hd = evaluator.evaluate(f"head(self, {index})", ctx)
-            dr = evaluator.evaluate(f"deprel(self, {index})", ctx)
-            rows.append((index, up, hd, dr))  # type: ignore[arg-type]
+            rows.append(
+                (
+                    index,
+                    evaluator.evaluate(f"upos(self, {index})", ctx),
+                    evaluator.evaluate(f"head(self, {index})", ctx),
+                    evaluator.evaluate(f"deprel(self, {index})", ctx),
+                )
+            )
 
         assert rows == [
             (0, "DET", 1, "det"),

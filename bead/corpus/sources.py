@@ -12,10 +12,13 @@ never load into memory.
 
 from __future__ import annotations
 
+import importlib
 import json
 from collections.abc import Callable, Iterator, Sequence
 from pathlib import Path
 from typing import IO, TYPE_CHECKING
+
+import pandas as pd
 
 from bead.corpus.records import CorpusRecord, ProvenanceValue
 from bead.data.serialization import iter_jsonl_lines
@@ -23,12 +26,18 @@ from bead.data.serialization import iter_jsonl_lines
 if TYPE_CHECKING:
     from bead.items.adapters.base import TextGenerator
 
+# A value parsed from JSON or a CSV cell (lists, unlike bead's tuple-based
+# JsonValue, since json.loads produces lists).
+type JsonInput = (
+    str | int | float | bool | None | list["JsonInput"] | dict[str, "JsonInput"]
+)
 
-def _as_scalar(value: object) -> ProvenanceValue:
+
+def _as_scalar(value: JsonInput) -> ProvenanceValue:
     """Coerce a parsed value to a flat provenance scalar.
 
-    Scalars pass through; anything else (lists, objects) is stringified so the
-    provenance dict stays flat.
+    Scalars pass through; anything else (lists, nested objects) is stringified
+    so the provenance dict stays flat.
     """
     if value is None or isinstance(value, (str, int, float, bool)):
         return value
@@ -38,13 +47,13 @@ def _as_scalar(value: object) -> ProvenanceValue:
 def _zstd_open(path: Path) -> IO[str]:
     """Open a Zstandard-compressed file as a UTF-8 text stream."""
     try:
-        import zstandard  # noqa: PLC0415  # type: ignore[reportMissingImports]
+        zstandard = importlib.import_module("zstandard")
     except ImportError as e:
         raise ImportError(
             "zstandard is required to read .zst corpora. "
             "Install it with: pip install 'bead[corpus]'"
         ) from e
-    return zstandard.open(path, "rt", encoding="utf-8")  # type: ignore[no-any-return]
+    return zstandard.open(path, "rt", encoding="utf-8")
 
 
 class JsonlCorpusSource:
@@ -93,7 +102,7 @@ class JsonlCorpusSource:
             if open_fn is not None
             else iter_jsonl_lines(self._path)
         )
-        for index, (_line_num, line) in enumerate(line_iter):
+        for index, (_, line) in enumerate(line_iter):
             data = json.loads(line)
             if not isinstance(data, dict):
                 continue
@@ -213,8 +222,6 @@ class CsvCorpusSource:
 
     def __iter__(self) -> Iterator[CorpusRecord]:
         """Yield one ``CorpusRecord`` per CSV row with a non-empty text cell."""
-        import pandas as pd  # noqa: PLC0415
-
         frame = pd.read_csv(self._path, sep=self._sep, dtype=str, keep_default_na=False)
         for index, row in enumerate(frame.to_dict(orient="records")):
             raw_text = row.get(self._text_column, "")

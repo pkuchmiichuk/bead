@@ -19,8 +19,8 @@ mapping lossless without coupling bead to layers' wire format.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Iterator
-from typing import Protocol, runtime_checkable
+import importlib
+from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 import didactic.api as dx
 
@@ -33,6 +33,9 @@ from bead.items.spans import (
 )
 from bead.tokenization.config import TokenizerConfig
 from bead.tokenization.tokenizers import spacy_space_after
+
+if TYPE_CHECKING:
+    from spacy.language import Language
 
 # layers-aligned conventions, recorded once so both projects stay matched.
 UNIVERSAL_DEPENDENCIES = "universal-dependencies"
@@ -49,7 +52,9 @@ class DependencyParser(Protocol):
 
     tool: str
 
-    def __call__(self, text: str) -> tuple[ParsedSentence, ...]: ...  # noqa: D102
+    def __call__(self, text: str) -> tuple[ParsedSentence, ...]:
+        """Dependency-parse text into sentences."""
+        ...
 
 
 class ParsedToken(dx.Model):
@@ -158,14 +163,14 @@ class SpacyParser:
     def __init__(self, language: str = "en", model_name: str | None = None) -> None:
         self._language = language
         self._model_name = model_name
-        self._nlp: Callable[..., _SpacyDocProtocol] | None = None
+        self._nlp: Language | None = None
 
-    def _load(self) -> Callable[..., _SpacyDocProtocol]:
+    def _load(self) -> Language:
         if self._nlp is not None:
             return self._nlp
 
         try:
-            import spacy  # noqa: PLC0415  # type: ignore[reportMissingImports]
+            spacy = importlib.import_module("spacy")
         except ImportError as e:
             raise ImportError(
                 "spaCy is required for SpacyParser. "
@@ -174,7 +179,7 @@ class SpacyParser:
 
         model = self._model_name or f"{self._language}_core_web_sm"
         try:
-            nlp: Callable[..., _SpacyDocProtocol] = spacy.load(model)  # type: ignore[assignment]
+            nlp: Language = spacy.load(model)
         except OSError as e:
             raise ImportError(
                 f"spaCy model {model!r} is required for dependency parsing. "
@@ -255,7 +260,7 @@ class StanzaParser:
             return self._nlp
 
         try:
-            import stanza  # noqa: PLC0415  # type: ignore[reportMissingImports]
+            stanza = importlib.import_module("stanza")
         except ImportError as e:
             raise ImportError(
                 "Stanza is required for StanzaParser. "
@@ -267,19 +272,19 @@ class StanzaParser:
         processors = "tokenize,pos,lemma,depparse"
 
         try:
-            nlp: _StanzaPipelineProtocol = stanza.Pipeline(  # type: ignore[assignment]
+            nlp: _StanzaPipelineProtocol = stanza.Pipeline(
                 lang=self._language,
                 processors=processors,
                 verbose=False,
-                **pkg_kwarg,  # type: ignore[reportArgumentType]
+                **pkg_kwarg,
             )
         except Exception:
             stanza.download(self._language, verbose=False)
-            nlp = stanza.Pipeline(  # type: ignore[assignment]
+            nlp = stanza.Pipeline(
                 lang=self._language,
                 processors=processors,
                 verbose=False,
-                **pkg_kwarg,  # type: ignore[reportArgumentType]
+                **pkg_kwarg,
             )
 
         self._nlp = nlp
@@ -461,40 +466,10 @@ def parse_to_spans(
     return tuple(spans), tuple(relations)
 
 
-# structural typing protocols for spaCy/Stanza dependency parses
-class _SpacyMorphProtocol(Protocol):
-    def __str__(self) -> str: ...  # noqa: D105
-
-
-class _SpacyParsedTokenProtocol(Protocol):
-    i: int
-    idx: int
-    text: str
-    lemma_: str
-    pos_: str
-    tag_: str
-    dep_: str
-    whitespace_: str
-    morph: _SpacyMorphProtocol
-
-    @property
-    def head(self) -> _SpacyParsedTokenProtocol: ...  # noqa: D102
-
-
-class _SpacySpanProtocol(Protocol):
-    start: int
-    start_char: int
-    text: str
-
-    def __iter__(self) -> Iterator[_SpacyParsedTokenProtocol]: ...  # noqa: D105
-
-
-class _SpacyDocProtocol(Protocol):
-    @property
-    def sents(self) -> Iterator[_SpacySpanProtocol]: ...  # noqa: D102
-
-
+# structural typing protocols for the untyped Stanza pipeline
 class _StanzaWordProtocol(Protocol):
+    """Structural type for a parsed Stanza ``Word``."""
+
     id: int
     text: str
     lemma: str | None
@@ -509,13 +484,21 @@ class _StanzaWordProtocol(Protocol):
 
 
 class _StanzaSentenceProtocol(Protocol):
+    """Structural type for a parsed Stanza sentence."""
+
     text: str
     words: list[_StanzaWordProtocol]
 
 
 class _StanzaDocProtocol(Protocol):
+    """Structural type for a parsed Stanza document."""
+
     sentences: list[_StanzaSentenceProtocol]
 
 
 class _StanzaPipelineProtocol(Protocol):
-    def __call__(self, text: str) -> _StanzaDocProtocol: ...  # noqa: D102
+    """Structural type for a Stanza ``Pipeline``."""
+
+    def __call__(self, text: str) -> _StanzaDocProtocol:
+        """Parse text into a Stanza document."""
+        ...

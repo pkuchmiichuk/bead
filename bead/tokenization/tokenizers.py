@@ -7,6 +7,7 @@ rendering metadata (``space_after``) for artifact-free reconstruction.
 
 from __future__ import annotations
 
+import importlib
 import re
 from collections.abc import Callable, Iterator
 from typing import Protocol
@@ -163,7 +164,7 @@ class SpacyTokenizer:
             return self._nlp
 
         try:
-            import spacy  # noqa: PLC0415  # type: ignore[reportMissingImports]
+            spacy = importlib.import_module("spacy")
         except ImportError as e:
             raise ImportError(
                 "spaCy is required for SpacyTokenizer. "
@@ -175,10 +176,10 @@ class SpacyTokenizer:
             model = f"{self._language}_core_web_sm"
 
         try:
-            nlp: Callable[..., _SpacyDocProtocol] = spacy.load(model)  # type: ignore[assignment]
+            nlp: Callable[..., _SpacyDocProtocol] = spacy.load(model)
         except OSError:
             # fall back to blank model
-            nlp = spacy.blank(self._language)  # type: ignore[assignment]
+            nlp = spacy.blank(self._language)
 
         self._nlp = nlp
         return nlp
@@ -237,7 +238,7 @@ class StanzaTokenizer:
             return self._nlp
 
         try:
-            import stanza  # noqa: PLC0415  # type: ignore[reportMissingImports]
+            stanza = importlib.import_module("stanza")
         except ImportError as e:
             raise ImportError(
                 "Stanza is required for StanzaTokenizer. "
@@ -248,20 +249,20 @@ class StanzaTokenizer:
         pkg_kwarg = {"package": pkg} if pkg is not None else {}
 
         try:
-            nlp: _StanzaPipelineProtocol = stanza.Pipeline(  # type: ignore[assignment]
+            nlp: _StanzaPipelineProtocol = stanza.Pipeline(
                 lang=self._language,
                 processors="tokenize",
                 verbose=False,
-                **pkg_kwarg,  # type: ignore[reportArgumentType]
+                **pkg_kwarg,
             )
         except Exception:
             # download model and retry
             stanza.download(self._language, verbose=False)
-            nlp = stanza.Pipeline(  # type: ignore[assignment]
+            nlp = stanza.Pipeline(
                 lang=self._language,
                 processors="tokenize",
                 verbose=False,
-                **pkg_kwarg,  # type: ignore[reportArgumentType]
+                **pkg_kwarg,
             )
 
         self._nlp = nlp
@@ -326,15 +327,32 @@ def create_tokenizer(config: TokenizerConfig) -> Callable[[str], TokenizedText]:
         raise ValueError(f"Unknown tokenizer backend: {config.backend}")
 
 
-# structural typing protocols for spaCy/Stanza (avoids hard imports)
+# structural typing protocols for spaCy/Stanza (avoids hard imports).
+# Attributes are read-only properties so a real spaCy ``Token`` (whose fields
+# are properties) structurally satisfies the protocol.
 class _SpacyTokenProtocol(Protocol):
-    text: str
-    whitespace_: str
-    idx: int
+    @property
+    def text(self) -> str:
+        """Surface form of the token."""
+        ...
+
+    @property
+    def whitespace_(self) -> str:
+        """Trailing whitespace following the token."""
+        ...
+
+    @property
+    def idx(self) -> int:
+        """Character offset of the token start."""
+        ...
 
 
 class _SpacyDocProtocol(Protocol):
-    def __iter__(self) -> Iterator[_SpacyTokenProtocol]: ...  # noqa: D105
+    """Structural type for a spaCy ``Doc``."""
+
+    def __iter__(self) -> Iterator[_SpacyTokenProtocol]:
+        """Iterate the tokens of the document."""
+        ...
 
 
 class _StanzaTokenProtocol(Protocol):
@@ -353,4 +371,8 @@ class _StanzaDocProtocol(Protocol):
 
 
 class _StanzaPipelineProtocol(Protocol):
-    def __call__(self, text: str) -> _StanzaDocProtocol: ...  # noqa: D102
+    """Structural type for a Stanza ``Pipeline``."""
+
+    def __call__(self, text: str) -> _StanzaDocProtocol:
+        """Parse text into a Stanza document."""
+        ...

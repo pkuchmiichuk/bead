@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 
 import pytest
@@ -19,14 +20,14 @@ from bead.data.serialization import (
     write_jsonlines,
 )
 
-_REDDIT_ROWS: list[dict[str, object]] = [
+_REDDIT_ROWS: list[dict[str, str | int]] = [
     {"body": "The dog chased the cat.", "author": "alice", "score": 12},
     {"body": "The dog slept.", "author": "bob", "score": 3},
     {"author": "carol", "score": 1},  # no body: skipped
 ]
 
 
-def _write_jsonl(path: Path, rows: list[dict[str, object]]) -> None:
+def _write_jsonl(path: Path, rows: Sequence[Mapping[str, str | int]]) -> None:
     path.write_text(
         "\n".join(json.dumps(row) for row in rows) + "\n", encoding="utf-8"
     )

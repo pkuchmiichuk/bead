@@ -13,7 +13,7 @@ from bead.corpus.pipeline import (
     sample_corpus,
 )
 from bead.corpus.records import CorpusRecord
-from bead.tokenization.parsers import ParsedSentence, ParsedToken
+from bead.tokenization.parsers import ParsedSentence, ParsedToken, StanzaParser
 
 # A structural constraint: root is a verb that takes a direct object.
 TRANSITIVE = (
@@ -182,17 +182,13 @@ class TestSampleCorpusStanzaIntegration:
     """End-to-end with a real Stanza parser (skips only if model unavailable)."""
 
     def test_filters_transitive_with_real_parser(self) -> None:
-        pytest.importorskip("stanza")
-        import stanza  # noqa: PLC0415
-
+        stanza = pytest.importorskip("stanza")
         try:
             stanza.download(
                 "en", processors="tokenize,pos,lemma,depparse", verbose=False
             )
         except Exception as exc:  # pragma: no cover - network dependent
             pytest.skip(f"Stanza English model unavailable (no network?): {exc}")
-
-        from bead.tokenization.parsers import StanzaParser  # noqa: PLC0415
 
         records = [
             CorpusRecord(text="The dog chased the cat.", source_name="c"),

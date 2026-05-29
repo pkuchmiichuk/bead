@@ -25,4 +25,6 @@ class CorpusSource(Protocol):
 
     source_name: str
 
-    def __iter__(self) -> Iterator[CorpusRecord]: ...  # noqa: D105
+    def __iter__(self) -> Iterator[CorpusRecord]:
+        """Iterate the records of the source."""
+        ...

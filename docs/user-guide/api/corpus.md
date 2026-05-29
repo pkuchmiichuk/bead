@@ -25,28 +25,29 @@ A `CorpusSource` streams `CorpusRecord`s, each carrying `text`, a `source_name`,
 a `record_index`, and a flat `provenance` dict.
 
 ```python
-from bead.corpus import JsonlCorpusSource, CsvCorpusSource
+from bead.corpus import CsvCorpusSource, JsonlCorpusSource
 
-# JSON Lines, transparently decompressing .jsonl.zst
+# JSON Lines (a .jsonl.zst path is transparently decompressed)
 reddit = JsonlCorpusSource(
-    "comments.jsonl.zst",
+    "corpus/comments.jsonl",
     text_field="body",
     provenance_fields=("author", "subreddit", "score"),
 )
 
+for record in reddit:
+    print(record.text, record.provenance["author"])
+
 # CSV / TSV
 items = CsvCorpusSource(
-    "sentences.csv",
+    "corpus/sentences.csv",
     text_column="sentence",
     provenance_columns=("verb", "frequency"),
 )
-
-for record in reddit:
-    print(record.text, record.provenance["author"])
+print([record.provenance["verb"] for record in items])
 ```
 
-Sources are lazy iterators, so multi-gigabyte corpora are never loaded into
-memory.
+Sources are lazy iterators, so multi-gigabyte corpora (including
+Zstandard-compressed `.jsonl.zst` files) are never loaded into memory.
 
 ## Structural Sampling
 

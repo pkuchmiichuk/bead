@@ -705,7 +705,7 @@ def test_evaluate_type_error_in_operator() -> None:
         left=ast.Literal(kind="literal", value="hello"),
         right=ast.Literal(kind="literal", value=5),
     )
-    with pytest.raises(EvaluationError, match="Type error in operation"):
+    with pytest.raises(EvaluationError, match="Cannot compare"):
         evaluator.evaluate(node, ctx)
 
 

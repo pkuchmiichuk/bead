@@ -97,6 +97,23 @@ def test_api_docs_code_blocks(
     ):
         pytest.skip("Glazing data not available (run 'glazing download' first)")
 
+    # Skip examples that require optional NLP parser models (spaCy/Stanza) or
+    # external model APIs (OpenAI/Anthropic) - these resources are not available
+    # in CI, like glazing data above.
+    optional_backend_indicators = [
+        "StanzaParser",
+        "SpacyParser",
+        "create_parser",
+        "sample_corpus",
+        "parse_records",
+        "filter_by_structure",
+        "CompletionCorpusSource",
+        "OpenAIAdapter",
+        "AnthropicAdapter",
+    ]
+    if any(ind in example.source for ind in optional_backend_indicators):
+        pytest.skip("Requires an optional NLP parser model or model API")
+
     # Ignore D100 (module docstrings), D102 (method docstrings), F821 (undefined),
     # F401 (unused imports), E402 (imports not at top), I001 (import sorting) -
     # isolated documentation snippets showing specific concepts, not complete scripts

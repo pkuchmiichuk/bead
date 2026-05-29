@@ -9,7 +9,7 @@ constraint expressions.
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from bead.dsl import ast
 from bead.dsl.context import EvaluationContext
@@ -18,10 +18,103 @@ from bead.dsl.parser import parse
 from bead.dsl.stdlib import register_stdlib
 
 if TYPE_CHECKING:
-    from bead.items.item import Item
+    from bead.data.base import BeadBaseModel, JsonValue
     from bead.resources.constraints import ContextValue
-    from bead.resources.lexical_item import LexicalItem
-    from bead.templates.filler import FilledTemplate
+
+# Every value an expression can produce or operate on: DSL scalars, collections,
+# and bead model objects (reached via attribute access on a bound ``self`` /
+# ``item``). Attribute and subscript access ultimately bottom out in model
+# fields, which are themselves of this shape.
+type DslValue = (
+    str
+    | int
+    | float
+    | bool
+    | None
+    | list["DslValue"]
+    | tuple["DslValue", ...]
+    | dict[str, "DslValue"]
+    | set["DslValue"]
+    | frozenset["DslValue"]
+    | BeadBaseModel
+    | JsonValue
+)
+
+
+def _compare(operator: str, left: DslValue, right: DslValue) -> bool:
+    """Apply an ordering operator to two numeric or two string operands."""
+    if isinstance(left, (int, float)) and isinstance(right, (int, float)):
+        lf, rf = float(left), float(right)
+        if operator == "<":
+            return lf < rf
+        if operator == ">":
+            return lf > rf
+        if operator == "<=":
+            return lf <= rf
+        return lf >= rf
+    if isinstance(left, str) and isinstance(right, str):
+        if operator == "<":
+            return left < right
+        if operator == ">":
+            return left > right
+        if operator == "<=":
+            return left <= right
+        return left >= right
+    raise EvaluationError(
+        f"Cannot compare {type(left).__name__} and {type(right).__name__}"
+    )
+
+
+def _arithmetic(operator: str, left: DslValue, right: DslValue) -> int | float | str:
+    """Apply an arithmetic operator, preserving int/float/str result types."""
+    if isinstance(left, int) and isinstance(right, int):
+        if operator == "+":
+            return left + right
+        if operator == "-":
+            return left - right
+        if operator == "*":
+            return left * right
+        if operator == "/":
+            if right == 0:
+                raise EvaluationError("Division by zero")
+            return left / right
+        if right == 0:
+            raise EvaluationError("Modulo by zero")
+        return left % right
+    if isinstance(left, (int, float)) and isinstance(right, (int, float)):
+        lf, rf = float(left), float(right)
+        if operator == "+":
+            return lf + rf
+        if operator == "-":
+            return lf - rf
+        if operator == "*":
+            return lf * rf
+        if operator == "/":
+            if rf == 0:
+                raise EvaluationError("Division by zero")
+            return lf / rf
+        if rf == 0:
+            raise EvaluationError("Modulo by zero")
+        return lf % rf
+    if operator == "+" and isinstance(left, str) and isinstance(right, str):
+        return left + right
+    raise EvaluationError(
+        f"Cannot apply '{operator}' to "
+        f"{type(left).__name__} and {type(right).__name__}"
+    )
+
+
+def _contains(left: DslValue, right: DslValue) -> bool:
+    """Test membership of ``left`` in a container ``right``."""
+    if isinstance(right, str):
+        if isinstance(left, str):
+            return left in right
+        raise EvaluationError("Substring test requires a string on the left")
+    if isinstance(right, (list, tuple, set, frozenset, dict)):
+        return left in right
+    raise EvaluationError(
+        f"Membership test requires a container, got {type(right).__name__}"
+    )
 
 
 class Evaluator:
@@ -54,9 +147,9 @@ class Evaluator:
 
     def __init__(self, use_cache: bool = True) -> None:
         self._use_cache = use_cache
-        self._cache: dict[tuple[str, ...], Any] = {}
+        self._cache: dict[tuple[str, ...], DslValue] = {}
 
-    def evaluate(self, node: ast.ASTNode, context: EvaluationContext) -> Any:
+    def evaluate(self, node: ast.ASTNode, context: EvaluationContext) -> DslValue:
         """Evaluate an AST node in the given context.
 
         Parameters
@@ -68,7 +161,7 @@ class Evaluator:
 
         Returns
         -------
-        Any
+        DslValue
             Result of evaluation.
 
         Raises
@@ -96,7 +189,9 @@ class Evaluator:
         else:
             raise EvaluationError(f"Unknown node type: {type(node).__name__}")
 
-    def _evaluate_literal(self, node: ast.Literal, context: EvaluationContext) -> Any:
+    def _evaluate_literal(
+        self, node: ast.Literal, context: EvaluationContext
+    ) -> DslValue:
         """Evaluate literal node.
 
         Parameters
@@ -108,12 +203,14 @@ class Evaluator:
 
         Returns
         -------
-        Any
+        DslValue
             Literal value.
         """
         return node.value
 
-    def _evaluate_variable(self, node: ast.Variable, context: EvaluationContext) -> Any:
+    def _evaluate_variable(
+        self, node: ast.Variable, context: EvaluationContext
+    ) -> DslValue:
         """Evaluate variable node.
 
         Parameters
@@ -125,7 +222,7 @@ class Evaluator:
 
         Returns
         -------
-        Any
+        DslValue
             Variable value from context.
 
         Raises
@@ -139,7 +236,7 @@ class Evaluator:
 
     def _evaluate_binary_op(
         self, node: ast.BinaryOp, context: EvaluationContext
-    ) -> Any:
+    ) -> DslValue:
         """Evaluate binary operation node.
 
         Parameters
@@ -151,7 +248,7 @@ class Evaluator:
 
         Returns
         -------
-        Any
+        DslValue
             Result of binary operation.
 
         Raises
@@ -175,51 +272,27 @@ class Evaluator:
         left = self.evaluate(node.left, context)
         right = self.evaluate(node.right, context)
 
-        try:
-            # comparison operators
-            if node.operator == "==":
-                return left == right
-            elif node.operator == "!=":
-                return left != right
-            elif node.operator == "<":
-                return left < right
-            elif node.operator == ">":
-                return left > right
-            elif node.operator == "<=":
-                return left <= right
-            elif node.operator == ">=":
-                return left >= right
-            # membership operators
-            elif node.operator == "in":
-                return left in right
-            elif node.operator == "not in":
-                return left not in right
-            # arithmetic operators
-            elif node.operator == "+":
-                return left + right
-            elif node.operator == "-":
-                return left - right
-            elif node.operator == "*":
-                return left * right
-            elif node.operator == "/":
-                if right == 0:
-                    raise EvaluationError("Division by zero")
-                return left / right
-            elif node.operator == "%":
-                if right == 0:
-                    raise EvaluationError("Modulo by zero")
-                return left % right
-            else:
-                raise EvaluationError(f"Unknown operator: {node.operator}")
-        except TypeError as e:
-            raise EvaluationError(
-                f"Type error in operation '{node.operator}': "
-                f"cannot operate on {type(left).__name__} and {type(right).__name__}"
-            ) from e
-        except ZeroDivisionError as e:
-            raise EvaluationError("Division by zero") from e
+        # equality works on any pair of values
+        if node.operator == "==":
+            return left == right
+        if node.operator == "!=":
+            return left != right
+        # ordering operators (numeric or string operands)
+        if node.operator in ("<", ">", "<=", ">="):
+            return _compare(node.operator, left, right)
+        # membership operators
+        if node.operator == "in":
+            return _contains(left, right)
+        if node.operator == "not in":
+            return not _contains(left, right)
+        # arithmetic operators
+        if node.operator in ("+", "-", "*", "/", "%"):
+            return _arithmetic(node.operator, left, right)
+        raise EvaluationError(f"Unknown operator: {node.operator}")
 
-    def _evaluate_unary_op(self, node: ast.UnaryOp, context: EvaluationContext) -> Any:
+    def _evaluate_unary_op(
+        self, node: ast.UnaryOp, context: EvaluationContext
+    ) -> DslValue:
         """Evaluate unary operation node.
 
         Parameters
@@ -231,7 +304,7 @@ class Evaluator:
 
         Returns
         -------
-        Any
+        DslValue
             Result of unary operation.
 
         Raises
@@ -241,24 +314,20 @@ class Evaluator:
         """
         operand = self.evaluate(node.operand, context)
 
-        try:
-            if node.operator == "not":
-                return not operand
-            elif node.operator == "-":
-                return -operand
-            elif node.operator == "+":
-                return +operand
-            else:
-                raise EvaluationError(f"Unknown unary operator: {node.operator}")
-        except TypeError as e:
-            raise EvaluationError(
-                f"Type error in unary operation '{node.operator}': "
-                f"cannot operate on {type(operand).__name__}"
-            ) from e
+        if node.operator == "not":
+            return not operand
+        if node.operator in ("-", "+"):
+            if not isinstance(operand, (int, float)):
+                raise EvaluationError(
+                    f"Unary '{node.operator}' requires a number, got "
+                    f"{type(operand).__name__}"
+                )
+            return -operand if node.operator == "-" else +operand
+        raise EvaluationError(f"Unknown unary operator: {node.operator}")
 
     def _evaluate_function_call(
         self, node: ast.FunctionCall, context: EvaluationContext
-    ) -> Any:
+    ) -> DslValue:
         """Evaluate function call node.
 
         Parameters
@@ -270,7 +339,7 @@ class Evaluator:
 
         Returns
         -------
-        Any
+        DslValue
             Function return value.
 
         Raises
@@ -309,7 +378,7 @@ class Evaluator:
 
     def _evaluate_attribute_access(
         self, node: ast.AttributeAccess, context: EvaluationContext
-    ) -> Any:
+    ) -> DslValue:
         """Evaluate attribute access node.
 
         Parameters
@@ -321,7 +390,7 @@ class Evaluator:
 
         Returns
         -------
-        Any
+        DslValue
             Attribute value.
 
         Raises
@@ -348,7 +417,7 @@ class Evaluator:
 
     def _evaluate_subscript(
         self, node: ast.Subscript, context: EvaluationContext
-    ) -> Any:
+    ) -> DslValue:
         """Evaluate subscript access node.
 
         Parameters
@@ -360,7 +429,7 @@ class Evaluator:
 
         Returns
         -------
-        Any
+        DslValue
             Subscripted value.
 
         Raises
@@ -372,16 +441,32 @@ class Evaluator:
         index = self.evaluate(node.index, context)
 
         try:
-            return obj[index]
-        except (KeyError, IndexError, TypeError) as e:
+            if isinstance(obj, dict):
+                if not isinstance(index, str):
+                    raise EvaluationError(
+                        f"Dictionary index must be a string, got "
+                        f"{type(index).__name__}"
+                    )
+                return obj[index]
+            if isinstance(obj, (list, tuple, str)):
+                if not isinstance(index, int):
+                    raise EvaluationError(
+                        f"Sequence index must be an integer, got "
+                        f"{type(index).__name__}"
+                    )
+                return obj[index]
+            raise EvaluationError(
+                f"Subscript access not supported on {type(obj).__name__}"
+            )
+        except (KeyError, IndexError) as e:
             obj_type = type(obj).__name__
             raise EvaluationError(
-                f"Subscript access failed on {obj_type} with index {index}: {e}"
+                f"Subscript access failed on {obj_type} with index {index!r}: {e}"
             ) from e
 
     def _evaluate_list_literal(
         self, node: ast.ListLiteral, context: EvaluationContext
-    ) -> list[Any]:
+    ) -> list[DslValue]:
         """Evaluate list literal node.
 
         Parameters
@@ -393,7 +478,7 @@ class Evaluator:
 
         Returns
         -------
-        list[Any]
+        list[DslValue]
             Evaluated list elements.
         """
         return [self.evaluate(element, context) for element in node.elements]
@@ -455,24 +540,23 @@ class DSLEvaluator:
     def evaluate(
         self,
         expression: str,
-        context: Mapping[str, ContextValue | LexicalItem | FilledTemplate | Item],
-    ) -> bool | str | int | float | list[Any]:
+        context: Mapping[str, DslValue],
+    ) -> DslValue:
         """Evaluate DSL expression with given context.
 
         Parameters
         ----------
         expression : str
             DSL expression to evaluate.
-        context : dict[str, ContextValue | LexicalItem | FilledTemplate | Item]
-            Variables available during evaluation. Can include:
-            - ContextValue: primitive values, lists, sets
-            - LexicalItem: lexical items for single-slot constraints
-            - FilledTemplate: filled templates for multi-slot constraints
-            - Item: items for list partitioning
+        context : Mapping[str, DslValue]
+            Variables available during evaluation. Values may be DSL scalars,
+            collections, or bead models (e.g. a ``LexicalItem`` bound to
+            ``self`` for single-slot constraints, a ``FilledTemplate`` for
+            multi-slot constraints, or an ``Item`` for list partitioning).
 
         Returns
         -------
-        bool | str | int | float | list[Any]
+        DslValue
             Result of evaluation.
 
         Raises
@@ -511,10 +595,10 @@ class DSLEvaluator:
 
     def extract_property_value(
         self,
-        obj: Any,
+        obj: DslValue,
         property_expression: str,
         context: dict[str, ContextValue] | None = None,
-    ) -> Any:
+    ) -> DslValue:
         """Extract property value using DSL expression.
 
         This method is used by ListPartitioner to extract property values
@@ -523,7 +607,7 @@ class DSLEvaluator:
 
         Parameters
         ----------
-        obj : Any
+        obj : DslValue
             Object to extract property from (typically a LexicalItem or Item).
         property_expression : str
             DSL expression that accesses object properties (e.g., "item.lemma",
@@ -533,7 +617,7 @@ class DSLEvaluator:
 
         Returns
         -------
-        Any
+        DslValue
             Extracted property value.
 
         Raises
@@ -550,9 +634,10 @@ class DSLEvaluator:
         >>> evaluator.extract_property_value(item, "len(item.lemma)")
         4
         """
-        eval_context_dict: dict[str, Any] = {"item": obj}
+        eval_context_dict: dict[str, DslValue] = {"item": obj}
         if context:
-            eval_context_dict.update(context)
+            for key, value in context.items():
+                eval_context_dict[key] = value
 
         return self.evaluate(property_expression, eval_context_dict)
 

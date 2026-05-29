@@ -8,7 +8,9 @@ satisfies a structural DSL constraint.
 
 from __future__ import annotations
 
+from bead.corpus.assemble import EdgeSpec, assemble_graph
 from bead.corpus.base import CorpusSource
+from bead.corpus.graph import CorpusEdge, CorpusGraph, CorpusNode
 from bead.corpus.pipeline import (
     filter_by_structure,
     parse_records,
@@ -24,11 +26,16 @@ from bead.corpus.sources import (
 
 __all__ = [
     "CompletionCorpusSource",
+    "CorpusEdge",
+    "CorpusGraph",
+    "CorpusNode",
     "CorpusRecord",
     "CorpusSource",
     "CsvCorpusSource",
+    "EdgeSpec",
     "JsonlCorpusSource",
     "ProvenanceValue",
+    "assemble_graph",
     "filter_by_structure",
     "parse_records",
     "record_to_item",

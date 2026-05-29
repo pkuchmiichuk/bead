@@ -4,6 +4,7 @@ Uses pytest-examples to extract and test code blocks from markdown files.
 """
 
 import os
+import shutil
 import sys
 from pathlib import Path
 
@@ -34,8 +35,6 @@ def setup_test_environment():
     3. Adds gallery to sys.path for imports
     4. Cleans up after all tests complete
     """
-    import shutil  # noqa: PLC0415
-
     # Add gallery to sys.path so we can import utils
     if str(GALLERY_DIR) not in sys.path:
         sys.path.insert(0, str(GALLERY_DIR))

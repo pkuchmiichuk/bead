@@ -55,7 +55,7 @@ def _parsed_item() -> Item:
     )
 
 
-def _eval(expression: str):  # noqa: ANN202 — inferred DSL result type
+def _eval(expression: str):
     item = _parsed_item()
     return DSLEvaluator().evaluate(expression, {"self": item, "item": item})
 

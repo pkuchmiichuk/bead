@@ -36,6 +36,9 @@ reddit = JsonlCorpusSource(
 
 for record in reddit:
     print(record.text, record.provenance["author"])
+    #> The dog chased the cat in the yard. alice
+    #> She wrote a long and thoughtful letter. bob
+    #> They built a sturdy wooden fence. carol
 
 # CSV / TSV
 items = CsvCorpusSource(
@@ -44,10 +47,65 @@ items = CsvCorpusSource(
     provenance_columns=("verb", "frequency"),
 )
 print([record.provenance["verb"] for record in items])
+#> ['chase', 'write']
 ```
 
 Sources are lazy iterators, so multi-gigabyte corpora (including
 Zstandard-compressed `.jsonl.zst` files) are never loaded into memory.
+
+By default a source retains **every** field (not just the ones you name) so no
+information is discarded: thread edges like Reddit's `parent_id`/`link_id` ride
+along in `provenance` even if you do not list them, and nested values are
+JSON-recoverable. Pass an explicit `provenance_fields` / `provenance_columns`
+tuple only when you want to keep a subset.
+
+## Reconstructing Thread and Graph Structure
+
+Streaming is flat and fast. When you need the structure *between* records (a
+Reddit reply tree, or any typed relation graph over expressions), buffer the
+stream into a `CorpusGraph` with `assemble_graph`. This is an opt-in, in-memory
+step on top of the streaming tier.
+
+```python
+from bead.corpus import CorpusRecord, EdgeSpec, assemble_graph
+
+# (records would normally come from a streaming source)
+records = [
+    CorpusRecord(text="the submission", source_name="r", provenance={"id": "sub"}),
+    CorpusRecord(
+        text="a reply",
+        source_name="r",
+        provenance={"id": "c1", "parent_id": "t3_sub"},
+    ),
+    CorpusRecord(
+        text="a nested reply",
+        source_name="r",
+        provenance={"id": "c2", "parent_id": "t1_c1"},
+    ),
+]
+
+graph = assemble_graph(
+    records,
+    node_id_field="id",
+    edge_specs=[
+        EdgeSpec(
+            target_field="parent_id",
+            edge_type="reply-to",
+            strip_prefixes=("t1_", "t3_"),  # Reddit fullname prefixes
+        )
+    ],
+)
+
+# Edges point child -> parent ("reply-to"); reverse to walk the tree top-down.
+tree = graph.reverse()
+assert tree.roots("reply-to") == ("sub",)
+assert set(tree.descendants("sub", "reply-to")) == {"c1", "c2"}
+```
+
+`CorpusGraph` is a directed, typed multigraph (parallel and multiple edge types
+between a pair are allowed), so arbitrary expression graphs - not just trees -
+are supported. It maps losslessly to the layers property graph; see the
+[Layers Interoperability guide](layers-interop.md).
 
 ## Structural Sampling
 

@@ -76,6 +76,7 @@ nav:
       - Items: user-guide/api/items.md
       - Lists: user-guide/api/lists.md
       - Corpus Ingestion: user-guide/api/corpus.md
+      - Layers Interoperability: user-guide/api/layers-interop.md
       - Deployment: user-guide/api/deployment.md
       - Training: user-guide/api/training.md
       - Workflows: user-guide/api/workflows.md
@@ -89,6 +90,7 @@ nav:
     - bead.tokenization: api/tokenization.md
     - bead.transforms: api/transforms.md
     - bead.corpus: api/corpus.md
+    - bead.interop: api/interop.md
     - bead.active_learning: api/active_learning.md
     - bead.simulation: api/simulation.md
     - bead.evaluation: api/evaluation.md

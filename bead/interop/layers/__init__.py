@@ -8,6 +8,11 @@ remainder. Round-trip fidelity is guaranteed by the didactic GetPut/PutGet laws.
 
 from __future__ import annotations
 
+from bead.interop.layers.bridges import (
+    RECORD_EXPRESSION,
+    RecordExpressionLens,
+    record_to_expression,
+)
 from bead.interop.layers.graph_lens import (
     CORPUS_GRAPH_LAYERS,
     CorpusGraphLayersLens,
@@ -16,6 +21,9 @@ from bead.interop.layers.graph_lens import (
 
 __all__ = [
     "CORPUS_GRAPH_LAYERS",
+    "RECORD_EXPRESSION",
     "CorpusGraphLayersLens",
+    "RecordExpressionLens",
     "graph_to_layers",
+    "record_to_expression",
 ]

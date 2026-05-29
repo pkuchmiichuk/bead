@@ -44,6 +44,24 @@ from bead.interop.layers.models import (
     TokenRef,
     TokenRefSequence,
 )
+from bead.interop.layers.models_records import (
+    Annotation,
+    AnnotationLayer,
+    ArgumentRef,
+    AudioInfo,
+    Cluster,
+    DocumentInfo,
+    Expression,
+    GraphEdge,
+    GraphEdgeEntry,
+    GraphEdgeSet,
+    GraphNode,
+    RoleSlot,
+    Token,
+    Tokenization,
+    TypeDef,
+    VideoInfo,
+)
 
 
 class MirrorIso[T: dx.Model](dx.Iso[T, JsonValue]):
@@ -102,4 +120,35 @@ SHARED_DEF_MODELS: tuple[type[dx.Model], ...] = (
 #: One lossless iso per shared-def mirror model.
 SHARED_DEF_ISOS: dict[type[dx.Model], MirrorIso[dx.Model]] = {
     model_type: MirrorIso(model_type) for model_type in SHARED_DEF_MODELS
+}
+
+#: Every linguistic record mirror model.
+RECORD_MODELS: tuple[type[dx.Model], ...] = (
+    Expression,
+    Token,
+    Tokenization,
+    ArgumentRef,
+    Annotation,
+    Cluster,
+    AnnotationLayer,
+    GraphNode,
+    GraphEdge,
+    GraphEdgeEntry,
+    GraphEdgeSet,
+    AudioInfo,
+    VideoInfo,
+    DocumentInfo,
+    RoleSlot,
+    TypeDef,
+)
+
+#: One lossless iso per record mirror model.
+RECORD_ISOS: dict[type[dx.Model], MirrorIso[dx.Model]] = {
+    model_type: MirrorIso(model_type) for model_type in RECORD_MODELS
+}
+
+#: All mirror isos (shared defs + records), keyed by model type.
+ALL_MIRROR_ISOS: dict[type[dx.Model], MirrorIso[dx.Model]] = {
+    **SHARED_DEF_ISOS,
+    **RECORD_ISOS,
 }

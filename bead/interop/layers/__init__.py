@@ -19,6 +19,9 @@ from bead.interop.layers.graph_lens import (
     graph_to_layers,
 )
 from bead.interop.layers.model_lenses import (
+    ALL_MIRROR_ISOS,
+    RECORD_ISOS,
+    RECORD_MODELS,
     SHARED_DEF_ISOS,
     SHARED_DEF_MODELS,
     MirrorIso,
@@ -31,9 +34,12 @@ from bead.interop.layers.parse_lens import (
 )
 
 __all__ = [
+    "ALL_MIRROR_ISOS",
     "CORPUS_GRAPH_LAYERS",
     "PARSED_SENTENCE_LAYERS",
     "RECORD_EXPRESSION",
+    "RECORD_ISOS",
+    "RECORD_MODELS",
     "SHARED_DEF_ISOS",
     "SHARED_DEF_MODELS",
     "CorpusGraphLayersLens",

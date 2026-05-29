@@ -1035,9 +1035,7 @@ def filter_upos(item: Item, indices: list[int], tag: str) -> list[int]:
 
 
 # Type alias for DSL callable functions
-DslFunction = Callable[
-    ..., DslScalar | list[DslScalar] | list[float] | list[int]
-]
+DslFunction = Callable[..., DslScalar | list[DslScalar] | list[float] | list[int]]
 
 # Register structural query functions
 STRUCTURE_FUNCTIONS: dict[str, DslFunction] = {

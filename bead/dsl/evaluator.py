@@ -99,8 +99,7 @@ def _arithmetic(operator: str, left: DslValue, right: DslValue) -> int | float |
     if operator == "+" and isinstance(left, str) and isinstance(right, str):
         return left + right
     raise EvaluationError(
-        f"Cannot apply '{operator}' to "
-        f"{type(left).__name__} and {type(right).__name__}"
+        f"Cannot apply '{operator}' to {type(left).__name__} and {type(right).__name__}"
     )
 
 
@@ -444,15 +443,13 @@ class Evaluator:
             if isinstance(obj, dict):
                 if not isinstance(index, str):
                     raise EvaluationError(
-                        f"Dictionary index must be a string, got "
-                        f"{type(index).__name__}"
+                        f"Dictionary index must be a string, got {type(index).__name__}"
                     )
                 return obj[index]
             if isinstance(obj, (list, tuple, str)):
                 if not isinstance(index, int):
                     raise EvaluationError(
-                        f"Sequence index must be an integer, got "
-                        f"{type(index).__name__}"
+                        f"Sequence index must be an integer, got {type(index).__name__}"
                     )
                 return obj[index]
             raise EvaluationError(

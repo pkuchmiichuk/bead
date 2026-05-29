@@ -202,6 +202,7 @@ corpus = [
     { name = "zstandard" },
 ]
 dev = [
+    { name = "hypothesis" },
     { name = "pandas-stubs" },
     { name = "pyright" },
     { name = "pytest" },
@@ -245,6 +246,7 @@ requires-dist = [
     { name = "evaluate", specifier = ">=0.4.0" },
     { name = "glazing", specifier = ">=0.2.0" },
     { name = "google-generativeai", marker = "extra == 'api'", specifier = ">=0.3.0" },
+    { name = "hypothesis", marker = "extra == 'dev'", specifier = ">=6.155.0" },
     { name = "jinja2", specifier = ">=3.0.0" },
     { name = "krippendorff", specifier = ">=0.6.0" },
     { name = "langcodes", specifier = ">=3.3.0" },

@@ -35,9 +35,7 @@ def to_feature_map(features: Mapping[str, MetadataValue]) -> JsonValue:
     return {"entries": entries}
 
 
-type _Loaded = (
-    str | int | float | bool | None | list["_Loaded"] | dict[str, "_Loaded"]
-)
+type _Loaded = str | int | float | bool | None | list["_Loaded"] | dict[str, "_Loaded"]
 
 
 def _tuplify(value: _Loaded) -> MetadataValue:
@@ -93,9 +91,7 @@ def strip_nulls(value: JsonValue) -> JsonValue:
     """
     if isinstance(value, dict):
         return {
-            key: strip_nulls(item)
-            for key, item in value.items()
-            if item is not None
+            key: strip_nulls(item) for key, item in value.items() if item is not None
         }
     if isinstance(value, tuple):
         return tuple(strip_nulls(item) for item in value)

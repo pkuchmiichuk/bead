@@ -248,7 +248,5 @@ class AnthropicAdapter(ModelAdapter):
             temperature=temperature,
             messages=[{"role": "user", "content": prompt}],
         )
-        parts = [
-            block.text for block in response.content if block.type == "text"
-        ]
+        parts = [block.text for block in response.content if block.type == "text"]
         return "".join(parts).strip()

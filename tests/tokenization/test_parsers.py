@@ -22,27 +22,62 @@ def _known_sentence() -> ParsedSentence:
         original_text="The dog chased the cat",
         tokens=(
             ParsedToken(
-                index=0, text="The", lemma="the", upos="DET", xpos="DT",
-                deprel="det", head=1, start_char=0, end_char=3,
+                index=0,
+                text="The",
+                lemma="the",
+                upos="DET",
+                xpos="DT",
+                deprel="det",
+                head=1,
+                start_char=0,
+                end_char=3,
             ),
             ParsedToken(
-                index=1, text="dog", lemma="dog", upos="NOUN", xpos="NN",
-                deprel="nsubj", head=2, morph={"Number": "Sing"},
-                start_char=4, end_char=7,
+                index=1,
+                text="dog",
+                lemma="dog",
+                upos="NOUN",
+                xpos="NN",
+                deprel="nsubj",
+                head=2,
+                morph={"Number": "Sing"},
+                start_char=4,
+                end_char=7,
             ),
             ParsedToken(
-                index=2, text="chased", lemma="chase", upos="VERB", xpos="VBD",
-                deprel="root", head=None, morph={"Tense": "Past"},
-                start_char=8, end_char=14,
+                index=2,
+                text="chased",
+                lemma="chase",
+                upos="VERB",
+                xpos="VBD",
+                deprel="root",
+                head=None,
+                morph={"Tense": "Past"},
+                start_char=8,
+                end_char=14,
             ),
             ParsedToken(
-                index=3, text="the", lemma="the", upos="DET", xpos="DT",
-                deprel="det", head=4, start_char=15, end_char=18,
+                index=3,
+                text="the",
+                lemma="the",
+                upos="DET",
+                xpos="DT",
+                deprel="det",
+                head=4,
+                start_char=15,
+                end_char=18,
             ),
             ParsedToken(
-                index=4, text="cat", lemma="cat", upos="NOUN", xpos="NN",
-                deprel="obj", head=2, morph={"Number": "Sing"},
-                start_char=19, end_char=22,
+                index=4,
+                text="cat",
+                lemma="cat",
+                upos="NOUN",
+                xpos="NN",
+                deprel="obj",
+                head=2,
+                morph={"Number": "Sing"},
+                start_char=19,
+                end_char=22,
             ),
         ),
     )
@@ -158,9 +193,7 @@ def _require_stanza_en() -> None:
     """
     stanza = pytest.importorskip("stanza")
     try:
-        stanza.download(
-            "en", processors="tokenize,pos,lemma,depparse", verbose=False
-        )
+        stanza.download("en", processors="tokenize,pos,lemma,depparse", verbose=False)
     except Exception as exc:  # pragma: no cover - network dependent
         pytest.skip(f"Stanza English model unavailable (no network?): {exc}")
 

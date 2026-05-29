@@ -30,9 +30,7 @@ _REDDIT_ROWS: list[dict[str, _Json]] = [
 
 
 def _write_jsonl(path: Path, rows: Sequence[Mapping[str, _Json]]) -> None:
-    path.write_text(
-        "\n".join(json.dumps(row) for row in rows) + "\n", encoding="utf-8"
-    )
+    path.write_text("\n".join(json.dumps(row) for row in rows) + "\n", encoding="utf-8")
 
 
 class TestJsonlCorpusSource:

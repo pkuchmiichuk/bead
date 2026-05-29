@@ -23,9 +23,7 @@ from bead.interop.layers._convert import j_obj, strip_nulls
 
 _CAMEL_BOUNDARY = re.compile(r"([A-Z])")
 
-type _Loaded = (
-    str | int | float | bool | None | list["_Loaded"] | dict[str, "_Loaded"]
-)
+type _Loaded = str | int | float | bool | None | list["_Loaded"] | dict[str, "_Loaded"]
 
 
 def _to_camel(name: str) -> str:

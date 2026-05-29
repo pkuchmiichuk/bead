@@ -103,9 +103,7 @@ class TestExampleRoundTrips:
     def test_view_is_layers_shaped(self) -> None:
         graph = CorpusGraph(
             nodes=(
-                CorpusNode(
-                    node_id="x", record=CorpusRecord(text="t", source_name="s")
-                ),
+                CorpusNode(node_id="x", record=CorpusRecord(text="t", source_name="s")),
             ),
             edges=(CorpusEdge(source_id="x", target_id="y", edge_type="e"),),
         )
@@ -121,9 +119,7 @@ class TestExampleRoundTrips:
 
 # --- property-based lens-law verification -----------------------------------
 
-_scalar = st.one_of(
-    st.text(max_size=6), st.integers(-50, 50), st.booleans(), st.none()
-)
+_scalar = st.one_of(st.text(max_size=6), st.integers(-50, 50), st.booleans(), st.none())
 _features = st.dictionaries(
     st.text(alphabet="klm", min_size=1, max_size=3), _scalar, max_size=3
 )
@@ -157,7 +153,9 @@ def _graphs(draw: st.DrawFn) -> CorpusGraph:
                 )
             )
     endpoint = (
-        st.sampled_from(ids) if ids else st.text(alphabet="abcde", min_size=1, max_size=4)
+        st.sampled_from(ids)
+        if ids
+        else st.text(alphabet="abcde", min_size=1, max_size=4)
     )
     edges: list[CorpusEdge] = []
     for _ in range(draw(st.integers(0, 4))):

@@ -32,9 +32,7 @@ class TestRedditReplyTree:
     """Reconstructs a Reddit reply tree (edges child -> parent)."""
 
     def test_edges_and_prefix_stripping(self) -> None:
-        g = assemble_graph(
-            _reddit_thread(), node_id_field="id", edge_specs=[_REPLY]
-        )
+        g = assemble_graph(_reddit_thread(), node_id_field="id", edge_specs=[_REPLY])
         assert {n.node_id for n in g.nodes} == {"sub", "c1", "c2", "c3"}
         # c1 replies to the submission (t3_ prefix stripped)
         assert g.successors("c1", "reply-to") == ("sub",)
@@ -53,9 +51,7 @@ class TestRedditReplyTree:
         assert set(g.descendants("sub", "reply-to")) == {"c1", "c2", "c3"}
 
     def test_records_preserved_on_nodes(self) -> None:
-        g = assemble_graph(
-            _reddit_thread(), node_id_field="id", edge_specs=[_REPLY]
-        )
+        g = assemble_graph(_reddit_thread(), node_id_field="id", edge_specs=[_REPLY])
         node = g.node_by_id("c2")
         assert node is not None
         assert node.record is not None
@@ -88,9 +84,7 @@ class TestGeneralGraph:
         assert g.node_by_id("root") is None
 
     def test_edge_fn(self) -> None:
-        def link_pairs(
-            record: CorpusRecord, node_id: str
-        ) -> Iterable[CorpusEdge]:
+        def link_pairs(record: CorpusRecord, node_id: str) -> Iterable[CorpusEdge]:
             mentions = record.provenance.get("mentions")
             if isinstance(mentions, str):
                 return [

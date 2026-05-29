@@ -63,9 +63,7 @@ _EXPECTED: dict[str, str] = {
 def test_every_targeted_construct_is_mapped() -> None:
     mapped_model_names = {model_type.__name__ for model_type in ALL_MIRROR_ISOS}
     missing = {
-        slug: name
-        for slug, name in _EXPECTED.items()
-        if name not in mapped_model_names
+        slug: name for slug, name in _EXPECTED.items() if name not in mapped_model_names
     }
     assert not missing, f"layers constructs without a mirror iso: {missing}"
 

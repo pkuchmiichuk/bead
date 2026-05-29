@@ -151,7 +151,9 @@ def _graph() -> CorpusGraph:
         ),
         edges=(
             CorpusEdge(
-                source_id="sub", target_id="alice", edge_type="authored-by",
+                source_id="sub",
+                target_id="alice",
+                edge_type="authored-by",
                 confidence=0.9,
             ),
         ),
@@ -185,10 +187,24 @@ def test_parse_bridge_content_validates(validate_layers) -> None:  # noqa: ANN00
     sentence = ParsedSentence(
         original_text="dogs bark",
         tokens=(
-            ParsedToken(index=0, text="dogs", upos="NOUN", deprel="nsubj", head=1,
-                        start_char=0, end_char=4),
-            ParsedToken(index=1, text="bark", upos="VERB", deprel="root", head=None,
-                        start_char=5, end_char=9),
+            ParsedToken(
+                index=0,
+                text="dogs",
+                upos="NOUN",
+                deprel="nsubj",
+                head=1,
+                start_char=0,
+                end_char=4,
+            ),
+            ParsedToken(
+                index=1,
+                text="bark",
+                upos="VERB",
+                deprel="root",
+                head=None,
+                start_char=5,
+                end_char=9,
+            ),
         ),
     )
     view = parse_to_layers(sentence)

@@ -17,8 +17,7 @@ from bead.tokenization.parsers import ParsedSentence, ParsedToken, StanzaParser
 
 # A structural constraint: root is a verb that takes a direct object.
 TRANSITIVE = (
-    'upos(self, root(self)) == "VERB" '
-    'and len(dependents(self, root(self), "obj")) > 0'
+    'upos(self, root(self)) == "VERB" and len(dependents(self, root(self), "obj")) > 0'
 )
 
 
@@ -104,7 +103,11 @@ class TestRecordToItem:
         assert item.item_metadata["subkind"] == "dependency"
         assert item.item_metadata["corpus_record_id"] == str(record.id)
         assert item.tokenized_elements["text"] == (
-            "The", "dog", "chased", "the", "cat",
+            "The",
+            "dog",
+            "chased",
+            "the",
+            "cat",
         )
 
 
@@ -113,9 +116,7 @@ class TestParseRecords:
 
     def test_one_pair_per_sentence(self) -> None:
         multi = CorpusRecord(text="multi", source_name="c")
-        parser = _StubParser(
-            {"multi": (_transitive_parse(), _intransitive_parse())}
-        )
+        parser = _StubParser({"multi": (_transitive_parse(), _intransitive_parse())})
         pairs = list(parse_records([multi], parser))
         assert len(pairs) == 2
 
@@ -128,9 +129,7 @@ class TestParseRecords:
                 "single": (_transitive_parse(),),
             }
         )
-        pairs = list(
-            parse_records([multi, single], parser, split_sentences=False)
-        )
+        pairs = list(parse_records([multi, single], parser, split_sentences=False))
         assert len(pairs) == 1
         assert pairs[0][0].text == "single"
 

@@ -433,9 +433,7 @@ def parse_to_spans(
                 morph_value[feature] = value
             span_metadata["morph"] = morph_value
 
-        label = (
-            SpanLabel(label=token.upos) if token.upos is not None else None
-        )
+        label = SpanLabel(label=token.upos) if token.upos is not None else None
         spans.append(
             Span(
                 span_id=f"{element_name}:tok:{token.index}",

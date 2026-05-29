@@ -78,7 +78,9 @@ _EXAMPLES: tuple[dx.Model, ...] = (
     r.GraphEdgeSet(
         created_at=_NOW,
         edges=(
-            r.GraphEdgeEntry(uuid=_UUID, edge_type="reply-to", source=_REF, target=_REF),
+            r.GraphEdgeEntry(
+                uuid=_UUID, edge_type="reply-to", source=_REF, target=_REF
+            ),
         ),
         expression="at://did:plc:abc123/pub.layers.expression.expression/self",
     ),

@@ -43,9 +43,7 @@ class TestExampleRoundTrips:
         assert view["features"]["entries"][0] == {"key": "k", "value": '"v"'}
 
 
-_scalar = st.one_of(
-    st.text(max_size=6), st.integers(-50, 50), st.booleans(), st.none()
-)
+_scalar = st.one_of(st.text(max_size=6), st.integers(-50, 50), st.booleans(), st.none())
 
 
 @given(

@@ -73,6 +73,7 @@ dev = [
     "spacy>=3.7",
     "stanza>=1.8",
     "zstandard>=0.22",
+    "hypothesis>=6.155.0",
 ]
 api = [
     "openai>=1.0.0",
@@ -115,7 +116,7 @@ markers = [
 [tool.ruff]
 line-length = 88
 target-version = "py314"
-exclude = ["gallery"]
+exclude = ["gallery", "vendor"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "D", "UP", "ANN", "B", "A", "C4", "PLC"]

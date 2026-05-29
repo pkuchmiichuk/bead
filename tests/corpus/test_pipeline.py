@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from uuid import uuid4
 
+import pytest
+
 from bead.corpus.pipeline import (
     filter_by_structure,
     parse_records,
@@ -174,3 +176,37 @@ class TestSampleCorpus:
             )
         )
         assert len(items) == 1
+
+
+class TestSampleCorpusStanzaIntegration:
+    """End-to-end with a real Stanza parser (skips only if model unavailable)."""
+
+    def test_filters_transitive_with_real_parser(self) -> None:
+        pytest.importorskip("stanza")
+        import stanza  # noqa: PLC0415
+
+        try:
+            stanza.download(
+                "en", processors="tokenize,pos,lemma,depparse", verbose=False
+            )
+        except Exception as exc:  # pragma: no cover - network dependent
+            pytest.skip(f"Stanza English model unavailable (no network?): {exc}")
+
+        from bead.tokenization.parsers import StanzaParser  # noqa: PLC0415
+
+        records = [
+            CorpusRecord(text="The dog chased the cat.", source_name="c"),
+            CorpusRecord(text="The dog slept peacefully.", source_name="c"),
+            CorpusRecord(text="She wrote a long letter.", source_name="c"),
+        ]
+        items = list(
+            sample_corpus(
+                records,
+                StanzaParser(language="en"),
+                TRANSITIVE,
+                item_template_id=uuid4(),
+            )
+        )
+        kept = {item.rendered_elements["text"] for item in items}
+        assert kept == {"The dog chased the cat.", "She wrote a long letter."}
+        assert all(it.item_metadata["parser_tool"] == "stanza" for it in items)

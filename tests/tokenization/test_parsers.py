@@ -149,26 +149,54 @@ class TestCreateParser:
         assert create_parser(TokenizerConfig(backend="stanza")) is not None
 
 
+def _require_stanza_en() -> None:
+    """Skip only if Stanza or its English model cannot be obtained.
+
+    Once the model is present, callers run the real parse so genuine parse or
+    projection bugs surface as failures rather than being skipped.
+    """
+    pytest.importorskip("stanza")
+    import stanza  # noqa: PLC0415
+
+    try:
+        stanza.download(
+            "en", processors="tokenize,pos,lemma,depparse", verbose=False
+        )
+    except Exception as exc:  # pragma: no cover - network dependent
+        pytest.skip(f"Stanza English model unavailable (no network?): {exc}")
+
+
 class TestStanzaParserIntegration:
-    """End-to-end parse via Stanza, skipped if the model is unavailable."""
+    """End-to-end parse via a real Stanza model (not skipped when available)."""
 
     def test_parse_transitive_sentence(self) -> None:
-        pytest.importorskip("stanza")
+        _require_stanza_en()
         from bead.tokenization.parsers import StanzaParser  # noqa: PLC0415
 
-        parser = StanzaParser(language="en")
-        try:
-            sentences = parser("The dog chased the cat.")
-        except Exception as exc:  # pragma: no cover - network/model dependent
-            pytest.skip(f"Stanza model unavailable: {exc}")
+        # Real parse; errors here are genuine failures, not skips.
+        sentences = StanzaParser(language="en")("The dog chased the cat.")
 
         assert len(sentences) == 1
         tokens = sentences[0].tokens
-        # find the root verb
         roots = [t for t in tokens if t.head is None]
         assert len(roots) == 1
         assert roots[0].upos == "VERB"
         assert roots[0].lemma == "chase"
-        # the root should have an object dependent
         obj = [t for t in tokens if t.deprel == "obj" and t.head == roots[0].index]
         assert obj, "expected an object dependent of the root verb"
+
+    def test_parse_projects_to_spans(self) -> None:
+        _require_stanza_en()
+        from bead.tokenization.parsers import (  # noqa: PLC0415
+            StanzaParser,
+            parse_to_spans,
+        )
+
+        sentences = StanzaParser(language="en")("The dog chased the cat.")
+        spans, relations = parse_to_spans(
+            sentences[0], tokenization_id="tok-1", tool="stanza"
+        )
+        assert len(spans) == len(sentences[0].tokens)
+        # exactly one root (no incoming arc); every other token has one
+        assert len(relations) == len(spans) - 1
+        assert all(s.span_metadata["tool"] == "stanza" for s in spans)

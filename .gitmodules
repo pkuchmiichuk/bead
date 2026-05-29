@@ -1,0 +1,5 @@
+[submodule "vendor/layers"]
+	path = vendor/layers
+	url = https://github.com/layers-pub/layers.git
+	branch = main
+	shallow = true

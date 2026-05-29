@@ -30,11 +30,17 @@ uv pip install bead[training]  # PyTorch Lightning, TensorBoard
 ### Development
 
 ```bash
-git clone https://github.com/FACTSlab/bead.git
+git clone --recurse-submodules https://github.com/FACTSlab/bead.git
 cd bead
 uv sync --all-extras
 uv run pytest tests/
 ```
+
+The `vendor/layers` submodule holds the layers lexicons that the interop tests
+validate against. If you cloned without `--recurse-submodules`, fetch them with
+`git submodule update --init vendor/layers`, and refresh to the latest published
+lexicons with `git submodule update --remote vendor/layers`. The lexicon
+validation tests skip automatically when the submodule is absent.
 
 Always use `uv run` to execute commands.
 

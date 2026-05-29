@@ -50,7 +50,7 @@ _EXAMPLES: tuple[dx.Model, ...] = (
     ),
     r.Cluster(uuid=_UUID, canonical_label="Alice", members=(_REF,)),
     r.AnnotationLayer(
-        expression="at://x",
+        expression="at://did:plc:abc123/pub.layers.expression.expression/self",
         kind="relation",
         subkind="dependency",
         formalism="universal-dependencies",
@@ -80,19 +80,19 @@ _EXAMPLES: tuple[dx.Model, ...] = (
         edges=(
             r.GraphEdgeEntry(uuid=_UUID, edge_type="reply-to", source=_REF, target=_REF),
         ),
-        expression="at://x",
+        expression="at://did:plc:abc123/pub.layers.expression.expression/self",
     ),
     r.AudioInfo(sample_rate=44100, channels=2, codec="pcm"),
     r.VideoInfo(width=1920, height=1080, frame_rate=30, codec="h264"),
     r.DocumentInfo(dpi=300, page_count=12, writing_direction="ltr"),
     r.RoleSlot(
         role_name="Agent",
-        filler_type_refs=("at://t",),
+        filler_type_refs=("at://did:plc:abc123/pub.layers.ontology.typeDef/agent",),
         required=True,
         constraints=(m.LayersConstraint(expression="x>0"),),
     ),
     r.TypeDef(
-        ontology_ref="at://o",
+        ontology_ref="at://did:plc:abc123/pub.layers.ontology.ontology/self",
         name="give",
         created_at=_NOW,
         type_kind="frame",
@@ -117,12 +117,16 @@ def test_every_record_has_a_law_passing_iso() -> None:
 
 def test_annotation_layer_is_camelcased() -> None:
     iso = RECORD_ISOS[r.AnnotationLayer]
+    expression_uri = "at://did:plc:abc123/pub.layers.expression.expression/self"
     view = iso.forward(
         r.AnnotationLayer(
-            expression="at://x", kind="relation", subkind="dependency", created_at=_NOW
+            expression=expression_uri,
+            kind="relation",
+            subkind="dependency",
+            created_at=_NOW,
         )
     )
     assert isinstance(view, dict)
-    assert view["expression"] == "at://x"
+    assert view["expression"] == expression_uri
     assert view["subkind"] == "dependency"
     assert "createdAt" in view

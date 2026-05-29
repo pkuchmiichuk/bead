@@ -62,6 +62,8 @@ class TestExampleRoundTrips:
         assert view["posLayer"]["subkind"] == "pos"
         assert view["dependencyLayer"]["subkind"] == "dependency"
         assert view["tokenization"]["tokens"][0]["textSpan"] == {
+            "byteStart": 0,
+            "byteEnd": 3,
             "charStart": 0,
             "charEnd": 3,
         }

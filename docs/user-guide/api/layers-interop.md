@@ -120,3 +120,16 @@ assert iso.backward(layers_json) == anchor  # exact round-trip
 `bead.interop.layers.ALL_MIRROR_ISOS` maps every mirror model type to its iso,
 and a coverage test guards that every targeted layers construct has a
 law-passing mapping.
+
+## Validating against the layers lexicons
+
+The mappings are checked against the canonical layers lexicons, vendored as the
+`vendor/layers` git submodule pointing at
+[`layers-pub/layers`](https://github.com/layers-pub/layers). The interop test
+suite feeds every mapping's output through the ATProto lexicon validator
+(`@atproto/lexicon`) and asserts each record validates against its lexicon, so a
+schema drift in layers surfaces as a failing test.
+
+Fetch the lexicons with `git submodule update --init vendor/layers`, and pull the
+latest published schemas with `git submodule update --remote vendor/layers`. The
+validation tests skip when the submodule is not checked out.

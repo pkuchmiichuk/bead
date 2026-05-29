@@ -20,6 +20,7 @@ from bead.interop.layers._convert import (
     j_obj,
     j_str,
     j_str_or_none,
+    strip_nulls,
     to_feature_map,
 )
 from bead.tokenization.parsers import (
@@ -42,17 +43,28 @@ class ParsedSentenceLayersIso(dx.Iso[ParsedSentence, JsonValue]):
 
     def forward(self, sentence: ParsedSentence) -> JsonValue:
         """Project a parsed sentence to layers tokenization + annotations."""
+        text = sentence.original_text
+
+        def _byte(char_index: int) -> int:
+            return len(text[:char_index].encode("utf-8"))
+
         token_views: tuple[JsonValue, ...] = tuple(
             {
                 "tokenIndex": token.index,
                 "text": token.text,
-                "textSpan": {"charStart": token.start_char, "charEnd": token.end_char},
+                "textSpan": {
+                    "byteStart": _byte(token.start_char),
+                    "byteEnd": _byte(token.end_char),
+                    "charStart": token.start_char,
+                    "charEnd": token.end_char,
+                },
                 "spaceAfter": token.space_after,
             }
             for token in sentence.tokens
         )
         pos_annotations: tuple[JsonValue, ...] = tuple(
             {
+                "uuid": {"value": f"pos-{token.index}"},
                 "tokenIndex": token.index,
                 "label": token.upos,
                 "features": to_feature_map(
@@ -67,28 +79,35 @@ class ParsedSentenceLayersIso(dx.Iso[ParsedSentence, JsonValue]):
         )
         dependency_annotations: tuple[JsonValue, ...] = tuple(
             {
+                "uuid": {"value": f"dep-{token.index}"},
                 "tokenIndex": token.index,
                 "label": token.deprel,
                 "headIndex": token.head if token.head is not None else _ROOT_HEAD,
             }
             for token in sentence.tokens
         )
-        return {
-            "originalText": sentence.original_text,
-            "tokenization": {"kind": "parser", "tokens": token_views},
-            "posLayer": {
-                "kind": "token-tag",
-                "subkind": "pos",
-                "formalism": UNIVERSAL_DEPENDENCIES,
-                "annotations": pos_annotations,
-            },
-            "dependencyLayer": {
-                "kind": "relation",
-                "subkind": "dependency",
-                "formalism": UNIVERSAL_DEPENDENCIES,
-                "annotations": dependency_annotations,
-            },
-        }
+        return strip_nulls(
+            {
+                "originalText": sentence.original_text,
+                "tokenization": {
+                    "uuid": {"value": "tokenization"},
+                    "kind": "parser",
+                    "tokens": token_views,
+                },
+                "posLayer": {
+                    "kind": "token-tag",
+                    "subkind": "pos",
+                    "formalism": UNIVERSAL_DEPENDENCIES,
+                    "annotations": pos_annotations,
+                },
+                "dependencyLayer": {
+                    "kind": "relation",
+                    "subkind": "dependency",
+                    "formalism": UNIVERSAL_DEPENDENCIES,
+                    "annotations": dependency_annotations,
+                },
+            }
+        )
 
     def backward(self, view: JsonValue) -> ParsedSentence:
         """Reconstruct a parsed sentence from its layers projection."""

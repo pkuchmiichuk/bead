@@ -19,7 +19,7 @@ import re
 import didactic.api as dx
 
 from bead.data.base import JsonValue
-from bead.interop.layers._convert import j_obj
+from bead.interop.layers._convert import j_obj, strip_nulls
 
 _CAMEL_BOUNDARY = re.compile(r"([A-Z])")
 
@@ -55,11 +55,63 @@ def _snake_keys(value: JsonValue) -> JsonValue:
     return value
 
 
+_DEFS_NSID = "pub.layers.defs"
+
+#: The ``externalTarget.selector`` union variants (camelCase mirror keys, each
+#: also the layers def name). layers models this as an open ATProto union, so the
+#: wire value carries a ``$type`` discriminator rather than a wrapper key.
+_SELECTOR_VARIANTS = frozenset(
+    {"textQuoteSelector", "textPositionSelector", "fragmentSelector"}
+)
+
+
+def _wrap_unions(value: JsonValue) -> JsonValue:
+    """Rewrite ``selector`` wrappers into ATProto ``$type`` union members."""
+    if isinstance(value, dict):
+        result: dict[str, JsonValue] = {}
+        for key, item in value.items():
+            if key == "selector" and isinstance(item, dict) and len(item) == 1:
+                variant, payload = next(iter(item.items()))
+                if variant in _SELECTOR_VARIANTS and isinstance(payload, dict):
+                    member: dict[str, JsonValue] = {"$type": f"{_DEFS_NSID}#{variant}"}
+                    for inner_key, inner_item in payload.items():
+                        member[inner_key] = _wrap_unions(inner_item)
+                    result[key] = member
+                    continue
+            result[key] = _wrap_unions(item)
+        return result
+    if isinstance(value, tuple):
+        return tuple(_wrap_unions(item) for item in value)
+    return value
+
+
+def _unwrap_unions(value: JsonValue) -> JsonValue:
+    """Rewrite ATProto ``$type`` selector union members back to wrappers."""
+    if isinstance(value, dict):
+        result: dict[str, JsonValue] = {}
+        for key, item in value.items():
+            type_ref = item.get("$type") if isinstance(item, dict) else None
+            if key == "selector" and isinstance(type_ref, str):
+                variant = type_ref.rsplit("#", 1)[-1]
+                payload: dict[str, JsonValue] = {}
+                for inner_key, inner_item in j_obj(item).items():
+                    if inner_key != "$type":
+                        payload[inner_key] = _unwrap_unions(inner_item)
+                result[key] = {variant: payload}
+                continue
+            result[key] = _unwrap_unions(item)
+        return result
+    if isinstance(value, tuple):
+        return tuple(_unwrap_unions(item) for item in value)
+    return value
+
+
 def mirror_to_layers(model: dx.Model) -> JsonValue:
     """Serialize a faithful mirror model to layers-shaped JSON (camelCase)."""
-    return _camel_keys(json.loads(model.model_dump_json()))
+    return _wrap_unions(strip_nulls(_camel_keys(json.loads(model.model_dump_json()))))
 
 
 def mirror_from_layers[M: dx.Model](model_type: type[M], data: JsonValue) -> M:
     """Deserialize layers-shaped JSON back into a mirror model."""
-    return model_type.model_validate_json(json.dumps(_snake_keys(j_obj(data))))
+    restored = _snake_keys(j_obj(_unwrap_unions(data)))
+    return model_type.model_validate_json(json.dumps(restored))

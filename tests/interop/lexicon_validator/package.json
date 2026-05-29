@@ -1,0 +1,9 @@
+{
+  "name": "bead-layers-lexicon-validator",
+  "private": true,
+  "type": "module",
+  "description": "Validates bead's layers-mapping output against the layers lexicons using @atproto/lexicon.",
+  "dependencies": {
+    "@atproto/lexicon": "^0.5.0"
+  }
+}

@@ -83,6 +83,25 @@ def from_feature_map_scalar(feature_map: JsonValue) -> dict[str, ProvenanceValue
     return result
 
 
+def strip_nulls(value: JsonValue) -> JsonValue:
+    """Recursively drop dict entries whose value is ``None``.
+
+    The ATProto data model has no null: optional fields are omitted, not set to
+    null, and a lexicon rejects an explicit null for a typed optional field.
+    Layers views therefore omit absent optionals; the round-trip is unaffected
+    because the reverse direction defaults missing keys back to ``None``.
+    """
+    if isinstance(value, dict):
+        return {
+            key: strip_nulls(item)
+            for key, item in value.items()
+            if item is not None
+        }
+    if isinstance(value, tuple):
+        return tuple(strip_nulls(item) for item in value)
+    return value
+
+
 def object_ref(local_id: str) -> JsonValue:
     """Build a layers ``objectRef`` to a local node by id."""
     return {"localId": {"value": local_id}}

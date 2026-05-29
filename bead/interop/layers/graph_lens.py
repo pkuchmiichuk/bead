@@ -52,6 +52,7 @@ class CorpusGraphLayersLens(dx.Lens[CorpusGraph, JsonValue, JsonValue]):
                     "kind": node.node_type,
                     "text": node.record.text,
                     "features": to_feature_map(node.record.provenance),
+                    "createdAt": node.record.created_at.isoformat(),
                 }
                 if node.node_type_uri is not None:
                     expr["kindUri"] = node.node_type_uri
@@ -69,6 +70,7 @@ class CorpusGraphLayersLens(dx.Lens[CorpusGraph, JsonValue, JsonValue]):
                 graph_node: dict[str, JsonValue] = {
                     "nodeType": node.node_type,
                     "properties": to_feature_map(node.properties),
+                    "createdAt": node.created_at.isoformat(),
                 }
                 if node.node_type_uri is not None:
                     graph_node["nodeTypeUri"] = node.node_type_uri
@@ -93,6 +95,7 @@ class CorpusGraphLayersLens(dx.Lens[CorpusGraph, JsonValue, JsonValue]):
                 edge_view["edgeTypeUri"] = edge.edge_type_uri
             if edge.confidence is not None:
                 edge_view["confidence"] = round(edge.confidence * _CONFIDENCE_SCALE)
+            edge_view["uuid"] = {"value": str(edge.id)}
             edge_views.append(edge_view)
             edge_complements.append(
                 {
@@ -105,7 +108,10 @@ class CorpusGraphLayersLens(dx.Lens[CorpusGraph, JsonValue, JsonValue]):
         view: JsonValue = {
             "expressions": expressions,
             "graphNodes": graph_nodes,
-            "graphEdgeSet": {"edges": tuple(edge_views)},
+            "graphEdgeSet": {
+                "edges": tuple(edge_views),
+                "createdAt": graph.created_at.isoformat(),
+            },
         }
         complement: JsonValue = {
             "graph_identity": identity_of(graph),

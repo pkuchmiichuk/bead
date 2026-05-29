@@ -34,9 +34,11 @@ class RecordExpressionLens(dx.Lens[CorpusRecord, JsonValue, JsonValue]):
     def forward(self, record: CorpusRecord) -> tuple[JsonValue, JsonValue]:
         """Project a record to a layers expression view and bead complement."""
         view: JsonValue = {
+            "id": str(record.id),
             "kind": _EXPRESSION_KIND,
             "text": record.text,
             "features": to_feature_map(record.provenance),
+            "createdAt": record.created_at.isoformat(),
         }
         complement: JsonValue = {
             "identity": identity_of(record),

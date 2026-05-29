@@ -180,6 +180,8 @@ jobs:
     needs: [ts-build]  # Python tests need TypeScript compiled
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: true  # vendor/layers lexicons for interop validation
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4

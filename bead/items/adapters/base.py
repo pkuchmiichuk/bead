@@ -11,10 +11,30 @@ This is SEPARATE from template filling model adapters
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from typing import Protocol, runtime_checkable
 
 import numpy as np
 
 from bead.items.cache import ModelOutputCache
+
+
+@runtime_checkable
+class TextGenerator(Protocol):
+    """A model that generates text from a prompt.
+
+    Implemented by API adapters that can produce completions (e.g. OpenAI,
+    Anthropic). Used by ``CompletionCorpusSource`` to treat a language model as
+    a corpus source. Kept separate from ``ModelAdapter`` because most adapters
+    only score text, not generate it.
+    """
+
+    model_name: str
+
+    def generate_completion(
+        self, prompt: str, *, max_tokens: int = 256, temperature: float = 1.0
+    ) -> str:
+        """Generate a text completion for *prompt*."""
+        ...
 
 
 class ModelAdapter(ABC):

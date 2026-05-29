@@ -16,9 +16,14 @@ from bead.corpus.pipeline import (
     sample_corpus,
 )
 from bead.corpus.records import CorpusRecord, ProvenanceValue
-from bead.corpus.sources import CsvCorpusSource, JsonlCorpusSource
+from bead.corpus.sources import (
+    CompletionCorpusSource,
+    CsvCorpusSource,
+    JsonlCorpusSource,
+)
 
 __all__ = [
+    "CompletionCorpusSource",
     "CorpusRecord",
     "CorpusSource",
     "CsvCorpusSource",

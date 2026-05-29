@@ -8,7 +8,11 @@ from pathlib import Path
 import pytest
 
 from bead.corpus.records import CorpusRecord
-from bead.corpus.sources import CsvCorpusSource, JsonlCorpusSource
+from bead.corpus.sources import (
+    CompletionCorpusSource,
+    CsvCorpusSource,
+    JsonlCorpusSource,
+)
 from bead.data.serialization import (
     read_jsonlines,
     stream_jsonlines,
@@ -109,6 +113,50 @@ class TestCsvCorpusSource:
         path.write_text("sentence\nfull\n\nalso full\n", encoding="utf-8")
         source = CsvCorpusSource(path, text_column="sentence")
         assert [r.text for r in source] == ["full", "also full"]
+
+
+class _StubGenerator:
+    """A deterministic text generator satisfying TextGenerator."""
+
+    model_name = "stub-model"
+
+    def __init__(self, mapping: dict[str, str]) -> None:
+        self._mapping = mapping
+        self.calls: list[tuple[str, int, float]] = []
+
+    def generate_completion(
+        self, prompt: str, *, max_tokens: int = 256, temperature: float = 1.0
+    ) -> str:
+        self.calls.append((prompt, max_tokens, temperature))
+        return self._mapping[prompt]
+
+
+class TestCompletionCorpusSource:
+    """Tests for generating a corpus from a language model."""
+
+    def test_yields_one_record_per_completion(self) -> None:
+        generator = _StubGenerator(
+            {"Write a sentence.": "The dog barked.", "Another one.": "Cats sleep."}
+        )
+        source = CompletionCorpusSource(
+            generator, ["Write a sentence.", "Another one."]
+        )
+        records = list(source)
+        assert [r.text for r in records] == ["The dog barked.", "Cats sleep."]
+        assert records[0].source_name == "stub-model"
+        assert records[0].provenance["model"] == "stub-model"
+        assert records[0].provenance["tool"] == "completion"
+        assert records[0].provenance["prompt"] == "Write a sentence."
+        assert records[1].record_index == 1
+
+    def test_completions_per_prompt(self) -> None:
+        generator = _StubGenerator({"p": "out"})
+        source = CompletionCorpusSource(
+            generator, ["p"], completions_per_prompt=3, max_tokens=10, temperature=0.5
+        )
+        records = list(source)
+        assert len(records) == 3
+        assert generator.calls == [("p", 10, 0.5)] * 3
 
 
 class TestCorpusRecordRoundTrip:

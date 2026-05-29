@@ -10,7 +10,7 @@ from bead.items.adapters.api_utils import (
     rate_limit,
     retry_with_backoff,
 )
-from bead.items.adapters.base import ModelAdapter
+from bead.items.adapters.base import ModelAdapter, TextGenerator
 from bead.items.adapters.huggingface import (
     HuggingFaceLanguageModel,
     HuggingFaceMaskedLanguageModel,
@@ -50,6 +50,7 @@ except ImportError:
 __all__ = [
     # Base
     "ModelAdapter",
+    "TextGenerator",
     # HuggingFace adapters
     "HuggingFaceLanguageModel",
     "HuggingFaceMaskedLanguageModel",

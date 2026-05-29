@@ -13,12 +13,15 @@ never load into memory.
 from __future__ import annotations
 
 import json
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Sequence
 from pathlib import Path
-from typing import IO
+from typing import IO, TYPE_CHECKING
 
 from bead.corpus.records import CorpusRecord, ProvenanceValue
 from bead.data.serialization import iter_jsonl_lines
+
+if TYPE_CHECKING:
+    from bead.items.adapters.base import TextGenerator
 
 
 def _as_scalar(value: object) -> ProvenanceValue:
@@ -108,6 +111,72 @@ class JsonlCorpusSource:
                 record_index=index,
                 provenance=provenance,
             )
+
+
+class CompletionCorpusSource:
+    """Generate text from a language model as a corpus source.
+
+    Wraps any ``TextGenerator`` (e.g. an OpenAI or Anthropic adapter) and yields
+    one ``CorpusRecord`` per generated completion, with the model and prompt
+    recorded as layers-aligned provenance.
+
+    Parameters
+    ----------
+    generator : TextGenerator
+        The model used to generate completions.
+    prompts : Sequence[str]
+        Prompts to complete.
+    source_name : str | None
+        Source identifier; defaults to the generator's ``model_name``.
+    completions_per_prompt : int
+        Number of completions to draw per prompt.
+    max_tokens : int
+        Maximum tokens per completion.
+    temperature : float
+        Sampling temperature.
+    """
+
+    def __init__(
+        self,
+        generator: TextGenerator,
+        prompts: Sequence[str],
+        *,
+        source_name: str | None = None,
+        completions_per_prompt: int = 1,
+        max_tokens: int = 256,
+        temperature: float = 1.0,
+    ) -> None:
+        self._generator = generator
+        self._prompts = prompts
+        self.source_name = (
+            source_name if source_name is not None else generator.model_name
+        )
+        self._completions_per_prompt = completions_per_prompt
+        self._max_tokens = max_tokens
+        self._temperature = temperature
+
+    def __iter__(self) -> Iterator[CorpusRecord]:
+        """Yield one ``CorpusRecord`` per generated completion."""
+        index = 0
+        for prompt in self._prompts:
+            for _ in range(self._completions_per_prompt):
+                text = self._generator.generate_completion(
+                    prompt,
+                    max_tokens=self._max_tokens,
+                    temperature=self._temperature,
+                )
+                provenance: dict[str, ProvenanceValue] = {
+                    "tool": "completion",
+                    "model": self._generator.model_name,
+                    "prompt": prompt,
+                }
+                yield CorpusRecord(
+                    text=text,
+                    source_name=self.source_name,
+                    record_index=index,
+                    provenance=provenance,
+                )
+                index += 1
 
 
 class CsvCorpusSource:

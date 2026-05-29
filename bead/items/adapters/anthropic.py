@@ -222,3 +222,33 @@ class AnthropicAdapter(ModelAdapter):
         )
 
         return scores
+
+    def generate_completion(
+        self, prompt: str, *, max_tokens: int = 256, temperature: float = 1.0
+    ) -> str:
+        """Generate a text completion for *prompt* via the messages API.
+
+        Parameters
+        ----------
+        prompt : str
+            The prompt to complete.
+        max_tokens : int
+            Maximum number of tokens to generate.
+        temperature : float
+            Sampling temperature.
+
+        Returns
+        -------
+        str
+            The concatenated text of the response (empty if none).
+        """
+        response = self.client.messages.create(
+            model=self.model_name,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        parts = [
+            block.text for block in response.content if block.type == "text"
+        ]
+        return "".join(parts).strip()

@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-05-29
+
 ### Added
 
 #### `bead.corpus` — streaming corpus ingestion and structural sampling
@@ -51,9 +53,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   regex fallback). The first two are registered in the default transform
   registry.
 
+#### `bead.corpus` buffering graph tier
+
+- New `bead.corpus.graph`: `CorpusGraph`, a typed directed multidigraph of
+  `CorpusNode`s and `CorpusEdge`s (parallel typed edges allowed; trees are a
+  special case), with traversal helpers (`children`, `parents`, `roots`,
+  `out_edges`, `in_edges`, `subtree`, `node_by_id`).
+- New `bead.corpus.assemble`: `assemble_graph` buffers a record stream into a
+  `CorpusGraph`, building edges from declarative `EdgeSpec`s or a runtime edge
+  function. Reconstructs thread structure such as Reddit reply trees from
+  `parent_id`/`link_id`. This tier is opt-in and layered on top of the
+  streaming pipeline, which is untouched.
+
+#### `bead.interop.layers` — lossless layers interop
+
+- New subpackage mapping bead data to and from the
+  [layers](https://github.com/layers-pub/layers) linguistic-annotation schema
+  as law-verified didactic lenses (`dx.Iso` for bijections, `dx.Lens` with a
+  complement for projections), so every round-trip is exact and verified.
+- Faithful mirror models for the layers shared defs and record types, each with
+  a generic lossless `MirrorIso` to and from layers-shaped JSON (snake/camel
+  case, feature maps, slug+uri enums, integer confidence, `$type` unions).
+- Bridge lenses map bead-native models onto layers constructs: `CorpusRecord`
+  to an `expression`, `CorpusGraph` to a property graph (`expression`s,
+  `graphNode`s, and a `graphEdgeSet`), and a dependency-parsed `ParsedSentence`
+  to a `tokenization` plus part-of-speech and dependency `annotationLayer`s. The
+  lens complement holds the bead-only remainder (framework identity and fields
+  layers has no slot for). Resource-overlap lenses map lexical items, lexicons,
+  and templates to the layers resource constructs.
+- Mappings are validated against the layers lexicons, vendored as the
+  `vendor/layers` git submodule, using the ATProto lexicon validator
+  (`@atproto/lexicon`), proving every mapping produces schema-valid layers.
+
 ### Changed
 
 - Minimum `didactic` raised to `>=0.7.2` and `panproto` to `>=0.51.0`.
+- Streaming corpus ingestion is now lossless by default: `JsonlCorpusSource`
+  and `CsvCorpusSource` retain every field (not just a configured subset), and
+  non-scalar values round-trip through JSON rather than being stringified, so
+  no source information is dropped at ingestion.
 
 ## [0.5.0] - 2026-05-12
 
@@ -490,6 +528,10 @@ guards as type-checkers.
 - CI/CD: GitHub Actions for testing, docs, PyPI publishing
 - Read the Docs integration
 
-[Unreleased]: https://github.com/FACTSlab/bead/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/FACTSlab/bead/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/FACTSlab/bead/compare/v0.5.0...v0.6.0
+[0.5.0]: https://github.com/FACTSlab/bead/compare/v0.4.0...v0.5.0
+[0.4.0]: https://github.com/FACTSlab/bead/compare/v0.3.0...v0.4.0
+[0.3.0]: https://github.com/FACTSlab/bead/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/FACTSlab/bead/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/FACTSlab/bead/releases/tag/v0.1.0

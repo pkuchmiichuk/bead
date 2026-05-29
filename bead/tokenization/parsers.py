@@ -20,7 +20,7 @@ mapping lossless without coupling bead to layers' wire format.
 from __future__ import annotations
 
 from collections.abc import Callable, Iterator
-from typing import Protocol
+from typing import Protocol, runtime_checkable
 
 import didactic.api as dx
 
@@ -37,6 +37,19 @@ from bead.tokenization.tokenizers import spacy_space_after
 # layers-aligned conventions, recorded once so both projects stay matched.
 UNIVERSAL_DEPENDENCIES = "universal-dependencies"
 ROOT_DEPREL = "root"
+
+
+@runtime_checkable
+class DependencyParser(Protocol):
+    """A callable that dependency-parses text into sentences.
+
+    Carries a ``tool`` identifier recorded in the layers-aligned provenance of
+    any spans projected from its output.
+    """
+
+    tool: str
+
+    def __call__(self, text: str) -> tuple[ParsedSentence, ...]: ...  # noqa: D102
 
 
 class ParsedToken(dx.Model):
@@ -140,6 +153,8 @@ class SpacyParser:
         ``{language}_core_web_sm``.
     """
 
+    tool = "spacy"
+
     def __init__(self, language: str = "en", model_name: str | None = None) -> None:
         self._language = language
         self._model_name = model_name
@@ -227,6 +242,8 @@ class StanzaParser:
     model_name : str | None
         Explicit Stanza package name. When ``None``, uses the default package.
     """
+
+    tool = "stanza"
 
     def __init__(self, language: str = "en", model_name: str | None = None) -> None:
         self._language = language
@@ -321,9 +338,7 @@ def _stanza_word_space_after(word: _StanzaWordProtocol, text: str) -> bool:
     return True
 
 
-def create_parser(
-    config: TokenizerConfig,
-) -> Callable[[str], tuple[ParsedSentence, ...]]:
+def create_parser(config: TokenizerConfig) -> DependencyParser:
     """Return a dependency-parsing function for the given config.
 
     Parameters
@@ -334,7 +349,7 @@ def create_parser(
 
     Returns
     -------
-    Callable[[str], tuple[ParsedSentence, ...]]
+    DependencyParser
         A callable that dependency-parses text into sentences.
 
     Raises

@@ -6,8 +6,9 @@ and from JSONLines format files.
 
 from __future__ import annotations
 
-from collections.abc import Iterator, Sequence
+from collections.abc import Callable, Iterator, Sequence
 from pathlib import Path
+from typing import IO
 
 import didactic.api as dx
 
@@ -18,6 +19,41 @@ class SerializationError(Exception):
 
 class DeserializationError(Exception):
     """Raised when deserialization from JSONLines fails."""
+
+
+def _open_text(path: Path) -> IO[str]:
+    """Open *path* as a UTF-8 text stream (default JSONL line opener)."""
+    return path.open("r", encoding="utf-8")
+
+
+def iter_jsonl_lines(
+    path: Path,
+    *,
+    open_fn: Callable[[Path], IO[str]] = _open_text,
+) -> Iterator[tuple[int, str]]:
+    """Yield ``(line_number, stripped_line)`` for each non-empty line.
+
+    Single canonical line-iteration step shared by the JSONLines readers and
+    by streaming corpus sources (which pass a decompressing ``open_fn``).
+
+    Parameters
+    ----------
+    path : Path
+        File to read.
+    open_fn : Callable[[Path], IO[str]]
+        Opener returning a text stream; defaults to UTF-8 text. Pass a
+        decompressing opener (e.g. ``zstandard.open``) for compressed files.
+
+    Yields
+    ------
+    tuple[int, str]
+        1-based line number and the stripped line (blank lines skipped).
+    """
+    with open_fn(path) as handle:
+        for line_num, line in enumerate(handle, start=1):
+            stripped = line.strip()
+            if stripped:
+                yield line_num, stripped
 
 
 def write_jsonlines[T: dx.Model](
@@ -66,19 +102,15 @@ def read_jsonlines[T: dx.Model](
     path = Path(path)
     objects: list[T] = []
     try:
-        with path.open("r", encoding="utf-8") as f:
-            for line_num, line in enumerate(f, start=1):
-                line = line.strip()
-                if not line:
+        for line_num, line in iter_jsonl_lines(path):
+            try:
+                objects.append(model_class.model_validate_json(line))
+            except (dx.ValidationError, ValueError) as e:
+                if skip_errors:
                     continue
-                try:
-                    objects.append(model_class.model_validate_json(line))
-                except (dx.ValidationError, ValueError) as e:
-                    if skip_errors:
-                        continue
-                    raise DeserializationError(
-                        f"Failed to parse line {line_num} in {path}: {e}"
-                    ) from e
+                raise DeserializationError(
+                    f"Failed to parse line {line_num} in {path}: {e}"
+                ) from e
     except OSError as e:
         raise DeserializationError(f"Failed to read from {path}: {e}") from e
     return objects
@@ -93,17 +125,13 @@ def stream_jsonlines[T: dx.Model](
     del validate
     path = Path(path)
     try:
-        with path.open("r", encoding="utf-8") as f:
-            for line_num, line in enumerate(f, start=1):
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    yield model_class.model_validate_json(line)
-                except (dx.ValidationError, ValueError) as e:
-                    raise DeserializationError(
-                        f"Failed to parse line {line_num} in {path}: {e}"
-                    ) from e
+        for line_num, line in iter_jsonl_lines(path):
+            try:
+                yield model_class.model_validate_json(line)
+            except (dx.ValidationError, ValueError) as e:
+                raise DeserializationError(
+                    f"Failed to parse line {line_num} in {path}: {e}"
+                ) from e
     except OSError as e:
         raise DeserializationError(f"Failed to read from {path}: {e}") from e
 

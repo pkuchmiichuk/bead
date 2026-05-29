@@ -72,6 +72,7 @@ dev = [
     "pandas-stubs>=2.0.0",
     "spacy>=3.7",
     "stanza>=1.8",
+    "zstandard>=0.22",
 ]
 api = [
     "openai>=1.0.0",
@@ -94,6 +95,9 @@ behavioral-analysis = [
 tokenization = [
     "spacy>=3.7",
     "stanza>=1.8",
+]
+corpus = [
+    "zstandard>=0.22",
 ]
 
 [project.scripts]

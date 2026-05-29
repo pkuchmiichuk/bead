@@ -20,14 +20,16 @@ from bead.data.serialization import (
     write_jsonlines,
 )
 
-_REDDIT_ROWS: list[dict[str, str | int]] = [
+type _Json = str | int | float | bool | None | list["_Json"] | dict[str, "_Json"]
+
+_REDDIT_ROWS: list[dict[str, _Json]] = [
     {"body": "The dog chased the cat.", "author": "alice", "score": 12},
     {"body": "The dog slept.", "author": "bob", "score": 3},
     {"author": "carol", "score": 1},  # no body: skipped
 ]
 
 
-def _write_jsonl(path: Path, rows: Sequence[Mapping[str, str | int]]) -> None:
+def _write_jsonl(path: Path, rows: Sequence[Mapping[str, _Json]]) -> None:
     path.write_text(
         "\n".join(json.dumps(row) for row in rows) + "\n", encoding="utf-8"
     )
@@ -80,6 +82,45 @@ class TestJsonlCorpusSource:
         iterator = iter(source)
         first = next(iterator)
         assert first.text == "a"  # did not consume the whole file
+
+    def test_retains_all_fields_by_default(self, tmp_path: Path) -> None:
+        # The default must not drop ANY field - thread edges (parent_id,
+        # link_id) survive without being enumerated, so structure is
+        # recoverable downstream.
+        path = tmp_path / "reddit.jsonl"
+        rows: list[dict[str, _Json]] = [
+            {
+                "body": "a reply",
+                "id": "t1_aaa",
+                "parent_id": "t1_root",
+                "link_id": "t3_sub",
+                "author": "alice",
+                "score": 4,
+            }
+        ]
+        _write_jsonl(path, rows)
+        record = next(iter(JsonlCorpusSource(path, text_field="body")))
+        # every field except the text field is retained
+        assert record.provenance == {
+            "id": "t1_aaa",
+            "parent_id": "t1_root",
+            "link_id": "t3_sub",
+            "author": "alice",
+            "score": 4,
+        }
+        assert "body" not in record.provenance
+
+    def test_nested_values_round_trip(self, tmp_path: Path) -> None:
+        # Non-scalar fields are JSON-serialized (not str()-ified), so they
+        # remain recoverable via json.loads.
+        path = tmp_path / "nested.jsonl"
+        rows: list[dict[str, _Json]] = [
+            {"text": "hi", "edits": [1, 2], "meta": {"k": "v"}}
+        ]
+        _write_jsonl(path, rows)
+        record = next(iter(JsonlCorpusSource(path)))
+        assert json.loads(str(record.provenance["edits"])) == [1, 2]
+        assert json.loads(str(record.provenance["meta"])) == {"k": "v"}
 
 
 class TestCsvCorpusSource:

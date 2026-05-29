@@ -34,14 +34,15 @@ type JsonInput = (
 
 
 def _as_scalar(value: JsonInput) -> ProvenanceValue:
-    """Coerce a parsed value to a flat provenance scalar.
+    """Coerce a parsed value to a flat provenance scalar without losing it.
 
-    Scalars pass through; anything else (lists, nested objects) is stringified
-    so the provenance dict stays flat.
+    Scalars pass through unchanged. Anything else (lists, nested objects) is
+    serialized to a JSON string so the provenance dict stays flat while
+    remaining recoverable via ``json.loads``.
     """
     if value is None or isinstance(value, (str, int, float, bool)):
         return value
-    return str(value)
+    return json.dumps(value)
 
 
 def _zstd_open(path: Path) -> IO[str]:
@@ -67,8 +68,11 @@ class JsonlCorpusSource:
         Source identifier; defaults to the file name.
     text_field : str
         JSON field holding the record text.
-    provenance_fields : tuple[str, ...]
-        JSON fields to copy into each record's provenance.
+    provenance_fields : tuple[str, ...] | None
+        JSON fields to copy into each record's provenance. ``None`` (the
+        default) retains **every** field except ``text_field`` so no source
+        information (e.g. Reddit ``id``/``parent_id``/``link_id``) is dropped;
+        pass an explicit tuple to keep only a subset.
     compression : str
         ``"auto"`` (detect ``.zst`` by suffix), ``"zst"``, or ``"none"``.
     """
@@ -79,7 +83,7 @@ class JsonlCorpusSource:
         *,
         source_name: str | None = None,
         text_field: str = "text",
-        provenance_fields: tuple[str, ...] = (),
+        provenance_fields: tuple[str, ...] | None = None,
         compression: str = "auto",
     ) -> None:
         self._path = Path(path)
@@ -109,10 +113,13 @@ class JsonlCorpusSource:
             raw_text = data.get(self._text_field)
             if raw_text is None:
                 continue
+            fields = (
+                tuple(k for k in data if k != self._text_field)
+                if self._provenance_fields is None
+                else self._provenance_fields
+            )
             provenance: dict[str, ProvenanceValue] = {
-                field: _as_scalar(data[field])
-                for field in self._provenance_fields
-                if field in data
+                field: _as_scalar(data[field]) for field in fields if field in data
             }
             yield CorpusRecord(
                 text=str(raw_text),
@@ -199,8 +206,10 @@ class CsvCorpusSource:
         Column holding the record text.
     source_name : str | None
         Source identifier; defaults to the file name.
-    provenance_columns : tuple[str, ...]
-        Columns to copy into each record's provenance.
+    provenance_columns : tuple[str, ...] | None
+        Columns to copy into each record's provenance. ``None`` (the default)
+        retains **every** column except ``text_column`` so no source information
+        is dropped; pass an explicit tuple to keep only a subset.
     sep : str
         Field separator (``","`` for CSV, ``"\\t"`` for TSV).
     """
@@ -211,7 +220,7 @@ class CsvCorpusSource:
         *,
         text_column: str,
         source_name: str | None = None,
-        provenance_columns: tuple[str, ...] = (),
+        provenance_columns: tuple[str, ...] | None = None,
         sep: str = ",",
     ) -> None:
         self._path = Path(path)
@@ -227,9 +236,14 @@ class CsvCorpusSource:
             raw_text = row.get(self._text_column, "")
             if raw_text is None or str(raw_text) == "":
                 continue
+            columns = (
+                tuple(c for c in row if c != self._text_column)
+                if self._provenance_columns is None
+                else self._provenance_columns
+            )
             provenance: dict[str, ProvenanceValue] = {
-                column: _as_scalar(row[column])
-                for column in self._provenance_columns
+                str(column): _as_scalar(row[column])
+                for column in columns
                 if column in row
             }
             yield CorpusRecord(

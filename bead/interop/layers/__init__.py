@@ -5,23 +5,18 @@ didactic lenses (``dx.Lens``/``dx.Iso``): the layers view is a faithful,
 standalone projection; the lens complement holds the bead-only round-trip
 remainder. Round-trip fidelity is guaranteed by the didactic GetPut/PutGet laws.
 
-Coverage:
+What is mapped:
 
-- Every linguistic ``layers`` construct (shared defs + records) is mirrored as a
-  faithful didactic model with a generic ``MirrorIso`` (see ``models`` /
-  ``models_records`` / ``model_lenses``).
-- bead's pipeline outputs bridge directly: ``CorpusGraph`` <-> the property
-  graph, ``CorpusRecord`` <-> ``expression``, a dependency parse <->
-  ``tokenization`` + annotation layers.
-- The resource overlap is mapped over bead's existing models:
-  ``LexicalItem`` <-> ``entry``, ``Lexicon`` <-> ``collection``, ``Template``
-  <-> ``template`` (see ``resource_lens``).
-
-The remaining experiment/publishing overlaps are intentionally NOT mapped: a
-feasibility review found ``persona`` orthogonal to bead participants (who took
-part vs. how one annotates), and ``judgment``, ``corpus``, and ``changelog``
-too divergent from bead's response, list, and changelog representations to yield
-a faithful layers view. Their data is reachable through the constructs above.
+- The linguistic ``layers`` constructs (the shared object definitions and the
+  expression, segmentation, annotation, graph, media, and ontology records) are
+  mirrored as didactic models with a generic ``MirrorIso`` (see ``models``,
+  ``models_records``, and ``model_lenses``).
+- bead's pipeline outputs bridge directly to layers: ``CorpusGraph`` to the
+  property graph, ``CorpusRecord`` to an ``expression``, and a dependency parse
+  to a ``tokenization`` with part-of-speech and dependency annotation layers.
+- bead's resources map to their layers counterparts: ``LexicalItem`` to an
+  ``entry``, ``Lexicon`` to a ``collection``, and ``Template`` to a ``template``
+  (see ``resource_lens``).
 """
 
 from __future__ import annotations

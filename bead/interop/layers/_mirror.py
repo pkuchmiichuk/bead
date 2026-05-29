@@ -1,15 +1,14 @@
-"""Generic, lossless serialization between faithful mirror models and layers JSON.
+"""Generic serialization between mirror models and layers JSON.
 
-The mirror models in :mod:`bead.interop.layers.models` are designed to match the
-``layers`` schema structurally (snake_case fields mirroring layers' camelCase,
-nested objects as embedded models, feature maps as :class:`FeatureMap`, integer
-confidence). That lets a single pair of conversions serialize any of them to and
-from layers-shaped JSON, so each model needs only a three-line ``dx.Iso`` and a
-round-trip test rather than bespoke code.
+The mirror models in :mod:`bead.interop.layers.models` match the ``layers``
+schema structurally: snake_case fields correspond to layers' camelCase, nested
+objects are embedded models, feature maps are :class:`FeatureMap`, and
+confidence is an integer. A single pair of conversions therefore serializes any
+of them to and from layers-shaped JSON.
 
-Serialization goes through each model's canonical JSON form
-(``model_dump_json`` / ``model_validate_json``) so the conversion never depends
-on didactic's internal field-value types.
+Conversion goes through each model's canonical JSON form (``model_dump_json`` /
+``model_validate_json``), so it does not depend on didactic's internal
+field-value types.
 """
 
 from __future__ import annotations

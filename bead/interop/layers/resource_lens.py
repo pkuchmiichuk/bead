@@ -1,15 +1,15 @@
-"""Bridge lenses between bead resource models and layers resource records.
+"""Lenses between bead resource models and layers resource records.
 
-The resource overlap is the cleanest experiment-domain mapping: bead's
-``LexicalItem``/``Lexicon``/``Template`` correspond closely to layers'
-``entry``/``collection``/``template``. Each lens projects a faithful layers view
-and keeps the bead-only remainder (framework identity, single language code,
-tags, DSL constraint context, the bead ``form``/``source`` fields layers slots
-differently) in the complement, so the round-trip is exact (GetPut/PutGet).
+Maps bead's lexical and template resources to their ``layers`` counterparts:
 
-The other experiment overlaps (judgment, corpus, persona, changelog) were
-assessed as schema-divergent and are intentionally not mapped; see the module
-docstring of :mod:`bead.interop.layers` and the project notes.
+- ``LexicalItem`` <-> a layers ``entry``
+- ``Lexicon`` <-> a layers ``collection`` with its ``entry`` records
+- ``Template`` <-> a layers ``template`` (with its slots and constraints)
+
+Each lens produces a layers-shaped view and keeps the fields that have no layers
+equivalent (the bead framework identity, the single language code, tags, the
+``LexicalItem`` ``form``/``source`` fields, and DSL constraint context) in the
+lens complement, so reconstruction is exact.
 """
 
 from __future__ import annotations

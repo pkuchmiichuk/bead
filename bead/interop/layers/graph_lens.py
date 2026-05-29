@@ -1,14 +1,10 @@
-"""Lossless lens between a ``CorpusGraph`` and the layers property graph.
+"""Lens between a ``CorpusGraph`` and the layers property graph.
 
 The lens projects a :class:`~bead.corpus.graph.CorpusGraph` to a layers-shaped
-JSON *view* (expression records, graph nodes, and a ``graphEdgeSet``) and keeps
-a *complement* holding the information layers' graph cannot faithfully express
-(bead framework identity, edge directedness, exact float confidence). Together
-the view and complement reconstruct the graph exactly, which the didactic
-GetPut / PutGet lens laws verify.
-
-The view is a standalone, faithful layers projection; the complement is the
-bead-only round-trip remainder, as a ``dx.Lens`` complement should be.
+view (expression records, graph nodes, and a ``graphEdgeSet``) and keeps a
+complement holding the information layers' graph does not express directly (the
+bead framework identity, edge directedness, and exact float confidence).
+Together the view and complement reconstruct the graph exactly.
 """
 
 from __future__ import annotations

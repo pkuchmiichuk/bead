@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING, TypeVar
 if TYPE_CHECKING:
     from bead.dsl.context import EvaluationContext
     from bead.items.item import Item
+    from bead.items.spans import Span
 
 # Type for DSL scalar values that can be compared/processed
 DslScalar = str | int | float | bool | None
@@ -855,8 +856,208 @@ def preference_prob(score1: float, score2: float, temperature: float = 1.0) -> f
     return sigmoid((score1 - score2) / temperature)
 
 
+# Structural query functions
+#
+# These operate over a dependency parse stored on an ``Item`` as token-level
+# ``Span``s (``span_type == "token"``) plus directed ``SpanRelation``s
+# (``source`` = head, ``target`` = dependent). Tokens are addressed by their
+# sentence-local 0-based index. They let constraint expressions query syntactic
+# structure, e.g. ``upos(self, root(self)) == "VERB"``.
+def _token_spans(item: Item) -> dict[int, Span]:
+    """Map token index to its ``Span`` for token-level spans on the item."""
+    result: dict[int, Span] = {}
+    for span in item.spans:
+        if span.span_type != "token" or not span.segments:
+            continue
+        indices = span.segments[0].indices
+        if indices:
+            result[indices[0]] = span
+    return result
+
+
+def _span_id_index(token_spans: dict[int, Span]) -> dict[str, int]:
+    """Map ``span_id`` to token index for the given token spans."""
+    return {span.span_id: index for index, span in token_spans.items()}
+
+
+def _meta_str(span: Span, key: str) -> str | None:
+    """Read a string-valued metadata field from a span, else ``None``."""
+    value = span.span_metadata.get(key)
+    return value if isinstance(value, str) else None
+
+
+def upos(item: Item, index: int) -> str | None:
+    """Universal POS tag of the token at ``index``."""
+    span = _token_spans(item).get(index)
+    return _meta_str(span, "upos") if span is not None else None
+
+
+def xpos(item: Item, index: int) -> str | None:
+    """Treebank (language-specific) POS tag of the token at ``index``."""
+    span = _token_spans(item).get(index)
+    return _meta_str(span, "xpos") if span is not None else None
+
+
+def lemma_of(item: Item, index: int) -> str | None:
+    """Lemma of the token at ``index``."""
+    span = _token_spans(item).get(index)
+    return _meta_str(span, "lemma") if span is not None else None
+
+
+def form_of(item: Item, index: int) -> str | None:
+    """Surface form (token text) of the token at ``index``."""
+    span = _token_spans(item).get(index)
+    return _meta_str(span, "form") if span is not None else None
+
+
+def deprel(item: Item, index: int) -> str | None:
+    """Dependency relation of the token at ``index`` to its head."""
+    span = _token_spans(item).get(index)
+    return _meta_str(span, "deprel") if span is not None else None
+
+
+def morph(item: Item, index: int, feature: str) -> str | None:
+    """Value of a morphological ``feature`` for the token at ``index``."""
+    span = _token_spans(item).get(index)
+    if span is None:
+        return None
+    features = span.span_metadata.get("morph")
+    if isinstance(features, dict):
+        value = features.get(feature)
+        return value if isinstance(value, str) else None
+    return None
+
+
+def head(item: Item, index: int) -> int | None:
+    """Index of the syntactic head of the token at ``index`` (``None`` = root)."""
+    token_spans = _token_spans(item)
+    target = token_spans.get(index)
+    if target is None:
+        return None
+    id_to_index = _span_id_index(token_spans)
+    for relation in item.span_relations:
+        if relation.target_span_id == target.span_id:
+            return id_to_index.get(relation.source_span_id)
+    return None
+
+
+def dependents(item: Item, index: int, relation: str | None = None) -> list[int]:
+    """Return token indices governed by ``index``, optionally filtered by deprel."""
+    token_spans = _token_spans(item)
+    source = token_spans.get(index)
+    if source is None:
+        return []
+    id_to_index = _span_id_index(token_spans)
+    found: list[int] = []
+    for rel in item.span_relations:
+        if rel.source_span_id != source.span_id:
+            continue
+        if relation is not None and (rel.label is None or rel.label.label != relation):
+            continue
+        target_index = id_to_index.get(rel.target_span_id)
+        if target_index is not None:
+            found.append(target_index)
+    return sorted(found)
+
+
+def has_relation(
+    item: Item, head_index: int, dep_index: int, relation: str | None = None
+) -> bool:
+    """Whether a head -> dependent arc exists, optionally with the given deprel."""
+    return dep_index in dependents(item, head_index, relation)
+
+
+def root(item: Item) -> int | None:
+    """Index of the root token (``deprel == "root"`` or no incoming arc)."""
+    token_spans = _token_spans(item)
+    for index, span in token_spans.items():
+        if _meta_str(span, "deprel") == "root":
+            return index
+    for index, span in token_spans.items():
+        if span.head_index is None:
+            return index
+    return None
+
+
+def tokens_with_upos(item: Item, tag: str) -> list[int]:
+    """Return indices of all tokens whose UPOS equals ``tag``."""
+    return sorted(
+        index
+        for index, span in _token_spans(item).items()
+        if _meta_str(span, "upos") == tag
+    )
+
+
+def tokens_with_deprel(item: Item, rel: str) -> list[int]:
+    """Return indices of all tokens whose dependency relation equals ``rel``."""
+    return sorted(
+        index
+        for index, span in _token_spans(item).items()
+        if _meta_str(span, "deprel") == rel
+    )
+
+
+def path_to_root(item: Item, index: int) -> list[int]:
+    """Token indices from ``index`` up to the root (cycle-guarded)."""
+    path: list[int] = []
+    seen: set[int] = set()
+    current: int | None = index
+    while current is not None and current not in seen:
+        path.append(current)
+        seen.add(current)
+        current = head(item, current)
+    return path
+
+
+def subtree(item: Item, index: int) -> list[int]:
+    """All transitive dependents of ``index``, including ``index`` itself."""
+    result: list[int] = []
+    seen: set[int] = set()
+    queue: list[int] = [index]
+    while queue:
+        current = queue.pop()
+        if current in seen:
+            continue
+        seen.add(current)
+        result.append(current)
+        queue.extend(dependents(item, current))
+    return sorted(result)
+
+
+def any_deprel(item: Item, indices: list[int], rel: str) -> bool:
+    """Whether any token in ``indices`` has dependency relation ``rel``."""
+    return any(deprel(item, index) == rel for index in indices)
+
+
+def filter_upos(item: Item, indices: list[int], tag: str) -> list[int]:
+    """Subset of ``indices`` whose tokens have UPOS ``tag``."""
+    return [index for index in indices if upos(item, index) == tag]
+
+
 # Type alias for DSL callable functions
-DslFunction = Callable[..., DslScalar | list[DslScalar] | list[float]]
+DslFunction = Callable[
+    ..., DslScalar | list[DslScalar] | list[float] | list[int]
+]
+
+# Register structural query functions
+STRUCTURE_FUNCTIONS: dict[str, DslFunction] = {
+    "upos": upos,
+    "xpos": xpos,
+    "lemma_of": lemma_of,
+    "form_of": form_of,
+    "deprel": deprel,
+    "morph": morph,
+    "head": head,
+    "dependents": dependents,
+    "has_relation": has_relation,
+    "root": root,
+    "tokens_with_upos": tokens_with_upos,
+    "tokens_with_deprel": tokens_with_deprel,
+    "path_to_root": path_to_root,
+    "subtree": subtree,
+    "any_deprel": any_deprel,
+    "filter_upos": filter_upos,
+}
 
 # Register simulation functions
 SIMULATION_FUNCTIONS: dict[str, DslFunction] = {
@@ -905,8 +1106,9 @@ STDLIB_FUNCTIONS: dict[str, DslFunction] = {
     "not": not_,
 }
 
-# Update STDLIB_FUNCTIONS with simulation functions
+# Update STDLIB_FUNCTIONS with simulation and structural-query functions
 STDLIB_FUNCTIONS.update(SIMULATION_FUNCTIONS)
+STDLIB_FUNCTIONS.update(STRUCTURE_FUNCTIONS)
 
 
 def register_stdlib(context: EvaluationContext) -> None:

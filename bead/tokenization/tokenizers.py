@@ -79,6 +79,27 @@ class TokenizedText(dx.Model):
         return "".join(parts).rstrip()
 
 
+def spacy_space_after(token: _SpacyTokenProtocol) -> bool:
+    """Whether whitespace follows a spaCy token in the source text.
+
+    Shared by ``SpacyTokenizer`` and ``SpacyParser`` (single canonical site).
+    """
+    return token.whitespace_ != ""
+
+
+def _stanza_space_after(token: _StanzaTokenProtocol, text: str) -> bool:
+    """Whether whitespace follows a Stanza token in the source text.
+
+    Prefers the CoNLL-U ``SpaceAfter=No`` annotation when present, falling
+    back to inspecting the character immediately after the token.
+    """
+    if getattr(token, "misc", None):
+        return "SpaceAfter=No" not in (token.misc or "")
+    if token.end_char < len(text):
+        return text[token.end_char] == " "
+    return True
+
+
 class WhitespaceTokenizer:
     """Simple whitespace-split tokenizer.
 
@@ -182,7 +203,7 @@ class SpacyTokenizer:
             tokens.append(
                 DisplayToken(
                     text=token.text,
-                    space_after=token.whitespace_ != "",
+                    space_after=spacy_space_after(token),
                     start_char=token.idx,
                     end_char=token.idx + len(token.text),
                 )
@@ -264,24 +285,12 @@ class StanzaTokenizer:
         tokens: list[DisplayToken] = []
         for sentence in doc.sentences:
             for token in sentence.tokens:
-                start_char = token.start_char
-                end_char = token.end_char
-                # stanza tokens have a misc field; space_after can be
-                # inferred from character offsets or the SpaceAfter=No
-                # annotation in the misc field.
-                space_after = True
-                if hasattr(token, "misc") and token.misc:
-                    if "SpaceAfter=No" in token.misc:
-                        space_after = False
-                elif end_char < len(text):
-                    space_after = text[end_char] == " "
-
                 tokens.append(
                     DisplayToken(
                         text=token.text,
-                        space_after=space_after,
-                        start_char=start_char,
-                        end_char=end_char,
+                        space_after=_stanza_space_after(token, text),
+                        start_char=token.start_char,
+                        end_char=token.end_char,
                     )
                 )
         return TokenizedText(tokens=tuple(tokens), original_text=text)

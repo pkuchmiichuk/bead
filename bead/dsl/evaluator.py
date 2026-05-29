@@ -8,6 +8,7 @@ constraint expressions.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any
 
 from bead.dsl import ast
@@ -454,7 +455,7 @@ class DSLEvaluator:
     def evaluate(
         self,
         expression: str,
-        context: dict[str, ContextValue | LexicalItem | FilledTemplate | Item],
+        context: Mapping[str, ContextValue | LexicalItem | FilledTemplate | Item],
     ) -> bool | str | int | float | list[Any]:
         """Evaluate DSL expression with given context.
 

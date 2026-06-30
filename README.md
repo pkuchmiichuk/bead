@@ -30,19 +30,19 @@ uv pip install bead[training]  # PyTorch Lightning, TensorBoard
 ### Development
 
 ```bash
-git clone --recurse-submodules https://github.com/FACTSlab/bead.git
+git clone https://github.com/FACTSlab/bead.git
 cd bead
 uv sync --all-extras
 uv run pytest tests/
 ```
 
-The `vendor/layers` submodule holds the layers lexicons that the interop tests
-validate against. If you cloned without `--recurse-submodules`, fetch them with
-`git submodule update --init vendor/layers`, and refresh to the latest published
-lexicons with `git submodule update --remote vendor/layers`. The lexicon
-validation tests skip automatically when the submodule is absent.
-
 Always use `uv run` to execute commands.
+
+Integration tests that exercise the layers publish path against a real ATProto
+PDS are deselected by default. With docker running, opt in with
+`uv run pytest --run-integration`; the test stands up a throwaway
+[bluesky PDS](https://github.com/bluesky-social/pds) container and skips cleanly
+when docker is unavailable.
 
 ## Quick Start
 

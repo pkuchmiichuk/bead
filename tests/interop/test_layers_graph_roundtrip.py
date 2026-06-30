@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
+from lairs.records import defs
 
 from bead.corpus.assemble import EdgeSpec, assemble_graph
 from bead.corpus.graph import CorpusEdge, CorpusGraph, CorpusNode
@@ -108,13 +109,12 @@ class TestExampleRoundTrips:
             edges=(CorpusEdge(source_id="x", target_id="y", edge_type="e"),),
         )
         view = graph_to_layers(graph)
-        assert set(view) == {"expressions", "graphNodes", "graphEdgeSet"}
-        edge = view["graphEdgeSet"]["edges"][0]
-        assert edge["edgeType"] == "e"
-        assert edge["source"] == {"localId": {"value": "x"}}
-        assert edge["target"] == {"localId": {"value": "y"}}
-        assert view["expressions"]["x"]["kind"] == "expression"
-        assert view["expressions"]["x"]["text"] == "t"
+        edge = view.edge_set.edges[0]
+        assert edge.edgeType == "e"
+        assert edge.source == defs.ObjectRef(localId=defs.Uuid(value="x"))
+        assert edge.target == defs.ObjectRef(localId=defs.Uuid(value="y"))
+        assert view.expressions[0].kind == "expression"
+        assert view.expressions[0].text == "t"
 
 
 # --- property-based lens-law verification -----------------------------------

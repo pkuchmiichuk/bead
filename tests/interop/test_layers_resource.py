@@ -25,14 +25,14 @@ class TestLexicalItemEntry:
             source="UniMorph",
         )
         view, complement = LEXICAL_ITEM_ENTRY.forward(item)
-        assert view["form"] == "ran"
-        assert view["lemma"] == "run"
+        assert view.form == "ran"
+        assert view.lemma == "run"
         assert LEXICAL_ITEM_ENTRY.backward(view, complement) == item
 
     def test_form_defaults_to_lemma_in_view(self) -> None:
         item = LexicalItem(lemma="dog", language_code="eng")
         view, complement = LEXICAL_ITEM_ENTRY.forward(item)
-        assert view["form"] == "dog"  # faithful entry.form
+        assert view.form == "dog"  # faithful entry.form
         # but the original None form is recovered exactly
         restored = LEXICAL_ITEM_ENTRY.backward(view, complement)
         assert restored.form is None
@@ -54,8 +54,8 @@ class TestLexiconCollection:
             tags=("motion", "manner"),
         )
         view, complement = LEXICON_COLLECTION.forward(lexicon)
-        assert view["collection"]["kind"] == "lexicon"
-        assert len(view["entries"]) == 2
+        assert view.collection.kind == "lexicon"
+        assert len(view.entries) == 2
         assert LEXICON_COLLECTION.backward(view, complement) == lexicon
 
     def test_empty(self) -> None:
@@ -94,11 +94,11 @@ class TestTemplateLayers:
             metadata={"source": "manual"},
         )
         view, complement = TEMPLATE_LAYERS.forward(template)
-        assert view["text"] == "The {subj} {verb} the {obj}."
-        assert set(view["slots"]) == {"subj", "verb", "obj"}
-        assert view["slots"]["verb"]["constraints"][0]["expression"] == (
-            "self.pos == 'VERB'"
-        )
+        assert view.text == "The {subj} {verb} the {obj}."
+        assert {slot.name for slot in view.slots} == {"subj", "verb", "obj"}
+        verb_slot = next(slot for slot in view.slots if slot.name == "verb")
+        assert verb_slot.constraints is not None
+        assert verb_slot.constraints[0].expression == "self.pos == 'VERB'"
         assert TEMPLATE_LAYERS.backward(view, complement) == template
 
     def test_minimal(self) -> None:

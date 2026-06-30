@@ -1,32 +1,35 @@
 """Lenses between bead resource models and layers resource records.
 
-Maps bead's lexical and template resources to their ``layers`` counterparts:
+Maps bead's lexical and template resources to their canonical
+:mod:`lairs.records.resource` counterparts:
 
 - ``LexicalItem`` <-> a layers ``entry``
 - ``Lexicon`` <-> a layers ``collection`` with its ``entry`` records
 - ``Template`` <-> a layers ``template`` (with its slots and constraints)
 
-Each lens produces a layers-shaped view and keeps the fields that have no layers
-equivalent (the bead framework identity, the single language code, tags, the
-``LexicalItem`` ``form``/``source`` fields, and DSL constraint context) in the
-lens complement, so reconstruction is exact.
+Each lens produces a layers-shaped view from the generated models and keeps the
+fields that have no layers equivalent (the bead framework identity, tags, the
+``LexicalItem`` original ``form`` / free-text ``source``, and the bead DSL
+constraint context) in the lens complement, so reconstruction is exact.
 """
 
 from __future__ import annotations
 
 import didactic.api as dx
+from lairs.records import defs, resource
 
 from bead.data.base import JsonValue
 from bead.interop.layers._convert import (
     apply_identity,
-    from_feature_map,
+    dumps_meta,
+    feature_map,
     identity_of,
-    j_bool,
     j_list,
     j_obj,
     j_str,
     j_str_or_none,
-    to_feature_map,
+    loads_meta,
+    read_feature_map,
 )
 from bead.resources.constraints import Constraint
 from bead.resources.lexical_item import LexicalItem
@@ -36,35 +39,41 @@ from bead.resources.template import Slot, Template
 _LEXICON_KIND = "lexicon"
 
 
-class LexicalItemEntryLens(dx.Lens[LexicalItem, JsonValue, JsonValue]):
-    """Lossless lens ``LexicalItem <-> (layers entry view, complement)``."""
+def _languages(code: str | None) -> tuple[str, ...]:
+    return (code,) if code is not None else ()
 
-    def forward(self, item: LexicalItem) -> tuple[JsonValue, JsonValue]:
-        """Project a lexical item to a layers entry view and complement."""
-        view: dict[str, JsonValue] = {
-            "form": item.form if item.form is not None else item.lemma,
-            "lemma": item.lemma,
-            "features": to_feature_map(item.features),
-        }
-        if item.language_code is not None:
-            view["languages"] = (item.language_code,)
+
+def _first_language(languages: tuple[str, ...] | None) -> str | None:
+    return languages[0] if languages else None
+
+
+class LexicalItemEntryLens(dx.Lens[LexicalItem, resource.Entry, JsonValue]):
+    """Lossless lens ``LexicalItem <-> (layers entry, complement)``."""
+
+    def forward(self, item: LexicalItem) -> tuple[resource.Entry, JsonValue]:
+        """Project a lexical item to a layers entry and complement."""
+        view = resource.Entry(
+            form=item.form if item.form is not None else item.lemma,
+            lemma=item.lemma,
+            features=feature_map(item.features),
+            languages=_languages(item.language_code),
+            createdAt=item.created_at,
+        )
         complement: JsonValue = {
             "identity": identity_of(item),
             "form": item.form,
-            "language_code": item.language_code,
             "source": item.source,
         }
         return view, complement
 
-    def backward(self, view: JsonValue, complement: JsonValue) -> LexicalItem:
-        """Reconstruct a lexical item from its layers entry view and complement."""
-        view_obj = j_obj(view)
+    def backward(self, view: resource.Entry, complement: JsonValue) -> LexicalItem:
+        """Reconstruct a lexical item from its layers entry and complement."""
         comp = j_obj(complement)
         item = LexicalItem(
-            lemma=j_str(view_obj["lemma"]),
-            language_code=j_str_or_none(comp["language_code"]),
+            lemma=view.lemma if view.lemma is not None else "",
+            language_code=_first_language(view.languages),
             form=j_str_or_none(comp["form"]),
-            features=from_feature_map(view_obj["features"]),
+            features=read_feature_map(view.features),
             source=j_str_or_none(comp["source"]),
         )
         return apply_identity(item, comp["identity"])
@@ -73,47 +82,55 @@ class LexicalItemEntryLens(dx.Lens[LexicalItem, JsonValue, JsonValue]):
 LEXICAL_ITEM_ENTRY = LexicalItemEntryLens()
 
 
-class LexiconCollectionLens(dx.Lens[Lexicon, JsonValue, JsonValue]):
+class LexiconLayers(dx.Model):
+    """A layers view of a lexicon: a collection plus its entry records."""
+
+    collection: dx.Embed[resource.Collection] = dx.field()
+    entries: tuple[dx.Embed[resource.Entry], ...] = dx.field(default=())
+
+
+class LexiconCollectionLens(dx.Lens[Lexicon, LexiconLayers, JsonValue]):
     """Lossless lens ``Lexicon <-> (layers collection + entries, complement)``."""
 
-    def forward(self, lexicon: Lexicon) -> tuple[JsonValue, JsonValue]:
+    def forward(self, lexicon: Lexicon) -> tuple[LexiconLayers, JsonValue]:
         """Project a lexicon to a layers collection + entry views."""
-        collection: dict[str, JsonValue] = {"name": lexicon.name, "kind": _LEXICON_KIND}
-        if lexicon.description is not None:
-            collection["description"] = lexicon.description
-        if lexicon.language_code is not None:
-            collection["languages"] = (lexicon.language_code,)
-        entries: list[JsonValue] = []
+        entries: list[resource.Entry] = []
         item_complements: list[JsonValue] = []
         for item in lexicon.items:
             entry_view, entry_complement = LEXICAL_ITEM_ENTRY.forward(item)
             entries.append(entry_view)
             item_complements.append(entry_complement)
-        view: JsonValue = {"collection": collection, "entries": tuple(entries)}
+        view = LexiconLayers(
+            collection=resource.Collection(
+                name=lexicon.name,
+                kind=_LEXICON_KIND,
+                description=lexicon.description,
+                languages=_languages(lexicon.language_code),
+                createdAt=lexicon.created_at,
+            ),
+            entries=tuple(entries),
+        )
         complement: JsonValue = {
             "identity": identity_of(lexicon),
-            "description": lexicon.description,
-            "language_code": lexicon.language_code,
             "tags": lexicon.tags,
             "item_complements": tuple(item_complements),
         }
         return view, complement
 
-    def backward(self, view: JsonValue, complement: JsonValue) -> Lexicon:
+    def backward(self, view: LexiconLayers, complement: JsonValue) -> Lexicon:
         """Reconstruct a lexicon from its layers collection + complement."""
-        view_obj = j_obj(view)
         comp = j_obj(complement)
-        collection = j_obj(view_obj["collection"])
-        entries = j_list(view_obj["entries"])
         item_complements = j_list(comp["item_complements"])
         items = tuple(
             LEXICAL_ITEM_ENTRY.backward(entry, item_complement)
-            for entry, item_complement in zip(entries, item_complements, strict=True)
+            for entry, item_complement in zip(
+                view.entries, item_complements, strict=True
+            )
         )
         lexicon = Lexicon(
-            name=j_str(collection["name"]),
-            description=j_str_or_none(comp["description"]),
-            language_code=j_str_or_none(comp["language_code"]),
+            name=view.collection.name,
+            description=view.collection.description,
+            language_code=_first_language(view.collection.languages),
             items=items,
             tags=tuple(j_str(tag) for tag in j_list(comp["tags"])),
         )
@@ -123,41 +140,41 @@ class LexiconCollectionLens(dx.Lens[Lexicon, JsonValue, JsonValue]):
 LEXICON_COLLECTION = LexiconCollectionLens()
 
 
-def _constraint_forward(constraint: Constraint) -> tuple[JsonValue, JsonValue]:
-    view: dict[str, JsonValue] = {"expression": constraint.expression}
-    if constraint.description is not None:
-        view["description"] = constraint.description
+def _constraint_forward(constraint: Constraint) -> tuple[defs.Constraint, JsonValue]:
+    view = defs.Constraint(
+        expression=constraint.expression, description=constraint.description
+    )
     complement: JsonValue = {
         "identity": identity_of(constraint),
-        "context": to_feature_map(constraint.context),
+        "context": dumps_meta(constraint.context),
     }
     return view, complement
 
 
-def _constraint_backward(view: JsonValue, complement: JsonValue) -> Constraint:
-    view_obj = j_obj(view)
+def _constraint_backward(view: defs.Constraint, complement: JsonValue) -> Constraint:
     comp = j_obj(complement)
     constraint = Constraint(
-        expression=j_str(view_obj["expression"]),
-        context=from_feature_map(comp["context"]),
-        description=j_str_or_none(view_obj.get("description")),
+        expression=view.expression,
+        context=loads_meta(comp["context"]),
+        description=view.description,
     )
     return apply_identity(constraint, comp["identity"])
 
 
-def _slot_forward(slot: Slot) -> tuple[JsonValue, JsonValue]:
-    view: dict[str, JsonValue] = {"name": slot.name, "required": slot.required}
-    if slot.description is not None:
-        view["description"] = slot.description
-    if slot.default_value is not None:
-        view["defaultValue"] = slot.default_value
-    constraint_views: list[JsonValue] = []
+def _slot_forward(slot: Slot) -> tuple[resource.Slot, JsonValue]:
+    constraint_views: list[defs.Constraint] = []
     constraint_complements: list[JsonValue] = []
     for constraint in slot.constraints:
         constraint_view, constraint_complement = _constraint_forward(constraint)
         constraint_views.append(constraint_view)
         constraint_complements.append(constraint_complement)
-    view["constraints"] = tuple(constraint_views)
+    view = resource.Slot(
+        name=slot.name,
+        description=slot.description,
+        constraints=tuple(constraint_views),
+        defaultValue=slot.default_value,
+        required=slot.required,
+    )
     complement: JsonValue = {
         "identity": identity_of(slot),
         "constraint_complements": tuple(constraint_complements),
@@ -165,93 +182,86 @@ def _slot_forward(slot: Slot) -> tuple[JsonValue, JsonValue]:
     return view, complement
 
 
-def _slot_backward(view: JsonValue, complement: JsonValue) -> Slot:
-    view_obj = j_obj(view)
+def _slot_backward(view: resource.Slot, complement: JsonValue) -> Slot:
     comp = j_obj(complement)
-    constraint_views = j_list(view_obj["constraints"])
     constraint_complements = j_list(comp["constraint_complements"])
     constraints = tuple(
         _constraint_backward(constraint_view, constraint_complement)
         for constraint_view, constraint_complement in zip(
-            constraint_views, constraint_complements, strict=True
+            view.constraints or (), constraint_complements, strict=True
         )
     )
     slot = Slot(
-        name=j_str(view_obj["name"]),
-        description=j_str_or_none(view_obj.get("description")),
+        name=view.name,
+        description=view.description,
         constraints=constraints,
-        required=j_bool(view_obj["required"]),
-        default_value=j_str_or_none(view_obj.get("defaultValue")),
+        required=view.required if view.required is not None else True,
+        default_value=view.defaultValue,
     )
     return apply_identity(slot, comp["identity"])
 
 
-class TemplateLayersLens(dx.Lens[Template, JsonValue, JsonValue]):
-    """Lossless lens ``Template <-> (layers template view, complement)``."""
+class TemplateLayersLens(dx.Lens[Template, resource.Template, JsonValue]):
+    """Lossless lens ``Template <-> (layers template, complement)``."""
 
-    def forward(self, template: Template) -> tuple[JsonValue, JsonValue]:
-        """Project a template to a layers template view and complement."""
-        slot_views: dict[str, JsonValue] = {}
+    def forward(self, template: Template) -> tuple[resource.Template, JsonValue]:
+        """Project a template to a layers template and complement."""
+        slot_views: list[resource.Slot] = []
         slot_complements: dict[str, JsonValue] = {}
         for slot_key, slot in template.slots.items():
             slot_view, slot_complement = _slot_forward(slot)
-            slot_views[slot_key] = slot_view
+            slot_views.append(slot_view)
             slot_complements[slot_key] = slot_complement
-        constraint_views: list[JsonValue] = []
+        constraint_views: list[defs.Constraint] = []
         constraint_complements: list[JsonValue] = []
         for constraint in template.constraints:
             constraint_view, constraint_complement = _constraint_forward(constraint)
             constraint_views.append(constraint_view)
             constraint_complements.append(constraint_complement)
-        view: dict[str, JsonValue] = {
-            "name": template.name,
-            "text": template.template_string,
-            "slots": slot_views,
-            "constraints": tuple(constraint_views),
-        }
-        if template.language_code is not None:
-            view["languages"] = (template.language_code,)
+        view = resource.Template(
+            name=template.name,
+            text=template.template_string,
+            slots=tuple(slot_views),
+            constraints=tuple(constraint_views),
+            languages=_languages(template.language_code),
+            createdAt=template.created_at,
+        )
         complement: JsonValue = {
             "identity": identity_of(template),
             "description": template.description,
-            "language_code": template.language_code,
             "tags": template.tags,
-            "metadata": to_feature_map(template.metadata),
+            "metadata": dumps_meta(template.metadata),
             "slot_order": tuple(template.slots),
             "slot_complements": slot_complements,
             "constraint_complements": tuple(constraint_complements),
         }
         return view, complement
 
-    def backward(self, view: JsonValue, complement: JsonValue) -> Template:
-        """Reconstruct a template from its layers template view and complement."""
-        view_obj = j_obj(view)
+    def backward(self, view: resource.Template, complement: JsonValue) -> Template:
+        """Reconstruct a template from its layers template and complement."""
         comp = j_obj(complement)
-        slot_views = j_obj(view_obj["slots"])
         slot_complements = j_obj(comp["slot_complements"])
+        slot_order = j_list(comp["slot_order"])
         slots: dict[str, Slot] = {}
-        for slot_key_value in j_list(comp["slot_order"]):
+        for slot_key_value, slot_view in zip(slot_order, view.slots, strict=True):
             slot_key = j_str(slot_key_value)
-            slots[slot_key] = _slot_backward(
-                slot_views[slot_key], slot_complements[slot_key]
-            )
-        constraint_views = j_list(view_obj["constraints"])
+            slots[slot_key] = _slot_backward(slot_view, slot_complements[slot_key])
         constraint_complements = j_list(comp["constraint_complements"])
         constraints = tuple(
             _constraint_backward(constraint_view, constraint_complement)
             for constraint_view, constraint_complement in zip(
-                constraint_views, constraint_complements, strict=True
+                view.constraints or (), constraint_complements, strict=True
             )
         )
         template = Template(
-            name=j_str(view_obj["name"]),
-            template_string=j_str(view_obj["text"]),
+            name=view.name if view.name is not None else "",
+            template_string=view.text,
             slots=slots,
             constraints=constraints,
             description=j_str_or_none(comp["description"]),
-            language_code=j_str_or_none(comp["language_code"]),
+            language_code=_first_language(view.languages),
             tags=tuple(j_str(tag) for tag in j_list(comp["tags"])),
-            metadata=from_feature_map(comp["metadata"]),
+            metadata=loads_meta(comp["metadata"]),
         )
         return apply_identity(template, comp["identity"])
 

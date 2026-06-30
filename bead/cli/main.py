@@ -430,6 +430,7 @@ cli = LazyGroup(
         "config": ("bead.cli.config", "config"),
         "deployment": ("bead.cli.deployment", "deployment"),
         "items": ("bead.cli.items", "items"),
+        "layers": ("bead.cli.layers", "layers"),
         "lists": ("bead.cli.lists", "lists"),
         "models": ("bead.cli.models", "models"),
         "protocol": ("bead.cli.protocol", "protocol"),

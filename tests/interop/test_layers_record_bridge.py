@@ -38,9 +38,11 @@ class TestExampleRoundTrips:
         view = record_to_expression(
             CorpusRecord(text="hi", source_name="s", provenance={"k": "v"})
         )
-        assert view["kind"] == "expression"
-        assert view["text"] == "hi"
-        assert view["features"]["entries"][0] == {"key": "k", "value": '"v"'}
+        assert view.kind == "sentence"
+        assert view.text == "hi"
+        assert view.features is not None
+        assert view.features.entries[0].key == "k"
+        assert view.features.entries[0].value == '"v"'
 
 
 _scalar = st.one_of(st.text(max_size=6), st.integers(-50, 50), st.booleans(), st.none())

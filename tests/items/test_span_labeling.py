@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib
 from uuid import uuid4
 
 import didactic.api as dx
@@ -299,7 +300,13 @@ class TestTokenizeItem:
 
     def test_default_config(self) -> None:
         """Test tokenizing with default config."""
-        pytest.importorskip("spacy")
+        # ``pytest.importorskip`` only catches ImportError, but spaCy's bundled
+        # pydantic.v1 raises a ConfigError on Python 3.14, so skip on any import
+        # failure rather than letting it surface as a test error.
+        try:
+            importlib.import_module("spacy")
+        except Exception as error:
+            pytest.skip(f"spaCy is not importable on this platform: {error}")
         item = Item(
             item_template_id=uuid4(),
             rendered_elements={"text": "Hello"},

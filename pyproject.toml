@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "bead"
-version = "0.6.0"
+version = "0.7.0"
 description = "Lexicon and Template Collection Construction Pipeline for Acceptability and Inference Judgment Data"
 authors = [{name = "Aaron Steven White", email = "aaron.white@rochester.edu"}]
 readme = "README.md"
@@ -23,8 +23,9 @@ classifiers = [
 ]
 requires-python = ">=3.14"
 dependencies = [
-    "didactic>=0.7.2",
-    "panproto>=0.51.0",
+    "didactic>=0.9.0",
+    "panproto>=0.56.0",
+    "lairs>=0.5.0",
     "pyyaml>=6.0.0",
     "jinja2>=3.0.0",
     "uuid-utils>=0.7.0",
@@ -103,6 +104,9 @@ corpus = [
 
 [project.scripts]
 bead = "bead.cli.main:cli"
+
+[project.entry-points."lairs.codecs"]
+bead = "bead.interop.layers.codec:BeadCodec"
 
 [tool.pytest.ini_options]
 testpaths = ["tests", "docs/user-guide/cli"]

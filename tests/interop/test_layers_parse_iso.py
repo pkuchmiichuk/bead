@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from hypothesis import given
 from hypothesis import strategies as st
+from lairs.records import defs
 
+from bead.interop.layers._convert import read_feature_map
 from bead.interop.layers.parse_lens import PARSED_SENTENCE_LAYERS, parse_to_layers
 from bead.tokenization.parsers import ParsedSentence, ParsedToken
 
@@ -92,26 +94,31 @@ class TestExampleRoundTrips:
     def test_root_head_minus_one(self) -> None:
         view = parse_to_layers(_known_sentence())
         # the root token (index 2) is encoded with headIndex -1
-        dep = view["dependencyLayer"]["annotations"][2]
-        assert dep["headIndex"] == -1
-        assert dep["label"] == "root"
+        dep = view.dependency_layer.annotations[2]
+        assert dep.headIndex == -1
+        assert dep.label == "root"
 
     def test_view_is_layers_shaped(self) -> None:
         view = parse_to_layers(_known_sentence())
-        assert set(view) == {
-            "originalText",
-            "tokenization",
-            "posLayer",
-            "dependencyLayer",
-        }
-        assert view["posLayer"]["subkind"] == "pos"
-        assert view["dependencyLayer"]["subkind"] == "dependency"
-        assert view["tokenization"]["tokens"][0]["textSpan"] == {
-            "byteStart": 0,
-            "byteEnd": 3,
-            "charStart": 0,
-            "charEnd": 3,
-        }
+        assert view.pos_layer.subkind == "pos"
+        assert view.dependency_layer.subkind == "dependency"
+        assert view.tokenization.tokens[0].textSpan == defs.Span(
+            byteStart=0, byteEnd=3, charStart=0, charEnd=3
+        )
+
+    def test_space_after_rides_in_pos_features(self) -> None:
+        sentence = ParsedSentence(
+            original_text="hi",
+            tokens=(
+                ParsedToken(
+                    index=0, text="hi", start_char=0, end_char=2, space_after=False
+                ),
+            ),
+        )
+        view = parse_to_layers(sentence)
+        # layers ``token`` has no spaceAfter slot, so it travels in pos features.
+        features = read_feature_map(view.pos_layer.annotations[0].features)
+        assert features["spaceAfter"] is False
 
     def test_missing_optionals(self) -> None:
         _assert_roundtrip(

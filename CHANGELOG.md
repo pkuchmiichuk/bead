@@ -7,6 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-06-29
+
+### Added
+
+#### Deep `layers` integration through `lairs`
+
+- `bead.interop.layers` builds its layers projections from the canonical
+  `lairs.records` models that `lairs` generates from the layers lexicons, so the
+  schema has one source of truth. The bridge, parse, graph, and resource lenses
+  return typed `lairs` models (or small bead-side aggregates of them) as their
+  view; the lens complement carries the bead-only remainder, and the round-trip
+  is guaranteed by the didactic GetPut/PutGet laws.
+- `ItemLayersLens` (`ITEM_LAYERS`, `item_to_layers`) maps an `Item`'s standoff
+  spans and relations to span and relation `AnnotationLayer` records over
+  per-element expressions and tokenizations: a span anchors by
+  `tokenRefSequence` (with `head_index` as `anchorTokenIndex` and a Wikidata
+  `label_id` as a `knowledgeRef`); a relation carries `ArgumentRef` source and
+  target arguments.
+- `BeadCodec`, registered on the `lairs.codecs` entry point, round-trips a bead
+  `ItemCollection` to and from the layers schema. `lairs.codec("bead")` resolves
+  it, and `encode(decode(x)) == x` holds losslessly.
+- `bead.interop.layers.corpus_io` ingests a `lairs.data.Corpus` into bead corpus
+  models (`corpus_to_records`, `corpus_to_graph`, `corpus_to_items`) and emits
+  bead data as a corpus (`items_to_corpus`, `graph_to_corpus`,
+  `materialize_corpus`, `save_corpus_repo`, `publish_corpus`).
+- `bead layers` CLI commands: `encode`, `decode`, `materialize`, and an opt-in
+  `publish` that defaults to a dry run.
+
+### Changed
+
+- `lairs>=0.5.0` is a dependency; the minimum `didactic` is raised to `>=0.9.0`
+  and `panproto` to `>=0.56.0`. Importing `bead` does not import `lairs`; the
+  dependency loads only when `bead.interop.layers` is used.
+- Layers record validation is owned by `lairs`, whose generated models validate
+  on construction.
+
 ## [0.6.0] - 2026-05-29
 
 ### Added

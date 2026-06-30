@@ -1,10 +1,13 @@
-"""Shared, reversible conversions between bead values and layers JSON shapes.
+"""Shared, reversible conversions between bead values and ``lairs`` models.
 
 These helpers centralize the mechanical, lossless conversions every layers lens
-relies on: feature maps, object references, confidence scaling, and capture /
-restore of a bead model's framework identity (the ``BeadBaseModel`` id and
-timestamps, which ``layers`` represents through its own identity scheme and so
-travel in a lens complement rather than the layers view).
+relies on. Two sinks are served:
+
+- the layers *view*, built from the canonical ``lairs.records`` models, uses the
+  typed :func:`feature_map` / :func:`object_ref` builders.
+- the lens *complement*, a plain ``JsonValue``, carries the bead-only remainder
+  (framework identity and metadata dicts ``layers`` has no slot for) via
+  :func:`identity_of` and :func:`dumps_meta`.
 """
 
 from __future__ import annotations
@@ -15,24 +18,44 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 from uuid import UUID
 
+from lairs.records import defs
+
 from bead.corpus.records import ProvenanceValue
 from bead.data.base import BeadBaseModel, JsonValue
 
 if TYPE_CHECKING:
     from bead.items.item import MetadataValue
 
+# layers scales confidence to an integer 0-1000 (to avoid floats on the wire).
+CONFIDENCE_SCALE = 1000
 
-def to_feature_map(features: Mapping[str, MetadataValue]) -> JsonValue:
-    """Encode a feature dict as a layers ``featureMap`` (values JSON-encoded).
+# Canonical layers collection NSIDs (record level), used both as fragment record
+# NSIDs and as the collection segment of minted corpus AT-URIs.
+EXPRESSION_NSID = "pub.layers.expression.expression"
+SEGMENTATION_NSID = "pub.layers.segmentation.segmentation"
+ANNOTATION_LAYER_NSID = "pub.layers.annotation.annotationLayer"
+CORPUS_NSID = "pub.layers.corpus.corpus"
+MEMBERSHIP_NSID = "pub.layers.corpus.membership"
+
+
+# --- typed feature maps (the layers view) -----------------------------------
+
+
+def feature_map(features: Mapping[str, MetadataValue]) -> defs.FeatureMap | None:
+    """Build a layers ``featureMap`` model, or ``None`` for an empty mapping.
 
     Each value is serialized with ``json.dumps`` so arbitrary (including
-    non-string) values round-trip exactly via :func:`from_feature_map`. Entries
-    preserve the dict's insertion order so the round-trip is exact.
+    non-string) values round-trip exactly via :func:`read_feature_map`. Entries
+    preserve the mapping's iteration order so the round-trip is exact. An empty
+    mapping projects to ``None`` (a faithful layers view omits empty optionals).
     """
-    entries: tuple[JsonValue, ...] = tuple(
-        {"key": key, "value": json.dumps(features[key])} for key in features
+    if not features:
+        return None
+    return defs.FeatureMap(
+        entries=tuple(
+            defs.Feature(key=key, value=json.dumps(features[key])) for key in features
+        )
     )
-    return {"entries": entries}
 
 
 type _Loaded = str | int | float | bool | None | list["_Loaded"] | dict[str, "_Loaded"]
@@ -47,71 +70,61 @@ def _tuplify(value: _Loaded) -> MetadataValue:
     return value
 
 
-def from_feature_map(feature_map: JsonValue) -> dict[str, MetadataValue]:
-    """Decode a layers ``featureMap`` back into a feature dict."""
-    result: dict[str, MetadataValue] = {}
-    if not isinstance(feature_map, dict):
-        return result
-    entries = feature_map.get("entries")
-    if not isinstance(entries, tuple):
-        return result
-    for entry in entries:
-        if isinstance(entry, dict):
-            key = entry.get("key")
-            value = entry.get("value")
-            if isinstance(key, str) and isinstance(value, str):
-                result[key] = _tuplify(json.loads(value))
-    return result
+def read_feature_map(fm: defs.FeatureMap | None) -> dict[str, MetadataValue]:
+    """Decode a layers ``featureMap`` model back into a feature dict."""
+    if fm is None:
+        return {}
+    return {entry.key: _tuplify(json.loads(entry.value)) for entry in fm.entries}
 
 
-def from_feature_map_scalar(feature_map: JsonValue) -> dict[str, ProvenanceValue]:
-    """Decode a ``featureMap`` whose values are flat provenance scalars."""
-    result: dict[str, ProvenanceValue] = {}
-    if not isinstance(feature_map, dict):
-        return result
-    entries = feature_map.get("entries")
-    if not isinstance(entries, tuple):
-        return result
-    for entry in entries:
-        if isinstance(entry, dict):
-            key = entry.get("key")
-            value = entry.get("value")
-            if isinstance(key, str) and isinstance(value, str):
-                result[key] = json.loads(value)
-    return result
+def read_feature_map_scalar(
+    fm: defs.FeatureMap | None,
+) -> dict[str, ProvenanceValue]:
+    """Decode a ``featureMap`` model whose values are flat provenance scalars."""
+    if fm is None:
+        return {}
+    return {entry.key: json.loads(entry.value) for entry in fm.entries}
 
 
-def strip_nulls(value: JsonValue) -> JsonValue:
-    """Recursively drop dict entries whose value is ``None``.
+# --- typed object references (the layers view) ------------------------------
 
-    The ATProto data model has no null: optional fields are omitted, not set to
-    null, and a lexicon rejects an explicit null for a typed optional field.
-    Layers views therefore omit absent optionals; the round-trip is unaffected
-    because the reverse direction defaults missing keys back to ``None``.
+
+def object_ref(local_id: str) -> defs.ObjectRef:
+    """Build a layers ``objectRef`` to a local object by id."""
+    return defs.ObjectRef(localId=defs.Uuid(value=local_id))
+
+
+def from_object_ref(ref: defs.ObjectRef) -> str:
+    """Read the local id out of a layers ``objectRef`` model."""
+    if ref.localId is None:
+        raise ValueError("objectRef has no localId")
+    return ref.localId.value
+
+
+# --- metadata dicts in the lens complement (JsonValue) ----------------------
+
+
+def dumps_meta(mapping: Mapping[str, MetadataValue]) -> str:
+    """Encode a metadata dict as a JSON string for a lens complement.
+
+    ``MetadataValue`` admits tuples (which are not ``JsonValue``); serializing to
+    a JSON string keeps the complement a plain ``JsonValue`` and round-trips
+    exactly through :func:`loads_meta`. Key insertion order is preserved so the
+    reconstructed dict compares equal to the original (didactic compares dict
+    fields order-sensitively).
     """
-    if isinstance(value, dict):
-        return {
-            key: strip_nulls(item) for key, item in value.items() if item is not None
-        }
-    if isinstance(value, tuple):
-        return tuple(strip_nulls(item) for item in value)
-    return value
+    return json.dumps(dict(mapping))
 
 
-def object_ref(local_id: str) -> JsonValue:
-    """Build a layers ``objectRef`` to a local node by id."""
-    return {"localId": {"value": local_id}}
+def loads_meta(value: JsonValue) -> dict[str, MetadataValue]:
+    """Decode a :func:`dumps_meta` string back into a metadata dict."""
+    loaded = json.loads(_as_str(value))
+    if not isinstance(loaded, dict):
+        return {}
+    return {str(key): _tuplify(val) for key, val in loaded.items()}
 
 
-def from_object_ref(ref: JsonValue) -> str:
-    """Read the local id out of a layers ``objectRef``."""
-    if isinstance(ref, dict):
-        local = ref.get("localId")
-        if isinstance(local, dict):
-            value = local.get("value")
-            if isinstance(value, str):
-                return value
-    raise ValueError("objectRef has no localId.value")
+# --- framework identity (the lens complement) -------------------------------
 
 
 def identity_of(model: BeadBaseModel) -> JsonValue:
@@ -143,6 +156,9 @@ def apply_identity[T: BeadBaseModel](model: T, identity: JsonValue) -> T:
     )
 
 
+# --- JsonValue narrowers (for reading complements) --------------------------
+
+
 def _as_str(value: JsonValue) -> str:
     if not isinstance(value, str):
         raise ValueError(f"expected str, got {type(value).__name__}")
@@ -157,9 +173,13 @@ def j_obj(value: JsonValue) -> dict[str, JsonValue]:
 
 
 def j_list(value: JsonValue) -> tuple[JsonValue, ...]:
-    """Narrow a ``JsonValue`` to a JSON array, raising otherwise."""
-    if isinstance(value, tuple):
-        return value
+    """Narrow a ``JsonValue`` to a JSON array, raising otherwise.
+
+    Accepts both tuples (in-process complements) and lists (complements that have
+    round-tripped through JSON, as in the codec), normalizing to a tuple.
+    """
+    if isinstance(value, (tuple, list)):
+        return tuple(value)
     raise ValueError(f"expected JSON array, got {type(value).__name__}")
 
 

@@ -1,10 +1,10 @@
 # bead.interop
 
-Lossless, law-verified interoperability mappings between bead models and
-external schemas. The `layers` subpackage maps bead's corpus and annotation data
-to the [layers](https://github.com/layers-pub/layers) linguistic-annotation
-schema and back via didactic lenses (`dx.Iso` / `dx.Lens`); round-trip fidelity
-is guaranteed by the GetPut/PutGet lens laws.
+Lossless, law-verified interoperability mappings between bead models and the
+[layers](https://github.com/layers-pub/layers) linguistic-annotation schema. The
+`layers` subpackage maps bead's corpus, annotation, and resource data to and from
+the canonical `lairs.records` models via didactic lenses (`dx.Iso` / `dx.Lens`);
+round-trip fidelity is guaranteed by the GetPut/PutGet lens laws.
 
 See the [Layers Interoperability guide](../user-guide/api/layers-interop.md) for
 usage.
@@ -26,23 +26,26 @@ usage.
       show_root_heading: true
       show_source: false
 
-## Mirror models
-
-Faithful didactic mirrors of the layers constructs.
-
-::: bead.interop.layers.models
+::: bead.interop.layers.item_bridge
     options:
       show_root_heading: true
       show_source: false
 
-::: bead.interop.layers.models_records
+## Resource lenses
+
+::: bead.interop.layers.resource_lens
     options:
       show_root_heading: true
       show_source: false
 
-## Generic mirror iso
+## Codec and corpus I/O
 
-::: bead.interop.layers.model_lenses
+::: bead.interop.layers.codec
+    options:
+      show_root_heading: true
+      show_source: false
+
+::: bead.interop.layers.corpus_io
     options:
       show_root_heading: true
       show_source: false

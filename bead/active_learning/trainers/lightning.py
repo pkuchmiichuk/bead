@@ -240,14 +240,15 @@ class PyTorchLightningTrainer(BaseTrainer):
             if best_checkpoint_str:
                 best_checkpoint = Path(best_checkpoint_str)
 
-        # create metadata
-        config_dict = (
-            self.config
-            if isinstance(self.config, dict)
-            else (
-                self.config.model_dump() if hasattr(self.config, "model_dump") else {}
-            )
-        )
+        # create metadata; flatten ``self.config`` to a JSON-shaped dict
+        # so ``ModelMetadata.training_config`` (typed ``dict[str, JsonValue]``)
+        # accepts it. ``model_dump_json`` walks Paths / Enums / etc.
+        if isinstance(self.config, dict):
+            config_dict = json.loads(json.dumps(self.config, default=str))
+        elif hasattr(self.config, "model_dump_json"):
+            config_dict = json.loads(self.config.model_dump_json())
+        else:
+            config_dict = {}
 
         metadata = ModelMetadata(
             model_name=model_name,

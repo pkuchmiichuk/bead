@@ -1,8 +1,8 @@
 """Template and structure models for sentence generation.
 
-This module provides models for sentence templates and their structures.
-Templates contain slots that are filled with lexical items during
-sentence generation.
+Templates contain slots that are filled with lexical items during sentence
+generation. Templates may be combined into sequences or hierarchical
+trees.
 """
 
 from __future__ import annotations
@@ -10,30 +10,14 @@ from __future__ import annotations
 import re
 from typing import TYPE_CHECKING
 
-from pydantic import Field, field_validator, model_validator
+import didactic.api as dx
 
-from bead.data.base import BeadBaseModel
+from bead.data.base import BeadBaseModel, JsonValue
 from bead.data.language_codes import LanguageCode
 from bead.resources.constraints import Constraint
 
 if TYPE_CHECKING:
-    from bead.items.item_template import MetadataValue
     from bead.templates.filler import FilledTemplate
-else:
-    # Recursive type for metadata values
-    type MetadataValue = (
-        str | int | float | bool | None | dict[str, MetadataValue] | list[MetadataValue]
-    )
-
-
-def _empty_constraint_list() -> list[Constraint]:
-    """Create an empty constraint list."""
-    return []
-
-
-def _empty_str_list() -> list[str]:
-    """Create an empty string list."""
-    return []
 
 
 class Slot(BeadBaseModel):
@@ -44,272 +28,109 @@ class Slot(BeadBaseModel):
     name : str
         Unique name for the slot within the template.
     description : str | None
-        Human-readable description of the slot's purpose.
-    constraints : list[Constraint]
+        Human-readable description.
+    constraints : tuple[Constraint, ...]
         Constraints that determine valid fillers.
     required : bool
         Whether the slot must be filled.
     default_value : str | None
-        Default value if slot is not filled.
-
-    Examples
-    --------
-    >>> from bead.resources.constraints import Constraint
-    >>> slot = Slot(
-    ...     name="subject",
-    ...     description="The subject of the sentence",
-    ...     constraints=[
-    ...         Constraint(expression="self.features.pos == 'NOUN'")
-    ...     ],
-    ...     required=True
-    ... )
+        Default string used if the slot is not filled.
     """
 
     name: str
     description: str | None = None
-    constraints: list[Constraint] = Field(default_factory=_empty_constraint_list)
+    constraints: tuple[dx.Embed[Constraint], ...] = ()
     required: bool = True
     default_value: str | None = None
 
-    @field_validator("name")
-    @classmethod
-    def validate_name(cls, v: str) -> str:
-        """Validate that name is a valid Python identifier.
-
-        Parameters
-        ----------
-        v : str
-            The slot name to validate.
-
-        Returns
-        -------
-        str
-            The validated slot name.
-
-        Raises
-        ------
-        ValueError
-            If name is not a valid Python identifier.
-        """
-        if not v or not v.strip():
+    @dx.validates("name")
+    def _check_name(self, value: str) -> str:
+        if not value or not value.strip():
             raise ValueError("name must be non-empty")
-        if not v.isidentifier():
-            raise ValueError(f"name '{v}' must be a valid Python identifier")
-        return v
+        if not value.isidentifier():
+            raise ValueError(f"name '{value}' must be a valid Python identifier")
+        return value
 
 
 class Template(BeadBaseModel):
-    """A sentence template with slots for lexical items.
-
-    Templates define the structure of generated sentences. They contain:
-    - A template string with slot placeholders (e.g., "{subject} {verb} {object}")
-    - Slot definitions with constraints
-    - Optional language code
-    - Optional metadata
+    """A sentence template with named slots.
 
     Attributes
     ----------
     name : str
-        Unique name for the template.
+        Unique template name.
     template_string : str
-        Template with {slot_name} placeholders.
+        Template body with ``{slot_name}`` placeholders.
     slots : dict[str, Slot]
         Slot definitions keyed by slot name.
-    constraints : list[Constraint]
-        Multi-slot constraints (slot names as variables in DSL expressions).
+    constraints : tuple[Constraint, ...]
+        Multi-slot constraints (slot names appear as DSL variables).
     description : str | None
         Human-readable description.
     language_code : LanguageCode | None
-        ISO 639-1 (2-letter) or ISO 639-3 (3-letter) language code.
-        Examples: "en", "eng", "ko", "kor", "zu", "zul".
-        Required for cross-linguistic classification via TemplateClass.
-    tags : list[str]
-        Tags for categorization.
-    metadata : dict[str, MetadataValue]
+        ISO 639-1 or 639-3 language code.
+    tags : tuple[str, ...]
+        Categorization tags.
+    metadata : dict[str, JsonValue]
         Additional metadata.
-
-    Examples
-    --------
-    >>> template = Template(
-    ...     name="simple_transitive",
-    ...     template_string="{subject} {verb} {object}.",
-    ...     slots={
-    ...         "subject": Slot(name="subject", required=True),
-    ...         "verb": Slot(name="verb", required=True),
-    ...         "object": Slot(name="object", required=True)
-    ...     },
-    ...     tags=["transitive", "simple"]
-    ... )
     """
 
     name: str
     template_string: str
-    slots: dict[str, Slot] = Field(default_factory=dict)
-    constraints: list[Constraint] = Field(default_factory=_empty_constraint_list)
+    slots: dict[str, dx.Embed[Slot]] = dx.field(default_factory=dict)
+    constraints: tuple[dx.Embed[Constraint], ...] = ()
     description: str | None = None
     language_code: LanguageCode | None = None
-    tags: list[str] = Field(default_factory=_empty_str_list)
-    metadata: dict[str, MetadataValue] = Field(default_factory=dict)
+    tags: tuple[str, ...] = ()
+    metadata: dict[str, JsonValue] = dx.field(default_factory=dict)
 
-    @field_validator("name")
-    @classmethod
-    def validate_name(cls, v: str) -> str:
-        """Validate that name is non-empty.
-
-        Parameters
-        ----------
-        v : str
-            The template name to validate.
-
-        Returns
-        -------
-        str
-            The validated template name.
-
-        Raises
-        ------
-        ValueError
-            If name is empty.
-        """
-        if not v or not v.strip():
+    @dx.validates("name")
+    def _check_name(self, value: str) -> str:
+        if not value or not value.strip():
             raise ValueError("name must be non-empty")
-        return v
+        return value
 
-    @field_validator("template_string")
-    @classmethod
-    def validate_template_string(cls, v: str) -> str:
-        """Validate that template_string is non-empty.
-
-        Parameters
-        ----------
-        v : str
-            The template string to validate.
-
-        Returns
-        -------
-        str
-            The validated template string.
-
-        Raises
-        ------
-        ValueError
-            If template_string is empty.
-        """
-        if not v or not v.strip():
+    @dx.validates("template_string")
+    def _check_template_string(self, value: str) -> str:
+        if not value or not value.strip():
             raise ValueError("template_string must be non-empty")
-        return v
+        return value
 
-    @model_validator(mode="after")
-    def validate_slots_match_template(self) -> Template:
-        """Validate that template_string and slots are consistent.
+    @dx.validates("language_code")
+    def _check_language_code(self, value: LanguageCode | None) -> LanguageCode | None:
+        from bead.data.language_codes import validate_iso639_code  # noqa: PLC0415
 
-        Ensures that:
-        - All slot names in template_string exist in slots dict
-        - All slots in dict are referenced in template_string
-        - Slot names match their keys in the dict
-
-        Returns
-        -------
-        Template
-            The validated template.
-
-        Raises
-        ------
-        ValueError
-            If template_string and slots are inconsistent.
-        """
-        # Extract slot names from template string
-        template_slots = set(re.findall(r"\{(\w+)\}", self.template_string))
-
-        # Get slot names from slots dict
-        dict_slots = set(self.slots.keys())
-
-        # Check that all template slots exist in dict
-        missing_in_dict = template_slots - dict_slots
-        if missing_in_dict:
-            raise ValueError(
-                f"Template references slots not in slots dict: {missing_in_dict}"
-            )
-
-        # Check that all dict slots are referenced in template
-        missing_in_template = dict_slots - template_slots
-        if missing_in_template:
-            raise ValueError(
-                f"Slots dict contains slots not referenced in template: "
-                f"{missing_in_template}"
-            )
-
-        # Check that slot names match their keys
-        for key, slot in self.slots.items():
-            if slot.name != key:
-                raise ValueError(
-                    f"Slot key '{key}' does not match slot name '{slot.name}'"
-                )
-
-        return self
+        return validate_iso639_code(value)
 
     @property
-    def required_slot_names(self) -> set[str]:
-        """Get names of all required slots.
-
-        Returns
-        -------
-        set[str]
-            Set of slot names where required=True.
-        """
-        return {name for name, slot in self.slots.items() if slot.required}
+    def required_slot_names(self) -> frozenset[str]:
+        """Names of all slots flagged as required."""
+        return frozenset(name for name, slot in self.slots.items() if slot.required)
 
     def fill_with_values(
         self, slot_values: dict[str, str], strategy_name: str = "manual"
     ) -> FilledTemplate:
-        """Create a FilledTemplate by filling slots with string values.
+        """Build a ``FilledTemplate`` from a mapping of slot names to strings.
 
-        This is a lightweight alternative to CSPFiller for cases where
-        you already have the values and just need a FilledTemplate object.
-
-        Parameters
-        ----------
-        slot_values : dict[str, str]
-            Mapping of slot names to string values to fill them with.
-        strategy_name : str
-            Name of strategy used (for metadata).
-
-        Returns
-        -------
-        FilledTemplate
-            A filled template with the provided values.
-
-        Examples
-        --------
-        >>> template = Template(
-        ...     name="test",
-        ...     template_string="{subj} {verb}.",
-        ...     slots={"subj": Slot(name="subj"), "verb": Slot(name="verb")}
-        ... )
-        >>> filled = template.fill_with_values({"subj": "cat", "verb": "runs"})
-        >>> filled.rendered_text
-        'cat runs.'
+        Each slot value becomes a minimal ``LexicalItem`` whose lemma is
+        the supplied string.
         """
         from bead.resources.lexical_item import LexicalItem  # noqa: PLC0415
         from bead.templates.filler import FilledTemplate  # noqa: PLC0415
 
-        # Create LexicalItem objects for each value
-        slot_fillers = {}
+        slot_fillers: dict[str, LexicalItem] = {}
         for slot_name, value in slot_values.items():
             if slot_name in self.slots:
-                # Create a minimal LexicalItem with just the lemma
                 slot_fillers[slot_name] = LexicalItem(
                     lemma=value,
                     language_code=self.language_code or "eng",
                     features={"pos": "UNKNOWN"},
                 )
 
-        # Render text by replacing slot placeholders
         rendered_text = self.template_string
         for slot_name, value in slot_values.items():
             rendered_text = rendered_text.replace(f"{{{slot_name}}}", value)
 
-        # Create template_slots mapping (slot_name -> is_required)
         template_slots = {name: slot.required for name, slot in self.slots.items()}
 
         return FilledTemplate(
@@ -322,120 +143,77 @@ class Template(BeadBaseModel):
         )
 
 
-def _empty_template_list() -> list[Template]:
-    """Create an empty template list."""
-    return []
+def slots_match_template(template: Template) -> None:
+    """Raise ``ValueError`` if *template*'s slot dict and string disagree.
+
+    Validates that every ``{slot_name}`` placeholder has a matching entry
+    in ``slots``, no extraneous slots are defined, and each slot's name
+    matches its dict key.
+    """
+    template_slots = set(re.findall(r"\{(\w+)\}", template.template_string))
+    dict_slots = set(template.slots.keys())
+
+    missing_in_dict = template_slots - dict_slots
+    if missing_in_dict:
+        raise ValueError(
+            f"Template references slots not in slots dict: {missing_in_dict}"
+        )
+
+    missing_in_template = dict_slots - template_slots
+    if missing_in_template:
+        raise ValueError(
+            f"Slots dict contains slots not referenced in template: "
+            f"{missing_in_template}"
+        )
+
+    for key, slot in template.slots.items():
+        if slot.name != key:
+            raise ValueError(f"Slot key '{key}' does not match slot name '{slot.name}'")
 
 
 class TemplateSequence(BeadBaseModel):
     """A sequence of templates to be filled together.
 
-    Template sequences allow multiple templates to be filled with
-    related constraints (e.g., relational constraints across templates).
-
     Attributes
     ----------
     name : str
         Unique name for the sequence.
-    templates : list[Template]
+    templates : tuple[Template, ...]
         Ordered list of templates.
-    constraints : list[Constraint]
-        Cross-template constraints (span multiple templates).
-
-    Examples
-    --------
-    >>> sequence = TemplateSequence(
-    ...     name="question_answer",
-    ...     templates=[question_template, answer_template],
-    ...     constraints=[...]
-    ... )
+    constraints : tuple[Constraint, ...]
+        Cross-template constraints.
     """
 
     name: str
-    templates: list[Template] = Field(default_factory=_empty_template_list)
-    constraints: list[Constraint] = Field(default_factory=_empty_constraint_list)
+    templates: tuple[dx.Embed[Template], ...] = ()
+    constraints: tuple[dx.Embed[Constraint], ...] = ()
 
-    @field_validator("name")
-    @classmethod
-    def validate_name(cls, v: str) -> str:
-        """Validate that name is non-empty.
-
-        Parameters
-        ----------
-        v : str
-            The sequence name to validate.
-
-        Returns
-        -------
-        str
-            The validated sequence name.
-
-        Raises
-        ------
-        ValueError
-            If name is empty.
-        """
-        if not v or not v.strip():
+    @dx.validates("name")
+    def _check_name(self, value: str) -> str:
+        if not value or not value.strip():
             raise ValueError("name must be non-empty")
-        return v
-
-
-def _empty_tree_list() -> list[TemplateTree]:
-    """Create an empty template tree list."""
-    return []
+        return value
 
 
 class TemplateTree(BeadBaseModel):
-    """A tree structure of templates.
-
-    Template trees represent hierarchical relationships between
-    templates (e.g., a discourse structure).
+    """A tree of templates, used to model discourse structure.
 
     Attributes
     ----------
     name : str
-        Unique name for the tree.
+        Unique tree name.
     root : Template
         Root template.
-    children : list[TemplateTree]
+    children : tuple[TemplateTree, ...]
         Child subtrees.
-
-    Examples
-    --------
-    >>> tree = TemplateTree(
-    ...     name="discourse",
-    ...     root=intro_template,
-    ...     children=[
-    ...         TemplateTree(name="body", root=body_template, children=[]),
-    ...         TemplateTree(name="conclusion", root=conclusion_template, children=[])
-    ...     ]
-    ... )
     """
 
     name: str
-    root: Template
-    children: list[TemplateTree] = Field(default_factory=_empty_tree_list)
+    root: dx.Embed[Template]
+    children: tuple[dx.Embed[TemplateTree], ...] = ()
 
-    @field_validator("name")
-    @classmethod
-    def validate_name(cls, v: str) -> str:
-        """Validate that name is non-empty.
-
-        Parameters
-        ----------
-        v : str
-            The tree name to validate.
-
-        Returns
-        -------
-        str
-            The validated tree name.
-
-        Raises
-        ------
-        ValueError
-            If name is empty.
-        """
-        if not v or not v.strip():
+    @dx.validates("name")
+    def _check_name(self, value: str) -> str:
+        if not value or not value.strip():
             raise ValueError("name must be non-empty")
-        return v
+        return value

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from uuid import UUID, uuid4
 
+import didactic.api as dx
 import pytest
 
 from bead.dsl.errors import EvaluationError
@@ -65,7 +66,10 @@ def test_partition_stratified_basic(
     items = list(sample_quantile_metadata.keys())
 
     constraint = QuantileConstraint(
-        property_expression="item['lm_prob']", n_quantiles=5, items_per_quantile=2
+        constraint_type="quantile",
+        property_expression="item['lm_prob']",
+        n_quantiles=5,
+        items_per_quantile=2,
     )
 
     lists = partitioner.partition(
@@ -163,7 +167,7 @@ def test_partition_invalid_n_lists(sample_item_metadata: MetadataDict) -> None:
     partitioner = ListPartitioner()
     items = list(sample_item_metadata.keys())
 
-    with pytest.raises(ValueError, match="n_lists must be >= 1"):
+    with pytest.raises((ValueError, dx.ValidationError), match="n_lists must be >= 1"):
         partitioner.partition(items, 0, metadata=sample_item_metadata)
 
 
@@ -172,7 +176,7 @@ def test_partition_invalid_strategy(sample_item_metadata: MetadataDict) -> None:
     partitioner = ListPartitioner()
     items = list(sample_item_metadata.keys())
 
-    with pytest.raises(ValueError, match="Unknown strategy"):
+    with pytest.raises((ValueError, dx.ValidationError), match="Unknown strategy"):
         partitioner.partition(
             items, 5, strategy="unknown", metadata=sample_item_metadata
         )
@@ -186,7 +190,9 @@ def test_partition_with_uniqueness_constraint(
     items = list(sample_item_metadata.keys())
 
     constraint = UniquenessConstraint(
-        property_expression="item['category']", allow_null=False
+        constraint_type="uniqueness",
+        property_expression="item['category']",
+        allow_null=False,
     )
 
     lists = partitioner.partition(
@@ -211,7 +217,7 @@ def test_partition_with_balance_constraint(sample_item_metadata: MetadataDict) -
     items = list(sample_item_metadata.keys())
 
     constraint = BalanceConstraint(
-        property_expression="item['category']", tolerance=0.3
+        constraint_type="balance", property_expression="item['category']", tolerance=0.3
     )
 
     lists = partitioner.partition(
@@ -237,7 +243,7 @@ def test_partition_with_size_constraint(sample_item_metadata: MetadataDict) -> N
     partitioner = ListPartitioner(random_seed=42)
     items = list(sample_item_metadata.keys())
 
-    constraint = SizeConstraint(min_size=15, max_size=25)
+    constraint = SizeConstraint(constraint_type="size", min_size=15, max_size=25)
 
     lists = partitioner.partition(
         items,
@@ -264,7 +270,10 @@ def test_partition_with_quantile_constraint(
     items = list(sample_quantile_metadata.keys())
 
     constraint = QuantileConstraint(
-        property_expression="item['lm_prob']", n_quantiles=5, items_per_quantile=2
+        constraint_type="quantile",
+        property_expression="item['lm_prob']",
+        n_quantiles=5,
+        items_per_quantile=2,
     )
 
     lists = partitioner.partition(
@@ -291,7 +300,10 @@ def test_partition_balance_metrics_computed(sample_item_metadata: MetadataDict) 
     items = list(sample_item_metadata.keys())
 
     constraint = QuantileConstraint(
-        property_expression="item['value']", n_quantiles=5, items_per_quantile=2
+        constraint_type="quantile",
+        property_expression="item['value']",
+        n_quantiles=5,
+        items_per_quantile=2,
     )
 
     lists = partitioner.partition(
@@ -313,7 +325,9 @@ def test_partition_constraints_attached(sample_item_metadata: MetadataDict) -> N
     partitioner = ListPartitioner(random_seed=42)
     items = list(sample_item_metadata.keys())
 
-    constraint = UniquenessConstraint(property_expression="item['category']")
+    constraint = UniquenessConstraint(
+        constraint_type="uniqueness", property_expression="item['category']"
+    )
 
     lists = partitioner.partition(
         items,
@@ -385,9 +399,10 @@ def test_check_uniqueness_satisfied() -> None:
 
     exp_list = ExperimentList(name="test", list_number=0)
     for item_id in items:
-        exp_list.add_item(item_id)
-
-    constraint = UniquenessConstraint(property_expression="item['prop']")
+        exp_list = exp_list.with_item(item_id)
+    constraint = UniquenessConstraint(
+        constraint_type="uniqueness", property_expression="item['prop']"
+    )
     assert partitioner._check_uniqueness(exp_list, constraint, metadata)
 
 
@@ -399,9 +414,10 @@ def test_check_uniqueness_violated() -> None:
 
     exp_list = ExperimentList(name="test", list_number=0)
     for item_id in items:
-        exp_list.add_item(item_id)
-
-    constraint = UniquenessConstraint(property_expression="item['prop']")
+        exp_list = exp_list.with_item(item_id)
+    constraint = UniquenessConstraint(
+        constraint_type="uniqueness", property_expression="item['prop']"
+    )
     assert not partitioner._check_uniqueness(exp_list, constraint, metadata)
 
 
@@ -411,9 +427,8 @@ def test_check_size_satisfied() -> None:
 
     exp_list = ExperimentList(name="test", list_number=0)
     for _ in range(20):
-        exp_list.add_item(uuid4())
-
-    constraint = SizeConstraint(min_size=10, max_size=30)
+        exp_list = exp_list.with_item(uuid4())
+    constraint = SizeConstraint(constraint_type="size", min_size=10, max_size=30)
     assert partitioner._check_size(exp_list, constraint)
 
 
@@ -423,9 +438,8 @@ def test_check_size_violated() -> None:
 
     exp_list = ExperimentList(name="test", list_number=0)
     for _ in range(5):
-        exp_list.add_item(uuid4())
-
-    constraint = SizeConstraint(min_size=10, max_size=30)
+        exp_list = exp_list.with_item(uuid4())
+    constraint = SizeConstraint(constraint_type="size", min_size=10, max_size=30)
     assert not partitioner._check_size(exp_list, constraint)
 
 
@@ -502,7 +516,9 @@ def test_compute_balance_metrics_empty_list() -> None:
     partitioner = ListPartitioner()
 
     exp_list = ExperimentList(name="test", list_number=0)
-    constraint = QuantileConstraint(property_expression="item['value']", n_quantiles=5)
+    constraint = QuantileConstraint(
+        constraint_type="quantile", property_expression="item['value']", n_quantiles=5
+    )
 
     metrics = partitioner._compute_balance_metrics(exp_list, [constraint], {})
 
@@ -519,10 +535,10 @@ def test_constraint_priority_weighting() -> None:
     metadata = {uid: {"value": i} for i, uid in enumerate(items)}
 
     # High priority size constraint (priority=10)
-    size_constraint = SizeConstraint(exact_size=5, priority=10)
+    size_constraint = SizeConstraint(constraint_type="size", exact_size=5, priority=10)
     # Low priority uniqueness constraint (priority=1)
     uniqueness_constraint = UniquenessConstraint(
-        property_expression="item['value']", priority=1
+        constraint_type="uniqueness", property_expression="item['value']", priority=1
     )
 
     lists = partitioner.partition(
@@ -540,14 +556,20 @@ def test_constraint_priority_weighting() -> None:
 
 def test_constraint_priority_default() -> None:
     """Test that constraints default to priority=1."""
-    constraint = SizeConstraint(exact_size=40)
+    constraint = SizeConstraint(constraint_type="size", exact_size=40)
     assert constraint.priority == 1
 
-    constraint2 = UniquenessConstraint(property_expression="item['value']")
+    constraint2 = UniquenessConstraint(
+        constraint_type="uniqueness", property_expression="item['value']"
+    )
     assert constraint2.priority == 1
 
-    constraint3 = BalanceConstraint(property_expression="item['category']")
+    constraint3 = BalanceConstraint(
+        constraint_type="balance", property_expression="item['category']"
+    )
     assert constraint3.priority == 1
 
-    constraint4 = QuantileConstraint(property_expression="item['score']")
+    constraint4 = QuantileConstraint(
+        constraint_type="quantile", property_expression="item['score']"
+    )
     assert constraint4.priority == 1

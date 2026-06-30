@@ -53,7 +53,7 @@ def sample_lexicon() -> Lexicon:
         LexicalItem(lemma="sit", language_code="en", features={"pos": "VERB"}),
     ]
     for item in items:
-        lexicon.add(item)
+        lexicon = lexicon.with_item(item)
     return lexicon
 
 
@@ -150,13 +150,13 @@ def test_mlm_strategy_extensional_constraint(
 ) -> None:
     """Test MLMFillingStrategy with extensional (whitelist) constraint."""
     # Get IDs of specific items
-    run_item = next(i for i in sample_lexicon.items.values() if i.lemma == "run")
-    walk_item = next(i for i in sample_lexicon.items.values() if i.lemma == "walk")
+    run_item = next(i for i in sample_lexicon.items if i.lemma == "run")
+    walk_item = next(i for i in sample_lexicon.items if i.lemma == "walk")
 
     # Constraint: only allow "run" and "walk"
     constraint = Constraint(
         expression="self.id in allowed_verbs",
-        context={"allowed_verbs": {run_item.id, walk_item.id}},
+        context={"allowed_verbs": (str(run_item.id), str(walk_item.id))},
     )
 
     slot = Slot(name="verb", constraints=[constraint])
@@ -238,7 +238,7 @@ def test_mlm_strategy_enforce_unique(
     )
 
     # Get IDs of items to mark as seen
-    run_item = next(i for i in sample_lexicon.items.values() if i.lemma == "run")
+    run_item = next(i for i in sample_lexicon.items if i.lemma == "run")
     seen_items = {run_item.id}
 
     strategy = MLMFillingStrategy(
@@ -279,7 +279,7 @@ def test_mlm_strategy_max_fills_with_enforce_unique(
     )
 
     # Mark one item as seen
-    run_item = next(i for i in sample_lexicon.items.values() if i.lemma == "run")
+    run_item = next(i for i in sample_lexicon.items if i.lemma == "run")
     seen_items = {run_item.id}
 
     strategy = MLMFillingStrategy(

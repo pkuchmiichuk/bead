@@ -1,67 +1,43 @@
-"""Template configuration models for the bead package."""
+"""Template configuration."""
 
 from __future__ import annotations
 
 from pathlib import Path
 from typing import Literal
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+import didactic.api as dx
 
 
-class SlotStrategyConfig(BaseModel):
+class SlotStrategyConfig(dx.Model):
     """Configuration for a single slot's filling strategy.
 
-    Parameters
+    Attributes
     ----------
-    strategy
-        Filling strategy for this slot. Must be one of "exhaustive",
-        "random", "stratified", or "mlm".
-    sample_size
-        Sample size for random or stratified strategies. Only used when
-        strategy is "random" or "stratified".
-    stratify_by
-        Feature name to stratify by. Only used when strategy is "stratified".
-    beam_size
-        Beam size for MLM strategy. Only used when strategy is "mlm".
-
-    Examples
-    --------
-    >>> config = SlotStrategyConfig(strategy="exhaustive")
-    >>> config.strategy
-    'exhaustive'
-    >>> config_random = SlotStrategyConfig(strategy="random", sample_size=100)
-    >>> config_random.sample_size
-    100
-    >>> config_stratified = SlotStrategyConfig(
-    ...     strategy="stratified", sample_size=50, stratify_by="pos"
-    ... )
-    >>> config_stratified.stratify_by
-    'pos'
-    >>> config_mlm = SlotStrategyConfig(strategy="mlm", beam_size=10)
-    >>> config_mlm.beam_size
-    10
+    strategy : Literal["exhaustive", "random", "stratified", "mlm"]
+        Filling strategy.
+    sample_size : int | None
+        Sample size for random or stratified strategies.
+    stratify_by : str | None
+        Feature name to stratify by (stratified strategy only).
+    beam_size : int | None
+        Beam size for MLM strategy.
     """
 
-    strategy: Literal["exhaustive", "random", "stratified", "mlm"] = Field(
-        ..., description="Filling strategy for this slot"
-    )
-    sample_size: int | None = Field(
-        default=None, description="Sample size for random/stratified"
-    )
-    stratify_by: str | None = Field(default=None, description="Feature to stratify by")
-    beam_size: int | None = Field(default=None, description="Beam size for MLM")
+    strategy: Literal["exhaustive", "random", "stratified", "mlm"]
+    sample_size: int | None = None
+    stratify_by: str | None = None
+    beam_size: int | None = None
 
 
-class TemplateConfig(BaseModel):
+class TemplateConfig(dx.Model):
     """Configuration for template filling.
 
-    Parameters
+    Attributes
     ----------
-    filling_strategy : str
-        Strategy name for filling templates
-        ("exhaustive", "random", "stratified", "mlm", "mixed").
+    filling_strategy : Literal["exhaustive", "random", "stratified", "mlm", "mixed"]
+        Strategy for filling templates.
     batch_size : int
-        Batch size for filling operations.
+        Batch size for filling operations (must be > 0).
     max_combinations : int | None
         Maximum combinations to generate.
     random_seed : int | None
@@ -69,170 +45,79 @@ class TemplateConfig(BaseModel):
     stream_mode : bool
         Use streaming for large templates.
     use_csp_solver : bool
-        Use CSP solver for templates with multi-slot constraints.
+        Use CSP solver for multi-slot constraints.
     mlm_model_name : str | None
         HuggingFace model name for MLM filling.
     mlm_beam_size : int
-        Beam search width for MLM strategy.
-    mlm_fill_direction : str
-        Direction for filling slots in MLM strategy.
-    mlm_custom_order : list[int] | None
-        Custom slot fill order for MLM strategy.
+        Beam search width for MLM (> 0).
+    mlm_fill_direction : Literal[...]
+        Direction for filling slots.
+    mlm_custom_order : tuple[int, ...] | None
+        Custom slot fill order for MLM.
     mlm_top_k : int
-        Number of top candidates per slot in MLM.
+        Top-k candidates per slot in MLM (> 0).
     mlm_device : str
         Device for MLM inference.
     mlm_cache_enabled : bool
-        Enable content-addressable caching for MLM predictions.
+        Enable MLM prediction caching.
     mlm_cache_dir : Path | None
         Directory for MLM prediction cache.
     slot_strategies : dict[str, SlotStrategyConfig] | None
         Per-slot strategy configuration for mixed filling.
-        Maps slot names to SlotStrategyConfig instances.
-
-    Examples
-    --------
-    >>> config = TemplateConfig()
-    >>> config.filling_strategy
-    'exhaustive'
-    >>> config.batch_size
-    1000
-    >>> # MLM configuration
-    >>> config_mlm = TemplateConfig(
-    ...     filling_strategy="mlm", mlm_model_name="bert-base-uncased"
-    ... )
-    >>> config_mlm.mlm_beam_size
-    5
-    >>> # Mixed strategy configuration
-    >>> config_mixed = TemplateConfig(
-    ...     filling_strategy="mixed",
-    ...     mlm_model_name="bert-base-uncased",
-    ...     slot_strategies={
-    ...         "noun": SlotStrategyConfig(strategy="exhaustive"),
-    ...         "verb": SlotStrategyConfig(strategy="exhaustive"),
-    ...         "adjective": SlotStrategyConfig(strategy="mlm", beam_size=10)
-    ...     }
-    ... )
-    >>> config_mixed.slot_strategies["noun"].strategy
-    'exhaustive'
-    >>> config_mixed.slot_strategies["adjective"].beam_size
-    10
     """
 
     filling_strategy: Literal["exhaustive", "random", "stratified", "mlm", "mixed"] = (
-        Field(default="exhaustive", description="Strategy for filling templates")
+        "exhaustive"
     )
-    batch_size: int = Field(default=1000, description="Batch size for filling", gt=0)
-    max_combinations: int | None = Field(
-        default=None, description="Max combinations to generate"
-    )
-    random_seed: int | None = Field(
-        default=None, description="Random seed for reproducibility"
-    )
-    stream_mode: bool = Field(
-        default=False, description="Use streaming for large templates"
-    )
-    use_csp_solver: bool = Field(
-        default=False,
-        description="Use CSP solver for templates with multi-slot constraints",
-    )
+    batch_size: int = 1000
+    max_combinations: int | None = None
+    random_seed: int | None = None
+    stream_mode: bool = False
+    use_csp_solver: bool = False
 
-    # MLM-specific settings (model, beam size, fill direction)
-    mlm_model_name: str | None = Field(
-        default=None, description="HuggingFace model name for MLM filling"
-    )
-    mlm_beam_size: int = Field(
-        default=5, description="Beam search width for MLM strategy", gt=0
-    )
+    mlm_model_name: str | None = None
+    mlm_beam_size: int = 5
     mlm_fill_direction: Literal[
         "left_to_right", "right_to_left", "inside_out", "outside_in", "custom"
-    ] = Field(
-        default="left_to_right",
-        description="Direction for filling slots in MLM strategy",
-    )
-    mlm_custom_order: list[int] | None = Field(
-        default=None, description="Custom slot fill order for MLM strategy"
-    )
-    mlm_top_k: int = Field(
-        default=20, description="Number of top candidates per slot in MLM", gt=0
-    )
-    mlm_device: str = Field(default="cpu", description="Device for MLM inference")
-    mlm_cache_enabled: bool = Field(
-        default=True, description="Enable caching for MLM predictions"
-    )
-    mlm_cache_dir: Path | None = Field(
-        default=None, description="Directory for MLM prediction cache"
-    )
+    ] = "left_to_right"
+    mlm_custom_order: tuple[int, ...] | None = None
+    mlm_top_k: int = 20
+    mlm_device: str = "cpu"
+    mlm_cache_enabled: bool = True
+    mlm_cache_dir: Path | None = None
 
-    # mixed strategy settings
-    slot_strategies: dict[str, SlotStrategyConfig] | None = Field(
-        default=None,
-        description="Per-slot strategy configuration for mixed filling. "
-        "Maps slot names to SlotStrategyConfig instances.",
-    )
+    slot_strategies: dict[str, dx.Embed[SlotStrategyConfig]] | None = None
 
-    @field_validator("max_combinations")
-    @classmethod
-    def validate_max_combinations(cls, v: int | None) -> int | None:
-        """Validate max_combinations is positive.
+    @dx.validates("max_combinations")
+    def _check_max_combinations(self, value: int | None) -> int | None:
+        if value is not None and value <= 0:
+            raise ValueError(f"max_combinations must be positive, got {value}")
+        return value
 
-        Parameters
-        ----------
-        v : int | None
-            Max combinations value.
+    @dx.validates("batch_size")
+    def _check_batch_size(self, value: int) -> int:
+        if value <= 0:
+            raise ValueError(f"batch_size must be positive, got {value}")
+        return value
 
-        Returns
-        -------
-        int | None
-            Validated value.
 
-        Raises
-        ------
-        ValueError
-            If value is not positive.
-        """
-        if v is not None and v <= 0:
-            msg = f"max_combinations must be positive, got {v}"
-            raise ValueError(msg)
-        return v
-
-    @model_validator(mode="after")
-    def validate_mlm_config(self) -> TemplateConfig:
-        """Validate MLM configuration is consistent.
-
-        Returns
-        -------
-        TemplateConfig
-            Validated config.
-
-        Raises
-        ------
-        ValueError
-            If MLM config is inconsistent.
-        """
-        if self.filling_strategy == "mlm" and self.mlm_model_name is None:
-            msg = "mlm_model_name must be specified when filling_strategy is 'mlm'"
-            raise ValueError(msg)
-
-        if self.mlm_fill_direction == "custom" and self.mlm_custom_order is None:
-            msg = (
-                "mlm_custom_order must be specified when mlm_fill_direction is 'custom'"
-            )
-            raise ValueError(msg)
-
-        # validate mixed strategy configuration
-        if self.filling_strategy == "mixed" and self.slot_strategies is None:
-            msg = "slot_strategies must be specified when filling_strategy is 'mixed'"
-            raise ValueError(msg)
-
-        if self.slot_strategies is not None:
-            for slot_name, slot_config in self.slot_strategies.items():
-                # if MLM strategy is used for a slot, check model config is available
-                if slot_config.strategy == "mlm" and self.mlm_model_name is None:
-                    msg = (
-                        f"mlm_model_name must be specified when slot "
-                        f"'{slot_name}' uses MLM"
-                    )
-                    raise ValueError(msg)
-
-        return self
+def validate_template_config(config: TemplateConfig) -> None:
+    """Raise ``ValueError`` if MLM / mixed-strategy fields are inconsistent."""
+    if config.filling_strategy == "mlm" and config.mlm_model_name is None:
+        raise ValueError(
+            "mlm_model_name must be specified when filling_strategy is 'mlm'"
+        )
+    if config.mlm_fill_direction == "custom" and config.mlm_custom_order is None:
+        raise ValueError(
+            "mlm_custom_order must be specified when mlm_fill_direction is 'custom'"
+        )
+    if config.filling_strategy == "mixed" and config.slot_strategies is None:
+        raise ValueError(
+            "slot_strategies must be specified when filling_strategy is 'mixed'"
+        )
+    if config.slot_strategies is not None:
+        for slot_name, slot_config in config.slot_strategies.items():
+            if slot_config.strategy == "mlm" and config.mlm_model_name is None:
+                raise ValueError(
+                    f"mlm_model_name must be specified when slot '{slot_name}' uses MLM"
+                )

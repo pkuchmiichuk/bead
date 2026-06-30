@@ -57,8 +57,8 @@ verbs = Lexicon.from_jsonl(Path("lexicons/verbnet_verbs.jsonl"), "verbnet_verbs"
 strategy = ExhaustiveStrategy()
 
 # Requires pre-filtered slot items
-noun_items = list(nouns.items.values())[:2]
-verb_items = list(verbs.items.values())[:2]
+noun_items = list(nouns.items)[:2]
+verb_items = list(verbs.items)[:2]
 
 slot_items = {
     "subject": noun_items,
@@ -81,8 +81,8 @@ nouns = Lexicon.from_jsonl(Path("lexicons/bleached_nouns.jsonl"), "bleached_noun
 verbs = Lexicon.from_jsonl(Path("lexicons/verbnet_verbs.jsonl"), "verbnet_verbs")
 
 slot_items = {
-    "subject": list(nouns.items.values()),
-    "verb": list(verbs.items.values()),
+    "subject": list(nouns.items),
+    "verb": list(verbs.items),
 }
 
 strategy = RandomStrategy(
@@ -106,8 +106,8 @@ nouns = Lexicon.from_jsonl(Path("lexicons/bleached_nouns.jsonl"), "bleached_noun
 verbs = Lexicon.from_jsonl(Path("lexicons/verbnet_verbs.jsonl"), "verbnet_verbs")
 
 slot_items = {
-    "subject": list(nouns.items.values()),
-    "verb": list(verbs.items.values()),
+    "subject": list(nouns.items),
+    "verb": list(verbs.items),
 }
 
 strategy = StratifiedStrategy(
@@ -139,7 +139,7 @@ from bead.templates.strategies import MLMFillingStrategy
 templates = TemplateCollection.from_jsonl(
     Path("templates/generic_frames.jsonl"), "generic_frames"
 )
-template = list(templates.templates.values())[0]
+template = list(templates.templates)[0]
 
 nouns = Lexicon.from_jsonl(Path("lexicons/bleached_nouns.jsonl"), "bleached_nouns")
 verbs = Lexicon.from_jsonl(Path("lexicons/verbnet_verbs.jsonl"), "verbnet_verbs")
@@ -226,7 +226,7 @@ from bead.templates.strategies import ExhaustiveStrategy
 templates = TemplateCollection.from_jsonl(
     Path("templates/generic_frames.jsonl"), "generic_frames"
 )
-template = list(templates.templates.values())[0]
+template = list(templates.templates)[0]
 
 nouns = Lexicon.from_jsonl(Path("lexicons/bleached_nouns.jsonl"), "bleached_nouns")
 verbs = Lexicon.from_jsonl(Path("lexicons/verbnet_verbs.jsonl"), "verbnet_verbs")
@@ -234,8 +234,8 @@ verbs = Lexicon.from_jsonl(Path("lexicons/verbnet_verbs.jsonl"), "verbnet_verbs"
 # Generate combinations
 strategy = ExhaustiveStrategy()
 slot_items = {
-    "subject": list(nouns.items.values())[:2],
-    "verb": list(verbs.items.values())[:2],
+    "subject": list(nouns.items)[:2],
+    "verb": list(verbs.items)[:2],
 }
 combinations = list(strategy.generate_combinations(slot_items))
 
@@ -283,11 +283,11 @@ verbs = Lexicon.from_jsonl(Path("lexicons/verbnet_verbs.jsonl"), "verbnet_verbs"
 templates = TemplateCollection.from_jsonl(
     Path("templates/generic_frames.jsonl"), "generic_frames"
 )
-template = list(templates.templates.values())[0]
+template = list(templates.templates)[0]
 
 # Get sample items
-noun_item = list(nouns.items.values())[0]
-verb_item = list(verbs.items.values())[0]
+noun_item = list(nouns.items)[0]
+verb_item = list(verbs.items)[0]
 
 renderer = DefaultRenderer()
 text = renderer.render(
@@ -348,7 +348,7 @@ lexicons = {
 }
 
 # Get first template
-template = list(templates.templates.values())[0]
+template = list(templates.templates)[0]
 print(f"Template: {template.name}")
 print(f"Slots: {list(template.slots.keys())}")
 
@@ -360,11 +360,11 @@ slot_items = {}
 for slot_name, _slot in template.slots.items():
     # Map slot to appropriate lexicon based on constraints
     if "det" in slot_name.lower():
-        items = list(lexicons["dets"].items.values())[:2]
+        items = list(lexicons["dets"].items)[:2]
     elif "noun" in slot_name.lower():
-        items = list(lexicons["nouns"].items.values())[:2]
+        items = list(lexicons["nouns"].items)[:2]
     elif "verb" in slot_name.lower():
-        items = list(lexicons["verbs"].items.values())[:2]
+        items = list(lexicons["verbs"].items)[:2]
     else:
         continue
     slot_items[slot_name] = items

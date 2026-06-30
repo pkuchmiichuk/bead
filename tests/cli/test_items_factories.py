@@ -251,11 +251,11 @@ class TestCategorical:
         assert result.exit_code == 0
         item = Item.model_validate_json(output.read_text())
         assert item.rendered_elements["text"] == "The cat sat on the mat."
-        assert item.item_metadata["categories"] == [
+        assert item.item_metadata["categories"] == (
             "entailment",
             "neutral",
             "contradiction",
-        ]
+        )
 
     def test_create_nli(self, runner: CliRunner, tmp_path: Path) -> None:
         """Test NLI item creation."""
@@ -279,11 +279,11 @@ class TestCategorical:
         assert "Hypothesis: Some dogs bark." in item.rendered_elements["text"]
         assert item.item_metadata["premise"] == "All dogs bark."
         assert item.item_metadata["hypothesis"] == "Some dogs bark."
-        assert item.item_metadata["categories"] == [
+        assert item.item_metadata["categories"] == (
             "entailment",
             "neutral",
             "contradiction",
-        ]
+        )
 
 
 # ==================== Binary Tests ====================

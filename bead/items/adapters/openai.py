@@ -321,3 +321,31 @@ class OpenAIAdapter(ModelAdapter):
         )
 
         return scores
+
+    def generate_completion(
+        self, prompt: str, *, max_tokens: int = 256, temperature: float = 1.0
+    ) -> str:
+        """Generate a text completion for *prompt* via the chat API.
+
+        Parameters
+        ----------
+        prompt : str
+            The prompt to complete.
+        max_tokens : int
+            Maximum number of tokens to generate.
+        temperature : float
+            Sampling temperature.
+
+        Returns
+        -------
+        str
+            The generated text (empty if the API returns no content).
+        """
+        response = self.client.chat.completions.create(
+            model=self.model_name,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=temperature,
+            max_tokens=max_tokens,
+        )
+        content = response.choices[0].message.content
+        return content if content is not None else ""

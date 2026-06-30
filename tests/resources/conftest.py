@@ -114,19 +114,19 @@ def sample_template(sample_slot: Slot) -> Template:
 def sample_lexicon() -> Lexicon:
     """Provide a sample lexicon with multiple items."""
     lexicon = Lexicon(name="test_lexicon", language_code="en")
-    lexicon.add(
+    lexicon = lexicon.with_item(
         LexicalItem(
             lemma="walk",
             language_code="eng",
             features={"pos": "VERB", "frequency": 1000},
         )
     )
-    lexicon.add(
+    lexicon = lexicon.with_item(
         LexicalItem(
             lemma="run", language_code="eng", features={"pos": "VERB", "frequency": 800}
         )
     )
-    lexicon.add(
+    lexicon = lexicon.with_item(
         LexicalItem(
             lemma="dog", language_code="eng", features={"pos": "NOUN", "frequency": 500}
         )
@@ -138,11 +138,8 @@ def sample_lexicon() -> Lexicon:
 def sample_template_collection(sample_template: Template) -> TemplateCollection:
     """Provide a sample template collection."""
     collection = TemplateCollection(name="test_collection")
+    collection = collection.with_template(sample_template)
 
-    # Add the sample template
-    collection.add(sample_template)
-
-    # Add another simple template
     slot_x = Slot(name="x", required=True)
     template2 = Template(
         name="intransitive",
@@ -150,7 +147,7 @@ def sample_template_collection(sample_template: Template) -> TemplateCollection:
         slots={"x": slot_x},
         tags=["intransitive", "simple"],
     )
-    collection.add(template2)
+    collection = collection.with_template(template2)
 
     return collection
 
@@ -285,12 +282,10 @@ def multilingual_causative_class(
         property_value=True,
         tags=["causative", "cross-linguistic", "verbs"],
     )
-    # Add English causative verbs
     for item in english_causative_verbs.values():
-        cls.add(item)
-    # Add Korean causative verbs
+        cls = cls.with_item(item)
     for item in korean_causative_verbs.values():
-        cls.add(item)
+        cls = cls.with_item(item)
     return cls
 
 
@@ -306,9 +301,8 @@ def monolingual_causative_class(
         property_value=True,
         tags=["causative", "english", "verbs"],
     )
-    # Add English causative verbs
     for item in english_causative_verbs.values():
-        cls.add(item)
+        cls = cls.with_item(item)
     return cls
 
 
@@ -383,12 +377,10 @@ def multilingual_transitive_template_class(
         property_value=True,
         tags=["transitive", "cross-linguistic"],
     )
-    # Add English transitive templates
     for template in english_transitive_templates.values():
-        cls.add(template)
-    # Add Korean transitive templates
+        cls = cls.with_template(template)
     for template in korean_transitive_templates.values():
-        cls.add(template)
+        cls = cls.with_template(template)
     return cls
 
 
@@ -404,7 +396,6 @@ def monolingual_transitive_template_class(
         property_value=True,
         tags=["transitive", "english"],
     )
-    # Add English transitive templates
     for template in english_transitive_templates.values():
-        cls.add(template)
+        cls = cls.with_template(template)
     return cls

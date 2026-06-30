@@ -5,34 +5,38 @@ repo_url: https://github.com/FACTSlab/bead
 repo_name: FACTSlab/bead
 
 theme:
-  name: material
-  palette:
-    - scheme: default
-      primary: indigo
-      accent: indigo
-      toggle:
-        icon: material/brightness-7
-        name: Switch to dark mode
-    - scheme: slate
-      primary: indigo
-      accent: indigo
-      toggle:
-        icon: material/brightness-4
-        name: Switch to light mode
-  features:
-    - navigation.tabs
-    - navigation.sections
-    - navigation.expand
-    - navigation.top
-    - search.suggest
-    - search.highlight
-    - content.code.copy
+  name: cinder
+  highlightjs: false
+
+extra_css:
+  - css/pygments.css
+  - css/custom.css
+
+markdown_extensions:
+  - admonition
+  - pymdownx.highlight:
+      use_pygments: true
+      guess_lang: false
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.tabbed:
+      alternate_style: true
+  - attr_list
+  - def_list
+  - footnotes
+  - tables
+  - toc:
+      permalink: true
 
 plugins:
   - search
   - mkdocstrings:
+      default_handler: python
       handlers:
         python:
+          paths: [bead]
           options:
             docstring_style: numpy
             docstring_section_style: table
@@ -41,24 +45,11 @@ plugins:
             show_root_heading: true
             show_root_full_path: false
             show_object_full_path: false
+            show_symbol_type_heading: true
+            show_symbol_type_toc: true
             members_order: source
             heading_level: 2
             line_length: 75
-          paths: [bead]
-
-markdown_extensions:
-  - admonition
-  - pymdownx.details
-  - pymdownx.superfences
-  - pymdownx.highlight:
-      anchor_linenums: true
-  - pymdownx.inlinehilite
-  - pymdownx.snippets
-  - pymdownx.tabbed:
-      alternate_style: true
-  - tables
-  - toc:
-      permalink: true
 
 nav:
   - Home: index.md
@@ -68,6 +59,7 @@ nav:
     - Overview: user-guide/index.md
     - Core Concepts: user-guide/concepts.md
     - Configuration: user-guide/configuration.md
+    - Annotation Protocols: user-guide/protocols.md
     - CLI Guide:
       - Overview: user-guide/cli/index.md
       - Resources: user-guide/cli/resources.md
@@ -83,6 +75,8 @@ nav:
       - Templates: user-guide/api/templates.md
       - Items: user-guide/api/items.md
       - Lists: user-guide/api/lists.md
+      - Corpus Ingestion: user-guide/api/corpus.md
+      - Layers Interoperability: user-guide/api/layers-interop.md
       - Deployment: user-guide/api/deployment.md
       - Training: user-guide/api/training.md
       - Workflows: user-guide/api/workflows.md
@@ -94,9 +88,14 @@ nav:
     - bead.lists: api/lists.md
     - bead.deployment: api/deployment.md
     - bead.tokenization: api/tokenization.md
+    - bead.transforms: api/transforms.md
+    - bead.corpus: api/corpus.md
+    - bead.interop: api/interop.md
     - bead.active_learning: api/active_learning.md
     - bead.simulation: api/simulation.md
     - bead.evaluation: api/evaluation.md
+    - bead.labels: api/labels.md
+    - bead.protocol: api/protocol.md
     - bead.dsl: api/dsl.md
     - bead.behavioral: api/behavioral.md
     - bead.participants: api/participants.md

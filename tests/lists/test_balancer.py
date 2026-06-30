@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from uuid import UUID, uuid4
 
+import didactic.api as dx
 import pytest
 
 from bead.lists.balancer import QuantileBalancer
@@ -18,7 +19,9 @@ def test_balancer_initialization() -> None:
 
 def test_balancer_invalid_n_quantiles() -> None:
     """Test that n_quantiles < 2 raises ValueError."""
-    with pytest.raises(ValueError, match="n_quantiles must be >= 2"):
+    with pytest.raises(
+        (ValueError, dx.ValidationError), match="n_quantiles must be >= 2"
+    ):
         QuantileBalancer(n_quantiles=1)
 
 
@@ -121,7 +124,7 @@ def test_balance_invalid_n_lists() -> None:
     items = [uuid4() for _ in range(10)]
     values = {item: float(i) for i, item in enumerate(items)}
 
-    with pytest.raises(ValueError, match="n_lists must be >= 1"):
+    with pytest.raises((ValueError, dx.ValidationError), match="n_lists must be >= 1"):
         balancer.balance(
             items, lambda uid: values[uid], n_lists=0, items_per_quantile_per_list=1
         )
@@ -133,7 +136,10 @@ def test_balance_invalid_items_per_quantile() -> None:
     items = [uuid4() for _ in range(10)]
     values = {item: float(i) for i, item in enumerate(items)}
 
-    with pytest.raises(ValueError, match="items_per_quantile_per_list must be >= 1"):
+    with pytest.raises(
+        (ValueError, dx.ValidationError),
+        match="items_per_quantile_per_list must be >= 1",
+    ):
         balancer.balance(
             items, lambda uid: values[uid], n_lists=2, items_per_quantile_per_list=0
         )

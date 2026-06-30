@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from uuid import uuid4
 
+import didactic.api as dx
 import pandas as pd
 import polars as pl
 import pytest
@@ -38,7 +39,7 @@ def test_creation_with_all_fields() -> None:
     assert lexicon.name == "verbs"
     assert lexicon.description == "A collection of verbs"
     assert lexicon.language_code == "eng"  # Normalized to ISO 639-3
-    assert lexicon.tags == ["verbs", "test"]
+    assert lexicon.tags == ("verbs", "test")
 
 
 def test_len_returns_correct_count(sample_lexicon: Lexicon) -> None:
@@ -55,7 +56,7 @@ def test_iter_iterates_over_items(sample_lexicon: Lexicon) -> None:
 
 def test_contains_checks_item_presence(sample_lexicon: Lexicon) -> None:
     """Test that __contains__ checks item presence."""
-    item = list(sample_lexicon.items.values())[0]
+    item = list(sample_lexicon.items)[0]
     assert item.id in sample_lexicon
     assert uuid4() not in sample_lexicon
 
@@ -71,7 +72,7 @@ def test_lexicon_with_single_item() -> None:
     """Test lexicon with single item."""
     lexicon = Lexicon(name="single")
     item = LexicalItem(lemma="test", language_code="eng")
-    lexicon.add(item)
+    lexicon = lexicon.with_item(item)
     assert len(lexicon) == 1
 
 
@@ -93,7 +94,7 @@ def test_add_adds_item_successfully() -> None:
     """Test that add() adds an item successfully."""
     lexicon = Lexicon(name="test")
     item = LexicalItem(lemma="walk", language_code="eng")
-    lexicon.add(item)
+    lexicon = lexicon.with_item(item)
     assert len(lexicon) == 1
     assert item.id in lexicon
 
@@ -102,11 +103,10 @@ def test_add_raises_error_on_duplicate_id() -> None:
     """Test that add() raises error on duplicate ID."""
     lexicon = Lexicon(name="test")
     item = LexicalItem(lemma="walk", language_code="eng")
-    lexicon.add(item)
-
+    lexicon = lexicon.with_item(item)
     # Try to add the same item again
-    with pytest.raises(ValueError, match="already exists"):
-        lexicon.add(item)
+    with pytest.raises((ValueError, dx.ValidationError), match="already exists"):
+        lexicon = lexicon.with_item(item)
 
 
 def test_add_many_adds_multiple_items() -> None:
@@ -117,7 +117,7 @@ def test_add_many_adds_multiple_items() -> None:
         LexicalItem(lemma="run", language_code="eng"),
         LexicalItem(lemma="jump", language_code="eng"),
     ]
-    lexicon.add_many(items)
+    lexicon = lexicon.with_items(items)
     assert len(lexicon) == 3
 
 
@@ -125,9 +125,8 @@ def test_remove_removes_and_returns_item() -> None:
     """Test that remove() removes and returns item."""
     lexicon = Lexicon(name="test")
     item = LexicalItem(lemma="walk", language_code="eng")
-    lexicon.add(item)
-
-    removed = lexicon.remove(item.id)
+    lexicon = lexicon.with_item(item)
+    lexicon, removed = lexicon.without_item(item.id)
     assert removed.lemma == "walk"
     assert len(lexicon) == 0
 
@@ -136,16 +135,15 @@ def test_remove_raises_key_error_if_not_found() -> None:
     """Test that remove() raises KeyError if not found."""
     lexicon = Lexicon(name="test")
     with pytest.raises(KeyError, match="not found"):
-        lexicon.remove(uuid4())
+        lexicon.without_item(uuid4())
 
 
 def test_get_returns_item_if_exists() -> None:
     """Test that get() returns item if it exists."""
     lexicon = Lexicon(name="test")
     item = LexicalItem(lemma="walk", language_code="eng")
-    lexicon.add(item)
-
-    retrieved = lexicon.get(item.id)
+    lexicon = lexicon.with_item(item)
+    retrieved = lexicon.by_id(item.id)
     assert retrieved is not None
     assert retrieved.lemma == "walk"
 
@@ -153,17 +151,16 @@ def test_get_returns_item_if_exists() -> None:
 def test_get_returns_none_if_not_exists() -> None:
     """Test that get() returns None if item doesn't exist."""
     lexicon = Lexicon(name="test")
-    assert lexicon.get(uuid4()) is None
+    assert lexicon.by_id(uuid4()) is None
 
 
 def test_adding_same_item_twice_fails() -> None:
     """Test that adding same item twice fails."""
     lexicon = Lexicon(name="test")
     item = LexicalItem(lemma="walk", language_code="eng")
-    lexicon.add(item)
-
-    with pytest.raises(ValueError, match="already exists"):
-        lexicon.add(item)
+    lexicon = lexicon.with_item(item)
+    with pytest.raises((ValueError, dx.ValidationError), match="already exists"):
+        lexicon = lexicon.with_item(item)
 
 
 # ============================================================================
@@ -192,22 +189,21 @@ def test_filter_by_pos_filters_correctly(sample_lexicon: Lexicon) -> None:
 def test_filter_by_lemma_exact_match() -> None:
     """Test that filter_by_lemma() does exact match."""
     lexicon = Lexicon(name="test")
-    lexicon.add(LexicalItem(lemma="walk", language_code="eng"))
-    lexicon.add(LexicalItem(lemma="walked", language_code="eng"))
-
+    lexicon = lexicon.with_item(LexicalItem(lemma="walk", language_code="eng"))
+    lexicon = lexicon.with_item(LexicalItem(lemma="walked", language_code="eng"))
     results = lexicon.filter_by_lemma("walk")
     assert len(results.items) == 1
-    item = list(results.items.values())[0]
+    item = list(results.items)[0]
     assert item.lemma == "walk"
 
 
 def test_filter_by_feature_with_feature_value() -> None:
     """Test that filter_by_feature() filters by feature value."""
     lexicon = Lexicon(name="test")
-    lexicon.add(
+    lexicon = lexicon.with_item(
         LexicalItem(lemma="walk", language_code="eng", features={"tense": "present"})
     )
-    lexicon.add(
+    lexicon = lexicon.with_item(
         LexicalItem(lemma="walked", language_code="eng", features={"tense": "past"})
     )
 
@@ -241,7 +237,7 @@ def test_filter_preserves_lexicon_metadata(sample_lexicon: Lexicon) -> None:
 def test_filter_with_no_matches_returns_empty_lexicon() -> None:
     """Test that filter with no matches returns empty lexicon."""
     lexicon = Lexicon(name="test")
-    lexicon.add(
+    lexicon = lexicon.with_item(
         LexicalItem(lemma="walk", language_code="eng", features={"pos": "VERB"})
     )
 
@@ -257,9 +253,8 @@ def test_filter_with_no_matches_returns_empty_lexicon() -> None:
 def test_search_case_insensitive_substring_match() -> None:
     """Test that search() does case-insensitive substring match."""
     lexicon = Lexicon(name="test")
-    lexicon.add(LexicalItem(lemma="Walking", language_code="eng"))
-    lexicon.add(LexicalItem(lemma="run", language_code="eng"))
-
+    lexicon = lexicon.with_item(LexicalItem(lemma="Walking", language_code="eng"))
+    lexicon = lexicon.with_item(LexicalItem(lemma="run", language_code="eng"))
     results = lexicon.search("walk")
     assert len(results.items) == 1
 
@@ -267,7 +262,7 @@ def test_search_case_insensitive_substring_match() -> None:
 def test_search_in_different_fields() -> None:
     """Test that search() works in different fields."""
     lexicon = Lexicon(name="test")
-    lexicon.add(
+    lexicon = lexicon.with_item(
         LexicalItem(
             lemma="test", form="testing", language_code="eng", features={"pos": "VERB"}
         )
@@ -289,8 +284,7 @@ def test_search_in_different_fields() -> None:
 def test_search_with_no_matches() -> None:
     """Test that search() with no matches returns empty lexicon."""
     lexicon = Lexicon(name="test")
-    lexicon.add(LexicalItem(lemma="walk", language_code="eng"))
-
+    lexicon = lexicon.with_item(LexicalItem(lemma="walk", language_code="eng"))
     results = lexicon.search("xyz")
     assert len(results.items) == 0
 
@@ -298,7 +292,7 @@ def test_search_with_no_matches() -> None:
 def test_search_invalid_field_raises_error() -> None:
     """Test that search() with invalid field raises error."""
     lexicon = Lexicon(name="test")
-    with pytest.raises(ValueError, match="Invalid field"):
+    with pytest.raises((ValueError, dx.ValidationError), match="Invalid field"):
         lexicon.search("test", field="invalid")
 
 
@@ -311,61 +305,58 @@ def test_merge_with_keep_first_strategy() -> None:
     """Test merge() with 'keep_first' strategy."""
     lex1 = Lexicon(name="lex1")
     item1 = LexicalItem(lemma="walk", language_code="eng")
-    lex1.add(item1)
-
+    lex1 = lex1.with_item(item1)
     lex2 = Lexicon(name="lex2")
     # Add different item with same ID as item1 (simulate duplicate)
     item2 = LexicalItem(lemma="run", language_code="eng")
-    lex2.add(item2)
-
+    lex2 = lex2.with_item(item2)
     # Also add item1 to lex2 to test conflict resolution
-    lex2.items[item1.id] = LexicalItem(lemma="modified", language_code="eng")
+    conflict = LexicalItem(id=item1.id, lemma="modified", language_code="eng")
+    lex2 = lex2.with_(items=(*lex2.items, conflict))
 
     merged = lex1.merge(lex2, strategy="keep_first")
     # Should keep item1 from lex1
-    assert merged.items[item1.id].lemma == "walk"
+    assert next(i for i in merged.items if i.id == item1.id).lemma == "walk"
 
 
 def test_merge_with_keep_second_strategy() -> None:
     """Test merge() with 'keep_second' strategy."""
     lex1 = Lexicon(name="lex1")
     item1 = LexicalItem(lemma="walk", language_code="eng")
-    lex1.add(item1)
-
+    lex1 = lex1.with_item(item1)
     lex2 = Lexicon(name="lex2")
     item2 = LexicalItem(lemma="run", language_code="eng")
-    lex2.add(item2)
-
+    lex2 = lex2.with_item(item2)
     # Add conflicting item
-    lex2.items[item1.id] = LexicalItem(lemma="modified", language_code="eng")
+    conflict = LexicalItem(id=item1.id, lemma="modified", language_code="eng")
+    lex2 = lex2.with_(items=(*lex2.items, conflict))
 
     merged = lex1.merge(lex2, strategy="keep_second")
     # Should keep modified version from lex2
-    assert merged.items[item1.id].lemma == "modified"
+    assert next(i for i in merged.items if i.id == item1.id).lemma == "modified"
 
 
 def test_merge_with_error_strategy_raises_on_duplicates() -> None:
     """Test merge() with 'error' strategy raises on duplicates."""
     lex1 = Lexicon(name="lex1")
     item1 = LexicalItem(lemma="walk", language_code="eng")
-    lex1.add(item1)
-
+    lex1 = lex1.with_item(item1)
     lex2 = Lexicon(name="lex2")
     # Add same item to lex2
-    lex2.items[item1.id] = item1
+    lex2 = lex2.with_(items=(item1,))
 
-    with pytest.raises(ValueError, match="Duplicate item IDs found"):
+    with pytest.raises(
+        (ValueError, dx.ValidationError), match="Duplicate item IDs found"
+    ):
         lex1.merge(lex2, strategy="error")
 
 
 def test_merge_with_no_overlapping_ids() -> None:
     """Test merge() with no overlapping IDs."""
     lex1 = Lexicon(name="lex1")
-    lex1.add(LexicalItem(lemma="walk", language_code="eng"))
-
+    lex1 = lex1.with_item(LexicalItem(lemma="walk", language_code="eng"))
     lex2 = Lexicon(name="lex2")
-    lex2.add(LexicalItem(lemma="run", language_code="eng"))
-
+    lex2 = lex2.with_item(LexicalItem(lemma="run", language_code="eng"))
     merged = lex1.merge(lex2)
     assert len(merged.items) == 2
 
@@ -392,7 +383,7 @@ def test_merge_preserves_language_code() -> None:
 def test_to_dataframe_pandas_creates_correct_structure() -> None:
     """Test that to_dataframe() creates correct structure for pandas."""
     lexicon = Lexicon(name="test")
-    lexicon.add(
+    lexicon = lexicon.with_item(
         LexicalItem(lemma="walk", language_code="eng", features={"pos": "VERB"})
     )
 
@@ -405,7 +396,7 @@ def test_to_dataframe_pandas_creates_correct_structure() -> None:
 def test_to_dataframe_polars_creates_correct_structure() -> None:
     """Test that to_dataframe() creates correct structure for polars."""
     lexicon = Lexicon(name="test")
-    lexicon.add(
+    lexicon = lexicon.with_item(
         LexicalItem(lemma="walk", language_code="eng", features={"pos": "VERB"})
     )
 
@@ -418,7 +409,7 @@ def test_to_dataframe_polars_creates_correct_structure() -> None:
 def test_to_dataframe_includes_all_fields() -> None:
     """Test that to_dataframe() includes all fields."""
     lexicon = Lexicon(name="test")
-    lexicon.add(
+    lexicon = lexicon.with_item(
         LexicalItem(
             lemma="walk",
             form="walking",
@@ -442,7 +433,7 @@ def test_to_dataframe_includes_all_fields() -> None:
 def test_to_dataframe_flattens_features_and_attributes() -> None:
     """Test that to_dataframe() flattens features/attributes."""
     lexicon = Lexicon(name="test")
-    lexicon.add(
+    lexicon = lexicon.with_item(
         LexicalItem(
             lemma="walk",
             language_code="eng",
@@ -477,7 +468,7 @@ def test_from_dataframe_pandas_roundtrip() -> None:
     assert len(lexicon.items) == 2
 
     # Check that features were reconstructed
-    items = list(lexicon.items.values())
+    items = list(lexicon.items)
     assert "tense" in items[0].features
     assert "frequency" in items[0].features
     assert "pos" in items[0].features
@@ -498,7 +489,7 @@ def test_from_dataframe_polars_roundtrip() -> None:
     assert len(lexicon.items) == 2
 
     # Check that features were reconstructed
-    items = list(lexicon.items.values())
+    items = list(lexicon.items)
     assert "tense" in items[0].features
     assert "frequency" in items[0].features
     assert "pos" in items[0].features
@@ -516,7 +507,9 @@ def test_from_dataframe_raises_on_missing_lemma() -> None:
     """Test that from_dataframe() raises error if no lemma column."""
     df = pd.DataFrame({"pos": ["VERB", "NOUN"]})
 
-    with pytest.raises(ValueError, match="must have a 'lemma' column"):
+    with pytest.raises(
+        (ValueError, dx.ValidationError), match="must have a 'lemma' column"
+    ):
         Lexicon.from_dataframe(df, "test")
 
 
@@ -536,9 +529,8 @@ def test_to_dataframe_empty_lexicon() -> None:
 def test_to_jsonl_writes_file_correctly(tmp_path: Path) -> None:
     """Test that to_jsonl() writes file correctly."""
     lexicon = Lexicon(name="test")
-    lexicon.add(LexicalItem(lemma="walk", language_code="eng"))
-    lexicon.add(LexicalItem(lemma="run", language_code="eng"))
-
+    lexicon = lexicon.with_item(LexicalItem(lemma="walk", language_code="eng"))
+    lexicon = lexicon.with_item(LexicalItem(lemma="run", language_code="eng"))
     file_path = tmp_path / "test.jsonl"
     lexicon.to_jsonl(str(file_path))
 
@@ -551,11 +543,12 @@ def test_from_jsonl_reads_file_correctly(tmp_path: Path) -> None:
     """Test that from_jsonl() reads file correctly."""
     # First write a file
     lexicon = Lexicon(name="test")
-    lexicon.add(
+    lexicon = lexicon.with_item(
         LexicalItem(lemma="walk", language_code="eng", features={"pos": "VERB"})
     )
-    lexicon.add(LexicalItem(lemma="run", language_code="eng", features={"pos": "VERB"}))
-
+    lexicon = lexicon.with_item(
+        LexicalItem(lemma="run", language_code="eng", features={"pos": "VERB"})
+    )
     file_path = tmp_path / "test.jsonl"
     lexicon.to_jsonl(str(file_path))
 
@@ -567,7 +560,7 @@ def test_from_jsonl_reads_file_correctly(tmp_path: Path) -> None:
 def test_jsonl_roundtrip(tmp_path: Path) -> None:
     """Test roundtrip (save and load)."""
     original = Lexicon(name="test")
-    original.add(
+    original = original.with_item(
         LexicalItem(
             lemma="walk",
             language_code="eng",
@@ -582,8 +575,8 @@ def test_jsonl_roundtrip(tmp_path: Path) -> None:
     assert len(loaded.items) == len(original.items)
 
     # Check that data was preserved
-    orig_item = list(original.items.values())[0]
-    loaded_item = list(loaded.items.values())[0]
+    orig_item = list(original.items)[0]
+    loaded_item = list(loaded.items)[0]
     assert loaded_item.lemma == orig_item.lemma
     assert loaded_item.features.get("pos") == orig_item.features.get("pos")
 
@@ -591,7 +584,7 @@ def test_jsonl_roundtrip(tmp_path: Path) -> None:
 def test_serialization_preserves_all_data(tmp_path: Path) -> None:
     """Test that serialization preserves all data."""
     lexicon = Lexicon(name="test")
-    lexicon.add(
+    lexicon = lexicon.with_item(
         LexicalItem(
             lemma="walk",
             language_code="eng",
@@ -611,7 +604,7 @@ def test_serialization_preserves_all_data(tmp_path: Path) -> None:
     lexicon.to_jsonl(str(file_path))
 
     loaded = Lexicon.from_jsonl(str(file_path), "loaded")
-    item = list(loaded.items.values())[0]
+    item = list(loaded.items)[0]
 
     assert item.lemma == "walk"
     assert item.features["pos"] == "VERB"
@@ -632,21 +625,20 @@ def test_filter_by_language_code() -> None:
     ko_item = LexicalItem(lemma="깨다", language_code="ko")
     es_item = LexicalItem(lemma="romper", language_code="es")
 
-    lexicon.add(en_item)
-    lexicon.add(ko_item)
-    lexicon.add(es_item)
-
+    lexicon = lexicon.with_item(en_item)
+    lexicon = lexicon.with_item(ko_item)
+    lexicon = lexicon.with_item(es_item)
     # Filter by English (normalized to ISO 639-3)
     en_items = lexicon.filter(lambda item: item.language_code == "eng")
     assert len(en_items.items) == 1
-    assert list(en_items.items.values())[0].lemma == "break"
+    assert list(en_items.items)[0].lemma == "break"
 
     # Filter by Korean (normalized to ISO 639-3)
     ko_items = lexicon.filter(lambda item: item.language_code == "kor")
     assert len(ko_items.items) == 1
-    assert list(ko_items.items.values())[0].lemma == "깨다"
+    assert list(ko_items.items)[0].lemma == "깨다"
 
     # Filter by Spanish (normalized to ISO 639-3)
     es_items = lexicon.filter(lambda item: item.language_code == "spa")
     assert len(es_items.items) == 1
-    assert list(es_items.items.values())[0].lemma == "romper"
+    assert list(es_items.items)[0].lemma == "romper"

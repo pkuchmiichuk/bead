@@ -460,16 +460,15 @@ class GlazingAdapter(ResourceAdapter):
 
         # add detailed frame information if requested
         if include_frames:
-            attributes["frame_definition"] = frame.definition
+            attributes["frame_definition"] = str(frame.definition)
 
-            # add frame elements (semantic roles)
             if frame.frame_elements:
                 attributes["frame_elements"] = [
                     {
                         "name": fe.name,
                         "core_type": fe.core_type,
-                        "definition": fe.definition
-                        if hasattr(fe, "definition")
+                        "definition": str(fe.definition)
+                        if hasattr(fe, "definition") and fe.definition is not None
                         else None,
                     }
                     for fe in frame.frame_elements

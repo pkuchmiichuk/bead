@@ -97,7 +97,7 @@ def create_categorical_item(
 
     # Build item metadata
     item_metadata: dict[str, MetadataValue] = {
-        "categories": list(categories),
+        "categories": tuple(categories),
     }
     if metadata:
         item_metadata.update(metadata)

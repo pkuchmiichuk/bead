@@ -2,7 +2,7 @@
 
 ## Requirements
 
-- Python 3.13 or higher
+- Python 3.14 or higher
 - Operating Systems: macOS, Linux, Windows (WSL recommended)
 
 ## Install from PyPI
@@ -61,8 +61,22 @@ uv sync --extra api
 # Active learning with PyTorch
 uv sync --extra training
 
+# Tokenization and dependency parsing (spaCy, Stanza)
+uv sync --extra tokenization
+
+# Corpus ingestion, including Zstandard-compressed (.zst) files
+uv sync --extra corpus
+
 # All dependencies
 uv sync --all-extras
+```
+
+Structural corpus sampling (parsing a corpus and keeping only sentences whose
+dependency structure matches a constraint) needs both the `corpus` and
+`tokenization` extras:
+
+```bash
+uv sync --extra corpus --extra tokenization
 ```
 
 ## TypeScript Development (jsPsych Plugins)
@@ -93,7 +107,7 @@ The compiled JavaScript is output to `bead/deployment/jspsych/dist/`.
 
 ### Python Version
 
-Verify you have Python 3.13+:
+Verify you have Python 3.14+:
 
 ```bash
 python --version
@@ -102,8 +116,8 @@ python --version
 If not, install from [python.org](https://www.python.org/downloads/) or use pyenv:
 
 ```bash
-pyenv install 3.13.0
-pyenv local 3.13.0
+pyenv install 3.14.0
+pyenv local 3.14.0
 ```
 
 ### Common Issues

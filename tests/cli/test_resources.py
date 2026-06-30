@@ -221,8 +221,7 @@ def test_create_template_simple(cli_runner: CliRunner, tmp_path: Path) -> None:
 
     # Verify template
     with open(output_file) as f:
-        template_data = json.loads(f.readline())
-        template = Template(**template_data)
+        template = Template.model_validate_json(f.readline())
         assert len(template.slots) == 3
         assert "subject" in template.slots
         assert "verb" in template.slots
@@ -255,8 +254,7 @@ def test_create_template_with_slot_specs(cli_runner: CliRunner, tmp_path: Path) 
 
     # Verify slot required flags
     with open(output_file) as f:
-        template_data = json.loads(f.readline())
-        template = Template(**template_data)
+        template = Template.model_validate_json(f.readline())
         assert template.slots["subject"].required is True
         assert template.slots["verb"].required is True
         assert template.slots["object"].required is False
@@ -285,8 +283,7 @@ def test_create_template_with_language(cli_runner: CliRunner, tmp_path: Path) ->
     assert result.exit_code == 0
 
     with open(output_file) as f:
-        template_data = json.loads(f.readline())
-        template = Template(**template_data)
+        template = Template.model_validate_json(f.readline())
         assert template.language_code == "eng"
         assert template.description == "Test template"
 
@@ -368,7 +365,7 @@ def test_list_lexicons_with_pattern(cli_runner: CliRunner, tmp_path: Path) -> No
     # Create multiple lexicons
     for name in ["verbs", "nouns", "adjectives"]:
         lexicon = Lexicon(name=name, language_code="eng")
-        lexicon.add(
+        lexicon = lexicon.with_item(
             LexicalItem(lemma="test", language_code="eng", features={"pos": "VERB"})
         )
         output = tmp_path / f"{name}.jsonl"

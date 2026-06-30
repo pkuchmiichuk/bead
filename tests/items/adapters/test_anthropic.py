@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 
+import didactic.api as dx
 import pytest
 from pytest_mock import MockerFixture
 
@@ -99,7 +100,9 @@ class TestAnthropicAdapterInitialization:
 
         cache = ModelOutputCache(backend="memory")
 
-        with pytest.raises(ValueError, match="Anthropic API key must be provided"):
+        with pytest.raises(
+            (ValueError, dx.ValidationError), match="Anthropic API key must be provided"
+        ):
             AnthropicAdapter(model_name="claude-3-5-sonnet-20241022", cache=cache)
 
 
@@ -214,7 +217,9 @@ class TestAnthropicComputeNLI:
         mock_anthropic.messages.create.return_value = mock_response
         mocker.patch("time.sleep")
 
-        with pytest.raises(ValueError, match="did not include content"):
+        with pytest.raises(
+            (ValueError, dx.ValidationError), match="did not include content"
+        ):
             anthropic_adapter.compute_nli("premise", "hypothesis")
 
     def test_compute_nli_uses_cache(

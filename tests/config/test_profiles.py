@@ -259,8 +259,10 @@ class TestGetProfile:
     def test_get_profile_modifications_dont_affect_original(self) -> None:
         """Test modifications to returned config don't affect PROFILES."""
         config = get_profile("dev")
-        config.profile = "modified"
-        config.templates.batch_size = 9999
+        config = config.with_(
+            profile="modified",
+            templates=config.templates.with_(batch_size=9999),
+        )
 
         # Check original is unchanged
         assert PROFILES["dev"].profile == "dev"
@@ -299,17 +301,16 @@ class TestProfilesIndependence:
 
     def test_profiles_are_independent(self) -> None:
         """Test modifying one profile doesn't affect others."""
-        # Get copies of all profiles
         default = get_profile("default")
         dev = get_profile("dev")
         prod = get_profile("prod")
         test = get_profile("test")
 
-        # Modify dev
-        dev.profile = "modified"
-        dev.templates.batch_size = 9999
+        dev = dev.with_(
+            profile="modified",
+            templates=dev.templates.with_(batch_size=9999),
+        )
 
-        # Check others are unchanged
         assert default.profile == "default"
         assert prod.profile == "prod"
         assert test.profile == "test"
@@ -322,8 +323,8 @@ class TestProfilesIndependence:
         dev = get_profile("dev")
         prod = get_profile("prod")
 
-        # Modify dev's nested config
-        dev.items.model.batch_size = 9999
+        dev = dev.with_(
+            items=dev.items.with_(model=dev.items.model.with_(batch_size=9999))
+        )
 
-        # Check prod is unchanged
         assert prod.items.model.batch_size == 32

@@ -499,13 +499,20 @@ class ActiveLearningModel(ABC):
         pass
 
     @abstractmethod
-    def _load_model_components(self, load_path: Path) -> None:
+    def _load_model_components(
+        self, load_path: Path, config_dict: dict[str, object]
+    ) -> None:
         """Load model-specific components.
 
         Parameters
         ----------
         load_path : Path
             Directory to load from.
+        config_dict : dict[str, object]
+            Schema-only config dict (model-specific state fields have
+            already been popped by :meth:`_restore_training_state`).
+            Subclasses use this to reconstruct ``self.config`` without
+            re-reading ``config.json`` from disk.
         """
         pass
 
@@ -814,7 +821,7 @@ class ActiveLearningModel(ABC):
 
         # Load model-specific components (which will reconstruct the config)
         # This must happen before initializing random effects so config is correct
-        self._load_model_components(load_path)
+        self._load_model_components(load_path, config_dict)
 
         # Initialize and load random effects
         n_classes = self._get_n_classes_for_random_effects()

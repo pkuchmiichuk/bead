@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from uuid import UUID, uuid4
 
+import didactic.api as dx
 import pytest
 
 from bead.resources.classification import TemplateClass
@@ -26,8 +27,8 @@ class TestTemplateClassCreation:
         assert cls.property_name == "transitive"
         assert cls.property_value is True
         assert len(cls) == 0
-        assert cls.templates == {}
-        assert cls.tags == []
+        assert cls.templates == ()
+        assert cls.tags == ()
 
     def test_create_with_tags(self) -> None:
         """Test creating a class with tags."""
@@ -52,12 +53,16 @@ class TestTemplateClassCreation:
 
     def test_validate_empty_name(self) -> None:
         """Test that empty name raises ValueError."""
-        with pytest.raises(ValueError, match="name must be non-empty"):
+        with pytest.raises(
+            (ValueError, dx.ValidationError), match="name must be non-empty"
+        ):
             TemplateClass(name="", property_name="test")
 
     def test_validate_empty_property_name(self) -> None:
         """Test that empty property_name raises ValueError."""
-        with pytest.raises(ValueError, match="property_name must be non-empty"):
+        with pytest.raises(
+            (ValueError, dx.ValidationError), match="property_name must be non-empty"
+        ):
             TemplateClass(name="test", property_name="")
 
     def test_has_id_and_timestamps(self) -> None:
@@ -107,8 +112,8 @@ class TestTemplateClassLanguageMethods:
             template_string="{s} {v} {o}.",
             slots={"s": Slot(name="s"), "v": Slot(name="v"), "o": Slot(name="o")},
         )
-        cls.add(t1)
-        cls.add(t2)
+        cls = cls.with_template(t1)
+        cls = cls.with_template(t2)
         # Language codes are normalized to ISO 639-3 (3-letter codes)
         assert cls.languages() == {"eng"}
 
@@ -161,7 +166,7 @@ class TestTemplateClassLanguageMethods:
         zu_templates = monolingual_transitive_template_class.get_templates_by_language(
             "zu"
         )
-        assert zu_templates == []
+        assert zu_templates == ()
 
     def test_is_monolingual_empty(self) -> None:
         """Test is_monolingual() on empty class."""
@@ -210,7 +215,7 @@ class TestTemplateClassCRUDOperations:
             slots={"s": Slot(name="s"), "v": Slot(name="v"), "o": Slot(name="o")},
             language_code="en",
         )
-        cls.add(template)
+        cls = cls.with_template(template)
         assert len(cls) == 1
         assert template.id in cls
 
@@ -223,7 +228,7 @@ class TestTemplateClassCRUDOperations:
             template_string="{s} {v} {o}.",
             slots={"s": Slot(name="s"), "v": Slot(name="v"), "o": Slot(name="o")},
         )
-        cls.add(template)
+        cls = cls.with_template(template)
         assert cls.modified_at > original_modified
 
     def test_add_duplicate_template_raises_error(self) -> None:
@@ -234,9 +239,11 @@ class TestTemplateClassCRUDOperations:
             template_string="{s} {v} {o}.",
             slots={"s": Slot(name="s"), "v": Slot(name="v"), "o": Slot(name="o")},
         )
-        cls.add(template)
-        with pytest.raises(ValueError, match="already exists in class"):
-            cls.add(template)
+        cls = cls.with_template(template)
+        with pytest.raises(
+            (ValueError, dx.ValidationError), match="already exists in class"
+        ):
+            cls = cls.with_template(template)
 
     def test_remove_template(self) -> None:
         """Test removing a template from the class."""
@@ -246,8 +253,8 @@ class TestTemplateClassCRUDOperations:
             template_string="{s} {v} {o}.",
             slots={"s": Slot(name="s"), "v": Slot(name="v"), "o": Slot(name="o")},
         )
-        cls.add(template)
-        removed = cls.remove(template.id)
+        cls = cls.with_template(template)
+        cls, removed = cls.without_template(template.id)
         assert removed.name == "svo"
         assert len(cls) == 0
         assert template.id not in cls
@@ -260,16 +267,16 @@ class TestTemplateClassCRUDOperations:
             template_string="{s} {v} {o}.",
             slots={"s": Slot(name="s"), "v": Slot(name="v"), "o": Slot(name="o")},
         )
-        cls.add(template)
+        cls = cls.with_template(template)
         original_modified = cls.modified_at
-        cls.remove(template.id)
+        cls, _ = cls.without_template(template.id)
         assert cls.modified_at > original_modified
 
     def test_remove_nonexistent_template_raises_error(self) -> None:
         """Test that removing nonexistent template raises KeyError."""
         cls = TemplateClass(name="test", property_name="transitive")
         with pytest.raises(KeyError, match="not found in class"):
-            cls.remove(uuid4())
+            cls.without_template(uuid4())
 
     def test_get_template(self) -> None:
         """Test getting a template by ID."""
@@ -279,15 +286,15 @@ class TestTemplateClassCRUDOperations:
             template_string="{s} {v} {o}.",
             slots={"s": Slot(name="s"), "v": Slot(name="v"), "o": Slot(name="o")},
         )
-        cls.add(template)
-        retrieved = cls.get(template.id)
+        cls = cls.with_template(template)
+        retrieved = cls.by_id(template.id)
         assert retrieved is not None
         assert retrieved.name == "svo"
 
     def test_get_nonexistent_template_returns_none(self) -> None:
         """Test that getting nonexistent template returns None."""
         cls = TemplateClass(name="test", property_name="transitive")
-        assert cls.get(uuid4()) is None
+        assert cls.by_id(uuid4()) is None
 
     def test_len_empty(self) -> None:
         """Test __len__ on empty class."""
@@ -308,7 +315,7 @@ class TestTemplateClassCRUDOperations:
             template_string="{s} {v} {o}.",
             slots={"s": Slot(name="s"), "v": Slot(name="v"), "o": Slot(name="o")},
         )
-        cls.add(template)
+        cls = cls.with_template(template)
         assert template.id in cls
 
     def test_contains_false(self) -> None:
@@ -350,8 +357,7 @@ class TestTemplateClassSerialization:
             slots={"s": Slot(name="s"), "v": Slot(name="v"), "o": Slot(name="o")},
             language_code="en",
         )
-        cls.add(template)
-
+        cls = cls.with_template(template)
         # Test model_dump
         data = cls.model_dump()
         assert data["name"] == "transitive_templates"
@@ -371,8 +377,7 @@ class TestTemplateClassSerialization:
             slots={"s": Slot(name="s"), "v": Slot(name="v"), "o": Slot(name="o")},
             language_code="en",
         )
-        cls.add(template)
-
+        cls = cls.with_template(template)
         # Test model_dump_json
         json_str = cls.model_dump_json()
         assert isinstance(json_str, str)
@@ -400,9 +405,8 @@ class TestTemplateClassSerialization:
             slots={"s": Slot(name="s"), "v": Slot(name="v"), "o": Slot(name="o")},
             language_code="en",
         )
-        cls.add(t1)
-        cls.add(t2)
-
+        cls = cls.with_template(t1)
+        cls = cls.with_template(t2)
         # Serialize
         data = cls.model_dump()
 
@@ -452,15 +456,14 @@ class TestTemplateClassEdgeCases:
             slots={"s": Slot(name="s"), "v": Slot(name="v"), "o": Slot(name="o")},
         )
 
-        cls.add(t1)
-        cls.add(t2)
-        cls.add(t3)
-
+        cls = cls.with_template(t1)
+        cls = cls.with_template(t2)
+        cls = cls.with_template(t3)
         assert len(cls) == 3
         # Language codes are normalized to ISO 639-3 (3-letter codes)
         assert cls.languages() == {"eng"}
         # Can query using 2-letter or 3-letter codes (both work)
-        assert cls.get_templates_by_language("en") == [t1]
+        assert cls.get_templates_by_language("en") == (t1,)
 
     def test_property_value_can_be_none(self) -> None:
         """Test that property_value can be None."""
@@ -511,18 +514,18 @@ class TestTemplateClassEdgeCases:
 
         # Add all
         for template in templates:
-            cls.add(template)
+            cls = cls.with_template(template)
         assert len(cls) == 3
 
         # Remove one
-        cls.remove(templates[0].id)
+        cls, _ = cls.without_template(templates[0].id)
         assert len(cls) == 2
 
         # Add it back
-        cls.add(templates[0])
+        cls = cls.with_template(templates[0])
         assert len(cls) == 3
 
         # Remove all
         for template in templates:
-            cls.remove(template.id)
+            cls, _ = cls.without_template(template.id)
         assert len(cls) == 0

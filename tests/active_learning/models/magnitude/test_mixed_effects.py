@@ -34,8 +34,7 @@ class TestFixedEffectsMode:
         model = MagnitudeModel(config)
 
         # Fixed effects: use placeholder participant_ids
-        participant_ids = ["default"] * len(sample_items)
-        metrics = model.train(sample_items, sample_unbounded_labels, participant_ids)
+        metrics = model.train(sample_items, sample_unbounded_labels)
 
         assert "train_mse" in metrics
         assert "train_loss" in metrics
@@ -58,9 +57,7 @@ class TestFixedEffectsMode:
             mixed_effects=MixedEffectsConfig(mode="fixed"),
         )
         model = MagnitudeModel(config)
-
-        participant_ids = ["default"] * len(sample_items)
-        metrics = model.train(sample_items, sample_bounded_labels, participant_ids)
+        metrics = model.train(sample_items, sample_bounded_labels)
 
         assert "train_mse" in metrics
         assert "train_loss" in metrics
@@ -78,12 +75,10 @@ class TestFixedEffectsMode:
             mixed_effects=MixedEffectsConfig(mode="fixed"),
         )
         model = MagnitudeModel(config)
-
-        participant_ids = ["default"] * len(sample_items)
-        model.train(sample_items, sample_unbounded_labels, participant_ids)
+        model.train(sample_items, sample_unbounded_labels)
 
         # Predict with same participant_ids
-        predictions = model.predict(sample_items[:5], participant_ids[:5])
+        predictions = model.predict(sample_items[:5])
 
         assert len(predictions) == 5
         for pred in predictions:
@@ -143,10 +138,9 @@ class TestFixedEffectsMode:
 
         # Label outside bounds
         labels = ["50.0"] * 19 + ["150.0"]  # 150.0 > max_value=100.0
-        participant_ids = ["default"] * len(sample_items)
 
         with pytest.raises(ValueError, match="outside bounds"):
-            model.train(sample_items, labels, participant_ids)
+            model.train(sample_items, labels)
 
 
 class TestRandomInterceptsMode:
@@ -448,9 +442,11 @@ class TestSaveLoad:
             # Check intercepts preserved
             loaded_bias_p1 = model2.random_effects.intercepts["mu"]["p1"]
             assert loaded_bias_p1.shape == orig_bias_p1.shape
-            # Check values are close (may have small numerical differences)
-            assert float(loaded_bias_p1[0]) == pytest.approx(
-                float(orig_bias_p1[0]), abs=1e-5
+            # Check values are close (may have small numerical differences).
+            # ``.item()`` detaches the tensor so the comparison does not
+            # emit a "converting tensor with requires_grad=True" warning.
+            assert loaded_bias_p1[0].item() == pytest.approx(
+                orig_bias_p1[0].item(), abs=1e-5
             )
 
     def test_save_and_load_preserves_config(
@@ -471,8 +467,7 @@ class TestSaveLoad:
 
         # Need to adjust labels to bounded range
         bounded_labels = [str(float(i * 5)) for i in range(20)]
-        participant_ids = ["default"] * len(sample_items)
-        model.train(sample_items, bounded_labels, participant_ids)
+        model.train(sample_items, bounded_labels)
 
         with tempfile.TemporaryDirectory() as tmpdir:
             model.save(tmpdir)
@@ -504,12 +499,11 @@ class TestDistributions:
         )
         model = MagnitudeModel(config)
 
-        participant_ids = ["default"] * len(sample_items)
-        metrics = model.train(sample_items, sample_unbounded_labels, participant_ids)
+        metrics = model.train(sample_items, sample_unbounded_labels)
 
         assert "train_mse" in metrics
         # Predictions can be any value (unbounded)
-        predictions = model.predict(sample_items[:5], participant_ids[:5])
+        predictions = model.predict(sample_items[:5])
         for pred in predictions:
             val = float(pred.predicted_class)
             assert isinstance(val, float)
@@ -530,12 +524,11 @@ class TestDistributions:
         )
         model = MagnitudeModel(config)
 
-        participant_ids = ["default"] * len(sample_items)
-        metrics = model.train(sample_items, sample_bounded_labels, participant_ids)
+        metrics = model.train(sample_items, sample_bounded_labels)
 
         assert "train_mse" in metrics
         # Predictions should be within bounds
-        predictions = model.predict(sample_items[:5], participant_ids[:5])
+        predictions = model.predict(sample_items[:5])
         for pred in predictions:
             val = float(pred.predicted_class)
             assert 0.0 <= val <= 100.0
@@ -556,14 +549,11 @@ class TestDistributions:
         )
         model = MagnitudeModel(config)
 
-        participant_ids = ["default"] * len(sample_items)
         # Should handle endpoints without errors
-        metrics = model.train(
-            sample_items, sample_bounded_endpoint_labels, participant_ids
-        )
+        metrics = model.train(sample_items, sample_bounded_endpoint_labels)
 
         assert "train_mse" in metrics
-        predictions = model.predict(sample_items[:5], participant_ids[:5])
+        predictions = model.predict(sample_items[:5])
         for pred in predictions:
             val = float(pred.predicted_class)
             assert 0.0 <= val <= 100.0

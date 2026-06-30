@@ -10,7 +10,7 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from bead.data.base import BeadBaseModel
+from bead.data.base import BeadBaseModel, JsonValue
 
 if TYPE_CHECKING:
     from datasets import Dataset
@@ -82,13 +82,13 @@ class ModelMetadata(BeadBaseModel):
 
     model_name: str
     framework: str
-    training_config: dict[str, str | int | float | bool | Path | None]
     training_data_path: Path
-    eval_data_path: Path | None = None
     metrics: dict[str, float]
-    best_checkpoint: Path | None = None
     training_time: float
     training_timestamp: str
+    training_config: dict[str, JsonValue] = {}
+    eval_data_path: Path | None = None
+    best_checkpoint: Path | None = None
 
 
 class BaseTrainer(ABC):

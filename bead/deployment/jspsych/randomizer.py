@@ -48,7 +48,7 @@ def generate_randomizer_function(
     >>> from uuid import UUID
     >>> item1 = UUID("12345678-1234-5678-1234-567812345678")
     >>> item2 = UUID("87654321-4321-8765-4321-876543218765")
-    >>> constraint = OrderingConstraint(
+    >>> constraint = OrderingConstraint(constraint_type="ordering",
     ...     no_adjacent_property="item_metadata.condition"
     ... )
     >>> metadata = {
@@ -135,7 +135,7 @@ def _prepare_template_context(
         if constraint.precedence_pairs:
             context["has_precedence"] = True
             # convert UUID pairs to string pairs for JSON
-            pairs = [[str(a), str(b)] for a, b in constraint.precedence_pairs]
+            pairs = [[str(p.before), str(p.after)] for p in constraint.precedence_pairs]
             context["precedence_pairs_json"] = json.dumps(pairs)
 
         # no-adjacency

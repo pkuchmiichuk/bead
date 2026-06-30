@@ -114,9 +114,8 @@ def test_repository_update_object(tmp_path: Path) -> None:
     obj = SimpleModel(name="original", value=1)
     repo.add(obj)
 
-    # Modify and update
-    obj.name = "updated"
-    obj.value = 99
+    # Modify and update via .with_(); didactic Models are frozen
+    obj = obj.with_(name="updated", value=99)
     repo.update(obj)
 
     # Verify changes persisted
@@ -326,7 +325,7 @@ def test_repository_add_duplicate_id(tmp_path: Path) -> None:
     repo.add(obj)
 
     # Modify and add again (should append, not replace)
-    obj.name = "modified"
+    obj = obj.with_(name="modified")
     repo.add(obj)
 
     # Should have 2 objects with same ID in file

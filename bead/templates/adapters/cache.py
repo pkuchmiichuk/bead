@@ -121,7 +121,7 @@ class ModelOutputCache:
             with open(cache_file) as f:
                 data = json.load(f)
                 return [(item["token"], item["log_prob"]) for item in data]
-        except (json.JSONDecodeError, KeyError, OSError):
+        except json.JSONDecodeError, KeyError, OSError:
             # cache corruption; return None
             return None
 

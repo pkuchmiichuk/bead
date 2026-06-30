@@ -2,34 +2,41 @@
 
 from __future__ import annotations
 
-from uuid import uuid4
+# Use fixed UUIDs for consistent testing
+from uuid import UUID, uuid4
 
 import pandas as pd
 import polars as pl
 import pytest
-from slopit.schemas import AnalysisFlag
 
-from bead.behavioral.analytics import AnalyticsCollection, JudgmentAnalytics
+from bead.behavioral.analytics import (
+    AnalysisFlag,
+    AnalyticsCollection,
+    JudgmentAnalytics,
+)
 from bead.behavioral.merging import (
     filter_flagged_judgments,
     get_exclusion_list,
     merge_behavioral_analytics,
 )
 
-# Use fixed UUIDs for consistent testing
 ITEM_IDS = [
-    "11111111-1111-1111-1111-111111111111",
-    "22222222-2222-2222-2222-222222222222",
-    "33333333-3333-3333-3333-333333333333",
+    UUID("11111111-1111-1111-1111-111111111111"),
+    UUID("22222222-2222-2222-2222-222222222222"),
+    UUID("33333333-3333-3333-3333-333333333333"),
 ]
 
 
 @pytest.fixture
 def sample_judgments_df() -> pd.DataFrame:
-    """Create sample judgments DataFrame."""
+    """Create sample judgments DataFrame.
+
+    Polars cannot infer Arrow types for UUID values, so the dataframe
+    uses string item_ids.
+    """
     return pd.DataFrame(
         {
-            "item_id": ITEM_IDS,
+            "item_id": [str(i) for i in ITEM_IDS],
             "participant_id": ["p001", "p001", "p002"],
             "response": [5, 3, 4],
         }
@@ -42,7 +49,7 @@ def sample_analytics_collection() -> AnalyticsCollection:
     collection = AnalyticsCollection(name="test")
 
     # Add analytics for each judgment
-    collection.add_analytics(
+    collection = collection.with_analytics(
         JudgmentAnalytics(
             item_id=ITEM_IDS[0],
             participant_id="p001",
@@ -51,7 +58,7 @@ def sample_analytics_collection() -> AnalyticsCollection:
             response_time_ms=2000,
         )
     )
-    collection.add_analytics(
+    collection = collection.with_analytics(
         JudgmentAnalytics(
             item_id=ITEM_IDS[1],
             participant_id="p001",
@@ -60,7 +67,7 @@ def sample_analytics_collection() -> AnalyticsCollection:
             response_time_ms=2500,
         )
     )
-    collection.add_analytics(
+    collection = collection.with_analytics(
         JudgmentAnalytics(
             item_id=ITEM_IDS[2],
             participant_id="p002",
@@ -164,7 +171,7 @@ class TestFilterFlaggedJudgments:
         collection = AnalyticsCollection(name="test")
 
         # Unflagged record
-        collection.add_analytics(
+        collection = collection.with_analytics(
             JudgmentAnalytics(
                 item_id=ITEM_IDS[0],
                 participant_id="p001",
@@ -177,11 +184,10 @@ class TestFilterFlaggedJudgments:
         # Flagged record
         flag = AnalysisFlag(
             type="rapid_response",
-            analyzer="timing",
             severity="medium",
             message="Too fast",
         )
-        collection.add_analytics(
+        collection = collection.with_analytics(
             JudgmentAnalytics(
                 item_id=ITEM_IDS[1],
                 participant_id="p001",
@@ -212,7 +218,7 @@ class TestFilterFlaggedJudgments:
 
         assert isinstance(filtered, pd.DataFrame)
         assert len(filtered) == 1
-        assert filtered.iloc[0]["item_id"] == ITEM_IDS[0]
+        assert filtered.iloc[0]["item_id"] == str(ITEM_IDS[0])
 
     def test_keep_flagged_only_pandas(
         self,
@@ -229,7 +235,7 @@ class TestFilterFlaggedJudgments:
         )
 
         assert len(filtered) == 1
-        assert filtered.iloc[0]["item_id"] == ITEM_IDS[1]
+        assert filtered.iloc[0]["item_id"] == str(ITEM_IDS[1])
 
     def test_exclude_flagged_polars(
         self,
@@ -259,13 +265,12 @@ class TestGetExclusionList:
         # Participant with 50% flag rate
         flag = AnalysisFlag(
             type="test_flag",
-            analyzer="test",
             severity="medium",
             message="Test flag",
         )
 
         for i in range(4):
-            collection.add_analytics(
+            collection = collection.with_analytics(
                 JudgmentAnalytics(
                     item_id=uuid4(),
                     participant_id="p001",
@@ -279,7 +284,7 @@ class TestGetExclusionList:
 
         # Participant with 0% flag rate
         for i in range(4):
-            collection.add_analytics(
+            collection = collection.with_analytics(
                 JudgmentAnalytics(
                     item_id=uuid4(),
                     participant_id="p002",
@@ -300,21 +305,19 @@ class TestGetExclusionList:
 
         low_flag = AnalysisFlag(
             type="minor",
-            analyzer="test",
             severity="low",
             message="Minor issue",
         )
 
         high_flag = AnalysisFlag(
             type="major",
-            analyzer="test",
             severity="high",
             message="Major issue",
         )
 
         # Participant with only low-severity flags
         for i in range(4):
-            collection.add_analytics(
+            collection = collection.with_analytics(
                 JudgmentAnalytics(
                     item_id=uuid4(),
                     participant_id="p001",
@@ -328,7 +331,7 @@ class TestGetExclusionList:
 
         # Participant with high-severity flags
         for i in range(4):
-            collection.add_analytics(
+            collection = collection.with_analytics(
                 JudgmentAnalytics(
                     item_id=uuid4(),
                     participant_id="p002",

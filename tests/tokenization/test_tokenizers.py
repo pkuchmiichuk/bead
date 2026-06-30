@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
+import didactic.api as dx
 import pytest
-from pydantic import ValidationError
 
 from bead.tokenization.config import TokenizerConfig
 from bead.tokenization.tokenizers import (
@@ -23,22 +23,22 @@ class TestWhitespaceTokenizer:
         result = tokenizer("The cat sat on the mat.")
 
         assert isinstance(result, TokenizedText)
-        assert result.token_texts == ["The", "cat", "sat", "on", "the", "mat."]
+        assert result.token_texts == ("The", "cat", "sat", "on", "the", "mat.")
 
     def test_empty_string(self) -> None:
         """Test tokenizing empty string."""
         tokenizer = WhitespaceTokenizer()
         result = tokenizer("")
 
-        assert result.tokens == []
-        assert result.token_texts == []
+        assert result.tokens == ()
+        assert result.token_texts == ()
 
     def test_single_word(self) -> None:
         """Test tokenizing single word."""
         tokenizer = WhitespaceTokenizer()
         result = tokenizer("Hello")
 
-        assert result.token_texts == ["Hello"]
+        assert result.token_texts == ("Hello",)
         assert result.tokens[0].space_after is False
 
     def test_space_after_flags(self) -> None:
@@ -120,35 +120,35 @@ class TestTokenizedText:
     def test_token_texts(self) -> None:
         """Test token_texts property."""
         result = TokenizedText(
-            tokens=[
+            tokens=(
                 DisplayToken(text="The", start_char=0, end_char=3),
                 DisplayToken(text="cat", start_char=4, end_char=7),
-            ],
+            ),
             original_text="The cat",
         )
 
-        assert result.token_texts == ["The", "cat"]
+        assert result.token_texts == ("The", "cat")
 
     def test_space_after_flags(self) -> None:
         """Test space_after_flags property."""
         result = TokenizedText(
-            tokens=[
+            tokens=(
                 DisplayToken(text="The", space_after=True, start_char=0, end_char=3),
                 DisplayToken(text="cat", space_after=False, start_char=4, end_char=7),
-            ],
+            ),
             original_text="The cat",
         )
 
-        assert result.space_after_flags == [True, False]
+        assert result.space_after_flags == (True, False)
 
     def test_render(self) -> None:
         """Test render reconstructs text."""
         result = TokenizedText(
-            tokens=[
+            tokens=(
                 DisplayToken(text="The", space_after=True, start_char=0, end_char=3),
                 DisplayToken(text="cat", space_after=True, start_char=4, end_char=7),
                 DisplayToken(text="sat.", space_after=False, start_char=8, end_char=12),
-            ],
+            ),
             original_text="The cat sat.",
         )
 
@@ -157,9 +157,9 @@ class TestTokenizedText:
     def test_render_no_trailing_space(self) -> None:
         """Test render strips trailing spaces."""
         result = TokenizedText(
-            tokens=[
+            tokens=(
                 DisplayToken(text="hello", space_after=True, start_char=0, end_char=5),
-            ],
+            ),
             original_text="hello ",
         )
 
@@ -175,13 +175,12 @@ class TestCreateTokenizer:
         tokenizer = create_tokenizer(config)
 
         result = tokenizer("Hello world")
-        assert result.token_texts == ["Hello", "world"]
+        assert result.token_texts == ("Hello", "world")
 
     def test_unknown_backend_raises(self) -> None:
         """Test that unknown backend raises ValueError."""
-        # Pydantic validation will reject invalid Literal values
-        with pytest.raises(ValidationError):
-            TokenizerConfig(backend="unknown")
+        with pytest.raises(dx.ValidationError):
+            TokenizerConfig.model_validate({"backend": "unknown"})
 
     def test_spacy_backend_without_install(self) -> None:
         """Test that spaCy backend works or raises ImportError gracefully."""

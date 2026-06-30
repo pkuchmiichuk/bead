@@ -18,6 +18,7 @@ from bead.items.item import Item
 from bead.items.item_template import (
     ItemTemplate,
     PresentationSpec,
+    ScaleBounds,
     TaskSpec,
 )
 from bead.simulation.annotators.base import SimulatedAnnotator
@@ -52,7 +53,7 @@ def ordinal_scale_template() -> ItemTemplate:
         task_type="ordinal_scale",
         task_spec=TaskSpec(
             prompt="Rate from 1-7",
-            scale_bounds=(1, 7),
+            scale_bounds=ScaleBounds(min=1, max=7),
         ),
         presentation_spec=PresentationSpec(mode="static"),
     )

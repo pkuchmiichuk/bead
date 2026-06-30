@@ -6,15 +6,15 @@ This guide walks you through setting up a development environment for contributi
 
 ### Required Software
 
-bead requires Python 3.13+ for modern type hint syntax (PEP 695 generic type parameters). Check your version:
+bead requires Python 3.14+ for modern type hint syntax (PEP 695 generic type parameters). Check your version:
 
 ```bash
-python3 --version  # Should show 3.13.0 or higher
+python3 --version  # Should show 3.14.0 or higher
 ```
 
-If you need to install Python 3.13:
+If you need to install Python 3.14:
 
-- **macOS**: `brew install python@3.13`
+- **macOS**: `brew install python@3.14`
 - **Linux**: Install from source or use pyenv
 - **Windows**: Download from python.org
 
@@ -282,7 +282,7 @@ This performs static type analysis, catching:
 ```toml
 [tool.pyright]
 typeCheckingMode = "strict"
-pythonVersion = "3.13"
+pythonVersion = "3.14"
 exclude = [
     "tests/**",  # Tests don't require full type checking
     "bead/active_learning/**",
@@ -333,7 +333,7 @@ This runs all 143 test files. Expected output:
 
 ```
 ============================= test session starts ==============================
-platform darwin -- Python 3.13.0, pytest-7.4.3, pluggy-1.3.0
+platform darwin -- Python 3.14.0, pytest-7.4.3, pluggy-1.3.0
 rootdir: /path/to/bead
 configfile: pyproject.toml
 plugins: cov-4.1.0, mock-3.11.0
@@ -393,7 +393,7 @@ uv run pytest tests/ --cov=bead --cov-report=term-missing
 This shows code coverage with line numbers of uncovered code:
 
 ```
----------- coverage: platform darwin, python 3.13.0 -----------
+---------- coverage: platform darwin, python 3.14.0 -----------
 Name                                   Stmts   Miss  Cover   Missing
 --------------------------------------------------------------------
 bead/__init__.py                           3      0   100%
@@ -553,16 +553,16 @@ If all checks pass, your development environment is ready.
 
 ### Python Version Issues
 
-**Problem**: `uv sync` fails with "Requires Python >=3.13"
+**Problem**: `uv sync` fails with "Requires Python >=3.14"
 
-**Solution**: Install Python 3.13:
+**Solution**: Install Python 3.14:
 ```bash
 # macOS
-brew install python@3.13
+brew install python@3.14
 
 # Linux (pyenv)
-pyenv install 3.13.0
-pyenv local 3.13.0
+pyenv install 3.14.0
+pyenv local 3.14.0
 
 # Windows
 # Download from python.org
@@ -600,7 +600,7 @@ uv run pyright bead/
 **Problem**: Tests fail immediately after cloning
 
 **Solution**:
-1. Ensure Python 3.13+ is available
+1. Ensure Python 3.14+ is available
 2. Reinstall dependencies: `uv sync --all-extras --reinstall`
 3. Clear pytest cache: `rm -rf .pytest_cache`
 4. Run tests again: `uv run pytest tests/`

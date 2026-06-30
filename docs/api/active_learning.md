@@ -26,6 +26,17 @@ Stage 6 of the bead pipeline: active learning with GLMM support and convergence 
       show_root_heading: true
       show_source: false
 
+## Model Registry
+
+Single canonical task-type → model-class and task-type → config-class
+mapping used by the CLI training commands and the protocol-encoding
+factory.
+
+::: bead.active_learning.models.registry
+    options:
+      show_root_heading: true
+      show_source: false
+
 ## Base Model Interface
 
 ::: bead.active_learning.models.base

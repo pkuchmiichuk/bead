@@ -29,19 +29,23 @@ class TestGetForcedChoiceTemplate:
     """Test suite for get_forced_choice_template function."""
 
     def test_returns_valid_template(self) -> None:
-        """Test that function returns valid ItemTemplate."""
+        """Test that function returns a forced-choice ItemTemplate from the protocol."""
         template = get_forced_choice_template()
 
-        assert template.name == "2AFC Forced Choice"
+        # Template name comes from the protocol anchor (acceptability)
+        assert template.name == "acceptability"
         assert template.task_type == "forced_choice"
-        assert template.judgment_type == "preference"
+        assert template.judgment_type == "acceptability"
 
     def test_template_has_required_task_spec(self) -> None:
-        """Test that template has proper task spec with options."""
+        """Test that template has the prompt declared in config.yaml."""
         template = get_forced_choice_template()
 
         assert template.task_spec.prompt == "Which sentence sounds more natural?"
-        assert template.task_spec.options == ["option_a", "option_b"]
+        # ``get_forced_choice_template`` enriches the bare protocol
+        # template with response-space labels so the simulator can
+        # sample from them.
+        assert template.task_spec.options == ("first", "second")
 
     def test_template_presentation_spec(self) -> None:
         """Test that template has static presentation mode."""

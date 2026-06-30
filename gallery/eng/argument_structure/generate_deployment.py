@@ -35,12 +35,11 @@ from bead.deployment.jatos.exporter import JATOSExporter
 from bead.deployment.jspsych.config import ChoiceConfig, ExperimentConfig
 from bead.deployment.jspsych.generator import JsPsychExperimentGenerator
 from bead.items.item import Item
-from bead.items.item_template import (
-    ItemTemplate,
-    PresentationSpec,
-    TaskSpec,
-)
+from bead.items.item_template import ItemTemplate
 from bead.lists import ExperimentList, ListCollection
+from bead.protocol.items import family_to_item_template
+
+from protocol import acceptability_family, build_protocol
 
 
 def load_config(config_path: Path) -> dict:
@@ -72,23 +71,15 @@ def load_items_by_uuid(pairs_path: Path) -> dict[UUID, Item]:
     return items_dict
 
 
-def create_minimal_item_template() -> ItemTemplate:
-    """Create a minimal ItemTemplate for 2AFC forced choice items.
+def create_minimal_item_template(config_path: Path) -> ItemTemplate:
+    """Build the 2AFC ItemTemplate from the protocol declared in config.yaml.
 
-    Since our 2AFC items are already fully rendered, we just need a minimal
-    template to satisfy the deployment generator's requirements.
+    The template's prompt, response options, and judgment type are pulled
+    from the ``protocol.families[].anchor`` block via the canonical
+    :func:`bead.protocol.items.family_to_item_template` bridge.
     """
-    return ItemTemplate(
-        name="2afc_forced_choice",
-        description="Two-alternative forced choice item",
-        judgment_type="acceptability",
-        task_type="forced_choice",
-        task_spec=TaskSpec(
-            prompt="Which sentence sounds more natural?",
-            options=["Option A", "Option B"],
-        ),
-        presentation_spec=PresentationSpec(mode="static"),
-    )
+    family = acceptability_family(build_protocol(config_path))
+    return family_to_item_template(family, judgment_type="acceptability")
 
 
 def main() -> None:
@@ -159,7 +150,7 @@ def main() -> None:
     # Create minimal template
     console.print()
     print_header("[4/6] Creating Item Template")
-    template = create_minimal_item_template()
+    template = create_minimal_item_template(config_path)
     templates_dict = {template.id: template}
     print_success("Created minimal ItemTemplate for 2AFC items\n")
 

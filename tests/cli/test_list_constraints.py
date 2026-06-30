@@ -354,7 +354,14 @@ class TestBatchCoverageConstraint:
         assert result.exit_code == 0
         constraint = BatchCoverageConstraint.model_validate_json(output.read_text())
         assert constraint.property_expression == "item.metadata.template_id"
-        assert constraint.target_values == ["0", "1", "2", "3", "4", "5"]
+        assert constraint.target_values == (
+            "0",
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+        )
         assert constraint.min_coverage == 1.0
 
 

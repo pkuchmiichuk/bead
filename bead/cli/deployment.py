@@ -12,7 +12,7 @@ from typing import cast
 from uuid import UUID
 
 import click
-from pydantic import ValidationError
+from didactic.api import ValidationError
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
@@ -27,7 +27,12 @@ from bead.deployment.jatos.exporter import JATOSExporter
 from bead.deployment.jspsych.config import ExperimentConfig
 from bead.deployment.jspsych.generator import JsPsychExperimentGenerator
 from bead.items.item import Item
-from bead.items.item_template import ItemTemplate, PresentationSpec, TaskSpec
+from bead.items.item_template import (
+    ItemTemplate,
+    PresentationSpec,
+    ScaleBounds,
+    TaskSpec,
+)
 from bead.lists import ExperimentList
 
 console = Console()
@@ -237,8 +242,7 @@ def generate(
                 line = line.strip()
                 if not line:
                     continue
-                list_data = json.loads(line)
-                exp_list = ExperimentList(**list_data)
+                exp_list = ExperimentList.model_validate_json(line)
                 experiment_lists.append(exp_list)
 
         if not experiment_lists:
@@ -255,8 +259,7 @@ def generate(
                 line = line.strip()
                 if not line:
                     continue
-                item_data = json.loads(line)
-                item = Item(**item_data)
+                item = Item.model_validate_json(line)
                 items_dict[item.id] = item
 
         print_info(f"Loaded {len(items_dict)} items")
@@ -276,7 +279,7 @@ def generate(
                 task_type="ordinal_scale",
                 task_spec=TaskSpec(
                     prompt="Rate this item.",
-                    scale_bounds=(1, 7),
+                    scale_bounds=ScaleBounds(min=1, max=7),
                 ),
                 presentation_spec=PresentationSpec(mode="static"),
             )
@@ -284,11 +287,17 @@ def generate(
         print_info(f"Created {len(templates_dict)} stub templates for deployment")
 
         # Create experiment config with distribution strategy
+        from bead.deployment.jspsych.config import InstructionsConfig  # noqa: PLC0415
+
         config = ExperimentConfig(
             experiment_type=experiment_type,  # type: ignore
             title=title,
             description=description,
-            instructions=instructions,
+            instructions=(
+                instructions
+                if not isinstance(instructions, str)
+                else InstructionsConfig.from_text(instructions)
+            ),
             distribution_strategy=dist_strategy,
         )
 
@@ -343,7 +352,12 @@ def generate(
         print_error(f"Validation error: {e}")
         ctx.exit(1)
     except Exception as e:
-        print_error(f"Failed to generate experiment: {e}")
+        import traceback  # noqa: PLC0415
+
+        print_error(
+            f"Failed to generate experiment: {type(e).__name__}: {e}\n"
+            + traceback.format_exc()
+        )
         ctx.exit(1)
 
 

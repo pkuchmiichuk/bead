@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from uuid import uuid4
 
+import didactic.api as dx
 import pytest
 
 from bead.items.item import Item
@@ -88,18 +89,26 @@ class TestCreateMagnitudeItem:
 
     def test_empty_text_raises_error(self) -> None:
         """Test that empty text raises error."""
-        with pytest.raises(ValueError, match="text cannot be empty"):
+        with pytest.raises(
+            (ValueError, dx.ValidationError), match="text cannot be empty"
+        ):
             create_magnitude_item("")
 
-        with pytest.raises(ValueError, match="text cannot be empty"):
+        with pytest.raises(
+            (ValueError, dx.ValidationError), match="text cannot be empty"
+        ):
             create_magnitude_item("   ")
 
     def test_invalid_bounds_raises_error(self) -> None:
         """Test that invalid bounds raise error."""
-        with pytest.raises(ValueError, match="min_value.*must be less than"):
+        with pytest.raises(
+            (ValueError, dx.ValidationError), match="min_value.*must be less than"
+        ):
             create_magnitude_item("Text", bounds=(100, 100))
 
-        with pytest.raises(ValueError, match="min_value.*must be less than"):
+        with pytest.raises(
+            (ValueError, dx.ValidationError), match="min_value.*must be less than"
+        ):
             create_magnitude_item("Text", bounds=(100, 50))
 
     def test_with_custom_template_id(self) -> None:

@@ -45,8 +45,11 @@ from bead.config.simulation import NoiseModelConfig, SimulatedAnnotatorConfig
 from bead.evaluation.convergence import ConvergenceDetector
 from bead.evaluation.interannotator import InterAnnotatorMetrics
 from bead.items.item import Item
-from bead.items.item_template import ItemTemplate, PresentationSpec, TaskSpec
+from bead.items.item_template import ItemTemplate
+from bead.protocol.items import family_to_item_template
 from bead.simulation.annotators.base import SimulatedAnnotator
+
+from protocol import acceptability_family, build_protocol
 
 
 def load_2afc_pairs(path: Path, limit: int | None = None, skip: int = 0) -> list[Item]:
@@ -66,35 +69,37 @@ def load_2afc_pairs(path: Path, limit: int | None = None, skip: int = 0) -> list
     list[Item]
         List of items
     """
-    items = []
+    items: list[Item] = []
     with open(path) as f:
         for i, line in enumerate(f):
             if i < skip:
                 continue
             if limit and (i - skip) >= limit:
                 break
-            data = json.loads(line)
-            items.append(Item(**data))
+            items.append(Item.model_validate_json(line))
     return items
 
 
-def get_forced_choice_template() -> ItemTemplate:
-    """Create ItemTemplate for 2AFC forced choice task.
+_CONFIG_PATH = Path(__file__).resolve().parent / "config.yaml"
 
-    Returns
-    -------
-    ItemTemplate
-        Template configured for forced_choice task using proper TaskSpec
+
+def get_forced_choice_template() -> ItemTemplate:
+    """Build the 2AFC ItemTemplate from the configured protocol.
+
+    The prompt and task-type come from the
+    ``protocol.families[].anchor`` declaration in ``config.yaml``
+    via :func:`bead.protocol.items.family_to_item_template`. The
+    canonical bridge leaves ``task_spec.options`` unset because the
+    per-item alternatives (the two sentences) live on each
+    :class:`Item`; the simulator however samples from response-space
+    labels (``"first"`` / ``"second"``), so we splice those onto
+    ``task_spec.options`` here.
     """
-    return ItemTemplate(
-        name="2AFC Forced Choice",
-        judgment_type="preference",
-        task_type="forced_choice",
-        task_spec=TaskSpec(
-            prompt="Which sentence sounds more natural?",
-            options=["option_a", "option_b"],
-        ),
-        presentation_spec=PresentationSpec(mode="static"),
+    family = acceptability_family(build_protocol(_CONFIG_PATH))
+    template = family_to_item_template(family, judgment_type="acceptability")
+    response_options = tuple(family.anchor.response_space.options)
+    return template.with_(
+        task_spec=template.task_spec.with_(options=response_options)
     )
 
 
@@ -227,10 +232,10 @@ def run_simulation(
     # compute simulated human agreement (sample twice with different seeds)
     # create two new annotators with different random states for agreement calculation
     annotator_sample1 = SimulatedAnnotator.from_config(
-        annotator_config.model_copy(update={"random_state": (random_state or 0) + 1000})
+        annotator_config.with_(random_state=(random_state or 0) + 1000)
     )
     annotator_sample2 = SimulatedAnnotator.from_config(
-        annotator_config.model_copy(update={"random_state": (random_state or 0) + 2000})
+        annotator_config.with_(random_state=(random_state or 0) + 2000)
     )
 
     sample1 = annotator_sample1.annotate_batch(initial_items, item_template)

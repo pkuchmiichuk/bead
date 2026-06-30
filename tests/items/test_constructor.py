@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from uuid import uuid4
 
+import didactic.api as dx
 import numpy as np
 import pytest
 
@@ -17,6 +18,7 @@ from bead.items.item_template import (
     ItemElement,
     ItemTemplate,
     PresentationSpec,
+    ScaleBounds,
     TaskSpec,
 )
 from bead.resources.constraints import Constraint
@@ -163,7 +165,9 @@ class TestItemConstructor:
             ],
         )
 
-        with pytest.raises(ValueError, match="references missing"):
+        with pytest.raises(
+            (ValueError, dx.ValidationError), match="references missing"
+        ):
             constructor._render_elements(template, {})
 
     def test_render_elements_multiple(self, constructor) -> None:
@@ -225,8 +229,8 @@ class TestItemConstructor:
         item = items[0]
         assert item.item_template_id == template.id
         assert item.rendered_elements == {"sentence": "Test sentence"}
-        assert item.constraint_satisfaction == {}
-        assert item.model_outputs == []
+        assert item.constraint_satisfaction == ()
+        assert item.model_outputs == ()
 
     def test_construct_items_with_dsl_constraint(self, constructor) -> None:
         """Test constructing items with DSL constraint."""
@@ -257,8 +261,9 @@ class TestItemConstructor:
 
         assert len(items) == 1
         item = items[0]
-        assert constraint_id in item.constraint_satisfaction
-        assert item.constraint_satisfaction[constraint_id] is True
+        by_id = {cs.constraint_id: cs.satisfied for cs in item.constraint_satisfaction}
+        assert constraint_id in by_id
+        assert by_id[constraint_id] is True
 
     def test_construct_items_constraint_not_satisfied(self, constructor) -> None:
         """Test that items failing constraints are not yielded."""
@@ -429,7 +434,7 @@ class TestItemConstructor:
             constraints=[constraint_id],
         )
 
-        with pytest.raises(ValueError, match="not found"):
+        with pytest.raises((ValueError, dx.ValidationError), match="not found"):
             constructor._check_constraints(template, {}, [], {})
 
     def test_compute_model_outputs_missing_constraint(self, constructor) -> None:
@@ -444,7 +449,7 @@ class TestItemConstructor:
             constraints=[constraint_id],
         )
 
-        with pytest.raises(ValueError, match="not found"):
+        with pytest.raises((ValueError, dx.ValidationError), match="not found"):
             constructor._compute_model_outputs(template, {}, {})
 
     def test_construct_items_preserves_filled_refs(self, constructor) -> None:
@@ -476,7 +481,7 @@ class TestItemConstructor:
         items = list(constructor.construct_items(template, {ref_id: filled}, {}))
 
         assert len(items) == 1
-        assert items[0].filled_template_refs == [ref_id]
+        assert items[0].filled_template_refs == (ref_id,)
 
     def test_construct_items_yields_iterator(self, constructor) -> None:
         """Test that construct_items returns an iterator."""
@@ -585,7 +590,9 @@ class TestIntegration:
             name="acceptability_test",
             judgment_type="acceptability",
             task_type="ordinal_scale",
-            task_spec=TaskSpec(prompt="How natural?", scale_bounds=(1, 7)),
+            task_spec=TaskSpec(
+                prompt="How natural?", scale_bounds=ScaleBounds(min=1, max=7)
+            ),
             presentation_spec=PresentationSpec(mode="static"),
             elements=[
                 ItemElement(
@@ -607,7 +614,9 @@ class TestIntegration:
         item = items[0]
         assert item.rendered_elements["sentence"] == "The cat sat on the mat"
         assert len(item.model_outputs) > 0
-        assert item.constraint_satisfaction[constraint_id] is True
+        assert {cs.constraint_id: cs.satisfied for cs in item.constraint_satisfaction}[
+            constraint_id
+        ] is True
 
     def test_multiple_constraints(self, constructor) -> None:
         """Test item construction with multiple constraints."""
@@ -634,5 +643,8 @@ class TestIntegration:
         items = list(constructor.construct_items(template, {}, {c1_id: c1, c2_id: c2}))
 
         assert len(items) == 1
-        assert items[0].constraint_satisfaction[c1_id] is True
-        assert items[0].constraint_satisfaction[c2_id] is True
+        cs_map = {
+            cs.constraint_id: cs.satisfied for cs in items[0].constraint_satisfaction
+        }
+        assert cs_map[c1_id] is True
+        assert cs_map[c2_id] is True

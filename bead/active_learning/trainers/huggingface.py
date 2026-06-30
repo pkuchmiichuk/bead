@@ -222,13 +222,25 @@ class HuggingFaceTrainer(BaseTrainer):
             best_checkpoint = Path(trainer.state.best_model_checkpoint)
 
         # Create metadata
-        config_dict = (
-            self.config
-            if isinstance(self.config, dict)
-            else (
-                self.config.model_dump() if hasattr(self.config, "model_dump") else {}
-            )
-        )
+        # Build a JSON-shaped (Path -> str) view of the training config so
+        # ModelMetadata.training_config (typed dict[str, JsonValue]) accepts it.
+        if isinstance(self.config, dict):
+            raw_dict = self.config
+        elif hasattr(self.config, "model_dump"):
+            raw_dict = self.config.model_dump()
+        else:
+            raw_dict = {}
+
+        def _coerce(v: object) -> object:
+            if isinstance(v, Path):
+                return str(v)
+            if isinstance(v, dict):
+                return {k: _coerce(x) for k, x in v.items()}
+            if isinstance(v, list | tuple):
+                return [_coerce(x) for x in v]
+            return v
+
+        config_dict = {k: _coerce(v) for k, v in raw_dict.items()}
 
         metadata = ModelMetadata(
             model_name=model_name,

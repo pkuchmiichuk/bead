@@ -1,7 +1,7 @@
 """Configuration profiles for the bead package.
 
-This module provides pre-configured profiles for different environments
-(development, production, testing) with optimized settings for each use case.
+Pre-configured profiles for different environments (development,
+production, testing) with optimized settings for each use case.
 """
 
 from __future__ import annotations
@@ -24,7 +24,6 @@ from bead.config.paths import PathsConfig
 from bead.config.resources import ResourceConfig
 from bead.config.template import TemplateConfig
 
-# development profile: verbose logging, small batches, relative paths
 DEV_CONFIG = BeadConfig(
     profile="dev",
     paths=PathsConfig(
@@ -35,21 +34,21 @@ DEV_CONFIG = BeadConfig(
         create_dirs=True,
     ),
     resources=ResourceConfig(
-        cache_external=False,  # disable caching for development
+        cache_external=False,
     ),
     templates=TemplateConfig(
         filling_strategy="exhaustive",
-        batch_size=100,  # small batch size for quick iteration
+        batch_size=100,
         stream_mode=False,
     ),
     items=ItemConfig(
         model=ModelConfig(
             provider="huggingface",
             model_name="gpt2",
-            batch_size=4,  # small batch for development
+            batch_size=4,
             device="cpu",
         ),
-        parallel_processing=False,  # simpler debugging without parallelism
+        parallel_processing=False,
     ),
     lists=ListConfig(
         num_lists=1,
@@ -57,37 +56,20 @@ DEV_CONFIG = BeadConfig(
     deployment=DeploymentConfig(),
     active_learning=ActiveLearningConfig(
         forced_choice_model=ForcedChoiceModelConfig(
-            num_epochs=1,  # quick training for testing
+            num_epochs=1,
             batch_size=8,
             learning_rate=2e-5,
         ),
         trainer=TrainerConfig(epochs=1),
     ),
     logging=LoggingConfig(
-        level="DEBUG",  # verbose logging for development
+        level="DEBUG",
         console=True,
     ),
 )
-"""Development configuration profile.
+"""Development configuration profile."""
 
-Optimized for:
-- Quick iteration and debugging
-- Verbose logging (DEBUG level)
-- Small batch sizes for fast feedback
-- No caching for fresh data
-- Simple single-threaded processing
-- Temporary directories for easy cleanup
 
-Examples
---------
->>> from bead.config.profiles import DEV_CONFIG
->>> DEV_CONFIG.logging.level
-'DEBUG'
->>> DEV_CONFIG.templates.batch_size
-100
-"""
-
-# production profile: optimized settings, large batches, absolute paths
 PROD_CONFIG = BeadConfig(
     profile="prod",
     paths=PathsConfig(
@@ -98,22 +80,22 @@ PROD_CONFIG = BeadConfig(
         create_dirs=True,
     ),
     resources=ResourceConfig(
-        cache_external=True,  # enable caching for performance
+        cache_external=True,
     ),
     templates=TemplateConfig(
         filling_strategy="exhaustive",
-        batch_size=10000,  # large batches for efficiency
-        stream_mode=True,  # handle large templates efficiently
+        batch_size=10000,
+        stream_mode=True,
     ),
     items=ItemConfig(
         model=ModelConfig(
             provider="huggingface",
             model_name="gpt2",
-            batch_size=32,  # large batch for production
-            device="cuda",  # use GPU if available
+            batch_size=32,
+            device="cuda",
         ),
-        parallel_processing=True,  # enable parallelism
-        num_workers=8,  # multiple workers
+        parallel_processing=True,
+        num_workers=8,
     ),
     lists=ListConfig(
         num_lists=1,
@@ -125,42 +107,21 @@ PROD_CONFIG = BeadConfig(
     ),
     active_learning=ActiveLearningConfig(
         forced_choice_model=ForcedChoiceModelConfig(
-            num_epochs=10,  # full training
+            num_epochs=10,
             batch_size=32,
             learning_rate=2e-5,
         ),
         trainer=TrainerConfig(epochs=10, use_wandb=True),
     ),
     logging=LoggingConfig(
-        level="WARNING",  # minimal logging for production
-        console=False,  # log to file only
+        level="WARNING",
+        console=False,
         file=Path("/var/log/bead/app.log"),
     ),
 )
-"""Production configuration profile.
+"""Production configuration profile."""
 
-Optimized for:
-- Maximum performance and throughput
-- Large batch sizes for efficiency
-- GPU acceleration (when available)
-- Parallel processing
-- External caching enabled
-- Minimal logging (WARNING level)
-- Absolute paths to production directories
-- Metrics tracking with W&B
 
-Examples
---------
->>> from bead.config.profiles import PROD_CONFIG
->>> PROD_CONFIG.logging.level
-'WARNING'
->>> PROD_CONFIG.templates.batch_size
-10000
->>> PROD_CONFIG.items.parallel_processing
-True
-"""
-
-# test profile: minimal logging, tiny batches, temp directories
 TEST_CONFIG = BeadConfig(
     profile="test",
     paths=PathsConfig(
@@ -171,150 +132,76 @@ TEST_CONFIG = BeadConfig(
         create_dirs=True,
     ),
     resources=ResourceConfig(
-        cache_external=False,  # no caching for tests
+        cache_external=False,
     ),
     templates=TemplateConfig(
         filling_strategy="exhaustive",
-        batch_size=10,  # tiny batches for fast tests
-        max_combinations=100,  # limit for tests
-        random_seed=42,  # reproducible tests
+        batch_size=10,
+        max_combinations=100,
+        random_seed=42,
     ),
     items=ItemConfig(
         model=ModelConfig(
             provider="huggingface",
             model_name="gpt2",
-            batch_size=1,  # minimal batch for tests
-            device="cpu",  # CPU only for tests
+            batch_size=1,
+            device="cpu",
         ),
-        parallel_processing=False,  # simpler test execution
+        parallel_processing=False,
         num_workers=1,
     ),
     lists=ListConfig(
         num_lists=1,
-        random_seed=42,  # reproducible tests
+        random_seed=42,
     ),
     deployment=DeploymentConfig(
-        apply_material_design=False,  # minimal for tests
+        apply_material_design=False,
         include_demographics=False,
         include_attention_checks=False,
     ),
     active_learning=ActiveLearningConfig(
         forced_choice_model=ForcedChoiceModelConfig(
-            num_epochs=1,  # minimal training
+            num_epochs=1,
             batch_size=2,
             learning_rate=2e-5,
         ),
         trainer=TrainerConfig(epochs=1, use_wandb=False),
     ),
     logging=LoggingConfig(
-        level="CRITICAL",  # minimal logging for tests
-        console=False,  # quiet tests
+        level="CRITICAL",
+        console=False,
     ),
 )
-"""Test configuration profile.
+"""Test configuration profile."""
 
-Optimized for:
-- Fast test execution
-- Reproducibility (fixed random seeds)
-- Minimal resource usage
-- Tiny batch sizes
-- Temporary directories for isolation
-- Minimal logging (CRITICAL level)
-- No external dependencies
-- CPU-only execution
 
-Examples
---------
->>> from bead.config.profiles import TEST_CONFIG
->>> TEST_CONFIG.logging.level
-'CRITICAL'
->>> TEST_CONFIG.templates.batch_size
-10
->>> TEST_CONFIG.templates.random_seed
-42
-"""
-
-# profile registry
 PROFILES: dict[str, BeadConfig] = {
-    "default": BeadConfig(),  # default from models
+    "default": BeadConfig(),
     "dev": DEV_CONFIG,
     "prod": PROD_CONFIG,
     "test": TEST_CONFIG,
 }
-"""Registry of all available configuration profiles.
-
-Maps profile names to their corresponding BeadConfig instances.
-
-Examples
---------
->>> from bead.config.profiles import PROFILES
->>> list(PROFILES.keys())
-['default', 'dev', 'prod', 'test']
->>> PROFILES["dev"].logging.level
-'DEBUG'
-"""
+"""Registry of all available configuration profiles."""
 
 
 def get_profile(name: str) -> BeadConfig:
-    """Get configuration profile by name.
+    """Return the configuration profile registered under *name*.
 
-    Parameters
-    ----------
-    name : str
-        Profile name. Must be one of: 'default', 'dev', 'prod', 'test'.
-
-    Returns
-    -------
-    BeadConfig
-        Configuration for the specified profile.
+    didactic Models are frozen, so the returned instance is shared with
+    the registry; callers can pass it to ``with_(...)`` to derive
+    overrides without affecting other consumers.
 
     Raises
     ------
     ValueError
-        If profile name is not found in the registry.
-
-    Examples
-    --------
-    >>> from bead.config.profiles import get_profile
-    >>> config = get_profile("dev")
-    >>> config.profile
-    'dev'
-    >>> config.logging.level
-    'DEBUG'
-
-    >>> try:
-    ...     get_profile("invalid")
-    ... except ValueError as e:
-    ...     print(str(e))
-    Profile 'invalid' not found. Available profiles: default, dev, prod, test
+        If *name* is not a registered profile.
     """
     if name not in PROFILES:
         available = ", ".join(sorted(PROFILES.keys()))
-        msg = f"Profile {name!r} not found. Available profiles: {available}"
-        raise ValueError(msg)
-
-    return PROFILES[name].model_copy(deep=True)
+        raise ValueError(f"Profile {name!r} not found. Available profiles: {available}")
+    return PROFILES[name].with_()
 
 
 def list_profiles() -> list[str]:
-    """Return list of available profile names.
-
-    Returns
-    -------
-    list[str]
-        List of available profile names, sorted alphabetically.
-
-    Examples
-    --------
-    >>> from bead.config.profiles import list_profiles
-    >>> profiles = list_profiles()
-    >>> "default" in profiles
-    True
-    >>> "dev" in profiles
-    True
-    >>> "prod" in profiles
-    True
-    >>> "test" in profiles
-    True
-    """
+    """Return the registered profile names, sorted."""
     return sorted(PROFILES.keys())

@@ -34,8 +34,7 @@ class TestFixedEffectsMode:
         model = MultiSelectModel(config)
 
         # Fixed effects: use placeholder participant_ids
-        participant_ids = ["default"] * len(sample_items)
-        metrics = model.train(sample_items, sample_labels, participant_ids)
+        metrics = model.train(sample_items, sample_labels)
 
         assert "train_accuracy" in metrics
         assert "train_loss" in metrics
@@ -54,12 +53,10 @@ class TestFixedEffectsMode:
             mixed_effects=MixedEffectsConfig(mode="fixed"),
         )
         model = MultiSelectModel(config)
-
-        participant_ids = ["default"] * len(sample_items)
-        model.train(sample_items, sample_labels, participant_ids)
+        model.train(sample_items, sample_labels)
 
         # Predict with same participant_ids
-        predictions = model.predict(sample_items[:5], participant_ids[:5])
+        predictions = model.predict(sample_items[:5])
 
         assert len(predictions) == 5
         for pred in predictions:
@@ -89,14 +86,17 @@ class TestFixedEffectsMode:
     def test_length_mismatch_raises_error(
         self, sample_items: list[Item], sample_labels: list[str]
     ) -> None:
-        """Test that length mismatch between items and participant_ids raises error."""
+        """Length mismatch between items and participant_ids raises."""
         config = MultiSelectModelConfig(
-            model_name="bert-base-uncased", num_epochs=1, device="cpu"
+            model_name="bert-base-uncased",
+            num_epochs=1,
+            device="cpu",
+            mixed_effects=MixedEffectsConfig(mode="random_intercepts"),
         )
         model = MultiSelectModel(config)
 
         # Mismatched lengths
-        participant_ids = ["default"] * (len(sample_items) - 1)
+        participant_ids = ["alice"] * (len(sample_items) - 1)
 
         with pytest.raises(ValueError, match="Length mismatch"):
             model.train(sample_items, sample_labels, participant_ids)
@@ -104,14 +104,17 @@ class TestFixedEffectsMode:
     def test_empty_participant_id_raises_error(
         self, sample_items: list[Item], sample_labels: list[str]
     ) -> None:
-        """Test that empty participant_id raises error."""
+        """Empty participant_id strings raise."""
         config = MultiSelectModelConfig(
-            model_name="bert-base-uncased", num_epochs=1, device="cpu"
+            model_name="bert-base-uncased",
+            num_epochs=1,
+            device="cpu",
+            mixed_effects=MixedEffectsConfig(mode="random_intercepts"),
         )
         model = MultiSelectModel(config)
 
         # Include empty participant_id
-        participant_ids = ["alice", "", "bob"] + ["default"] * (len(sample_items) - 3)
+        participant_ids = ["alice", "", "bob"] + ["x"] * (len(sample_items) - 3)
 
         with pytest.raises(ValueError, match="cannot contain empty strings"):
             model.train(sample_items, sample_labels, participant_ids)
@@ -471,11 +474,9 @@ class TestMultiLabelSpecifics:
             mixed_effects=MixedEffectsConfig(mode="fixed"),
         )
         model = MultiSelectModel(config)
+        model.train(sample_items, sample_labels)
 
-        participant_ids = ["default"] * len(sample_items)
-        model.train(sample_items, sample_labels, participant_ids)
-
-        predictions = model.predict([sample_items[0]], [participant_ids[0]])
+        predictions = model.predict([sample_items[0]])
 
         # Probabilities are independent - sum may not be 1.0
         prob_sum = sum(predictions[0].probabilities.values())
@@ -496,11 +497,9 @@ class TestMultiLabelSpecifics:
             mixed_effects=MixedEffectsConfig(mode="fixed"),
         )
         model = MultiSelectModel(config)
+        model.train(sample_items[:10], labels)
 
-        participant_ids = ["default"] * len(sample_items[:10])
-        model.train(sample_items[:10], labels, participant_ids)
-
-        predictions = model.predict([sample_items[0]], [participant_ids[0]])
+        predictions = model.predict([sample_items[0]])
 
         # Should return a prediction (possibly empty)
         selected = json.loads(predictions[0].predicted_class)
@@ -519,11 +518,9 @@ class TestMultiLabelSpecifics:
             mixed_effects=MixedEffectsConfig(mode="fixed"),
         )
         model = MultiSelectModel(config)
+        model.train(sample_items[:10], labels)
 
-        participant_ids = ["default"] * len(sample_items[:10])
-        model.train(sample_items[:10], labels, participant_ids)
-
-        predictions = model.predict([sample_items[0]], [participant_ids[0]])
+        predictions = model.predict([sample_items[0]])
 
         # Should return a prediction
         selected = json.loads(predictions[0].predicted_class)
@@ -541,9 +538,7 @@ class TestMultiLabelSpecifics:
             mixed_effects=MixedEffectsConfig(mode="fixed"),
         )
         model = MultiSelectModel(config)
-
-        participant_ids = ["default"] * len(sample_items)
-        metrics = model.train(sample_items, sample_labels, participant_ids)
+        metrics = model.train(sample_items, sample_labels)
 
         # Hamming accuracy should be in [0, 1]
         assert 0.0 <= metrics["train_accuracy"] <= 1.0
@@ -560,10 +555,8 @@ class TestMultiLabelSpecifics:
         )
         model = MultiSelectModel(config)
 
-        participant_ids = ["default"] * len(sample_items)
-
         with pytest.raises(ValueError, match="valid JSON"):
-            model.train(sample_items, labels_invalid, participant_ids)
+            model.train(sample_items, labels_invalid)
 
     def test_invalid_option_in_label_raises_error(
         self, sample_items: list[Item]
@@ -577,10 +570,8 @@ class TestMultiLabelSpecifics:
         )
         model = MultiSelectModel(config)
 
-        participant_ids = ["default"] * len(sample_items)
-
         with pytest.raises(ValueError, match="Invalid option"):
-            model.train(sample_items, labels_invalid, participant_ids)
+            model.train(sample_items, labels_invalid)
 
 
 class TestDualEncoderMode:
@@ -599,15 +590,13 @@ class TestDualEncoderMode:
             mixed_effects=MixedEffectsConfig(mode="fixed"),
         )
         model = MultiSelectModel(config)
-
-        participant_ids = ["default"] * len(sample_items)
-        metrics = model.train(sample_items, sample_labels, participant_ids)
+        metrics = model.train(sample_items, sample_labels)
 
         assert "train_accuracy" in metrics
         assert "train_loss" in metrics
 
         # Predict with dual encoder
-        predictions = model.predict(sample_items[:3], participant_ids[:3])
+        predictions = model.predict(sample_items[:3])
 
         assert len(predictions) == 3
         for pred in predictions:
@@ -623,10 +612,8 @@ class TestDualEncoderMode:
         )
         model = MultiSelectModel(config)
 
-        participant_ids = ["default"] * len(sample_items)
-
         with pytest.raises(ValueError, match="not trained"):
-            model.predict(sample_items[:1], participant_ids[:1])
+            model.predict(sample_items[:1])
 
     def test_predict_proba_before_training_raises_error(
         self, sample_items: list[Item]
@@ -637,7 +624,5 @@ class TestDualEncoderMode:
         )
         model = MultiSelectModel(config)
 
-        participant_ids = ["default"] * len(sample_items)
-
         with pytest.raises(ValueError, match="not trained"):
-            model.predict_proba(sample_items[:1], participant_ids[:1])
+            model.predict_proba(sample_items[:1])

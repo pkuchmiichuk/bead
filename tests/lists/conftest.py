@@ -11,6 +11,7 @@ from bead.lists import ExperimentList, ListCollection
 from bead.lists.constraints import (
     BalanceConstraint,
     OrderingConstraint,
+    OrderingPair,
     QuantileConstraint,
     SizeConstraint,
     UniquenessConstraint,
@@ -70,7 +71,7 @@ def experiment_list_with_items(sample_item_uuids: list[UUID]) -> ExperimentList:
     """
     exp_list = ExperimentList(name="list_with_items", list_number=1)
     for item_id in sample_item_uuids[:20]:
-        exp_list.add_item(item_id)
+        exp_list = exp_list.with_item(item_id)
     return exp_list
 
 
@@ -84,7 +85,9 @@ def uniqueness_constraint() -> UniquenessConstraint:
         Constraint requiring unique target verbs.
     """
     return UniquenessConstraint(
-        property_expression="item['target_verb']", allow_null=False
+        constraint_type="uniqueness",
+        property_expression="item['target_verb']",
+        allow_null=False,
     )
 
 
@@ -97,7 +100,11 @@ def balance_constraint() -> BalanceConstraint:
     BalanceConstraint
         Constraint for balanced transitivity.
     """
-    return BalanceConstraint(property_expression="item['transitivity']", tolerance=0.1)
+    return BalanceConstraint(
+        constraint_type="balance",
+        property_expression="item['transitivity']",
+        tolerance=0.1,
+    )
 
 
 @pytest.fixture
@@ -110,6 +117,7 @@ def quantile_constraint() -> QuantileConstraint:
         Constraint for LM probability quantiles.
     """
     return QuantileConstraint(
+        constraint_type="quantile",
         property_expression="item['lm_prob']",
         n_quantiles=5,
         items_per_quantile=2,
@@ -125,7 +133,7 @@ def size_constraint_exact() -> SizeConstraint:
     SizeConstraint
         Constraint requiring exactly 40 items.
     """
-    return SizeConstraint(exact_size=40)
+    return SizeConstraint(constraint_type="size", exact_size=40)
 
 
 @pytest.fixture
@@ -137,7 +145,7 @@ def size_constraint_range() -> SizeConstraint:
     SizeConstraint
         Constraint requiring 30-50 items.
     """
-    return SizeConstraint(min_size=30, max_size=50)
+    return SizeConstraint(constraint_type="size", min_size=30, max_size=50)
 
 
 @pytest.fixture
@@ -190,7 +198,7 @@ def sample_list_collection(
         partitioning_strategy="balanced",
         partitioning_config={"n_lists": 1, "seed": 42},
     )
-    collection.add_list(experiment_list_with_items)
+    collection = collection.with_list(experiment_list_with_items)
     return collection
 
 
@@ -203,7 +211,10 @@ def ordering_constraint_precedence() -> OrderingConstraint:
     OrderingConstraint
         Constraint with precedence pairs.
     """
-    return OrderingConstraint(precedence_pairs=[(uuid4(), uuid4())])
+    return OrderingConstraint(
+        constraint_type="ordering",
+        precedence_pairs=(OrderingPair(before=uuid4(), after=uuid4()),),
+    )
 
 
 @pytest.fixture
@@ -216,7 +227,9 @@ def ordering_constraint_no_adjacent() -> OrderingConstraint:
         Constraint preventing adjacent items with same condition.
     """
     return OrderingConstraint(
-        no_adjacent_property="item_metadata.condition", min_distance=2
+        constraint_type="ordering",
+        no_adjacent_property="item_metadata.condition",
+        min_distance=2,
     )
 
 
@@ -230,7 +243,9 @@ def ordering_constraint_blocking() -> OrderingConstraint:
         Constraint that groups items by block type.
     """
     return OrderingConstraint(
-        block_by_property="item_metadata.block_type", randomize_within_blocks=True
+        constraint_type="ordering",
+        block_by_property="item_metadata.block_type",
+        randomize_within_blocks=True,
     )
 
 
@@ -243,7 +258,9 @@ def ordering_constraint_practice() -> OrderingConstraint:
     OrderingConstraint
         Constraint ensuring practice items appear first.
     """
-    return OrderingConstraint(practice_item_property="item_metadata.is_practice")
+    return OrderingConstraint(
+        constraint_type="ordering", practice_item_property="item_metadata.is_practice"
+    )
 
 
 @pytest.fixture

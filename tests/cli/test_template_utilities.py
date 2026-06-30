@@ -89,7 +89,7 @@ def sample_lexicon_file(tmp_path: Path) -> Path:
     ]
 
     for item in items:
-        lexicon.add(item)
+        lexicon = lexicon.with_item(item)
 
     file_path = tmp_path / "lexicon.jsonl"
     lexicon.to_jsonl(str(file_path))
@@ -106,7 +106,7 @@ def sample_template_file(tmp_path: Path) -> Path:
     )
 
     collection = TemplateCollection(name="test_templates")
-    collection.add(template)
+    collection = collection.with_template(template)
 
     file_path = tmp_path / "templates.jsonl"
     collection.to_jsonl(str(file_path))
@@ -148,7 +148,7 @@ class TestFilterFilled:
         assert len(lines) == 1  # Only 1 item >= 15 chars
 
         for line in lines:
-            filled = FilledTemplate(**json.loads(line))
+            filled = FilledTemplate.model_validate_json(line)
             assert len(filled.rendered_text) >= 15
 
     def test_filter_by_max_length(
@@ -196,7 +196,7 @@ class TestFilterFilled:
         assert len(lines) == 2
 
         for line in lines:
-            filled = FilledTemplate(**json.loads(line))
+            filled = FilledTemplate.model_validate_json(line)
             assert filled.template_name == "template1"
 
     def test_filter_by_strategy(
@@ -221,7 +221,7 @@ class TestFilterFilled:
         lines = output.read_text().strip().split("\n")
         assert len(lines) == 1
 
-        filled = FilledTemplate(**json.loads(lines[0]))
+        filled = FilledTemplate.model_validate_json(lines[0])
         assert filled.strategy_name == "random"
 
     def test_filter_combined(
@@ -406,7 +406,7 @@ class TestExportJSON:
 
         # Verify each item is valid
         for item in data:
-            FilledTemplate(**item)  # Validate structure
+            FilledTemplate.model_validate_json(json.dumps(item))
 
     def test_export_pretty(
         self,
@@ -477,7 +477,7 @@ class TestSampleCombinations:
         assert len(lines) == 2
 
         for line in lines:
-            FilledTemplate(**json.loads(line))
+            FilledTemplate.model_validate_json(line)
 
     def test_sample_with_seed(
         self,

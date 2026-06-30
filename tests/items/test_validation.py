@@ -5,14 +5,16 @@ from __future__ import annotations
 
 from uuid import uuid4
 
+import didactic.api as dx
 import pytest
-from pydantic import ValidationError
+from didactic.api import ValidationError
 
-from bead.items.item import Item, ModelOutput
+from bead.items.item import ConstraintSatisfaction, Item, ModelOutput
 from bead.items.item_template import (
     ItemElement,
     ItemTemplate,
     PresentationSpec,
+    ScaleBounds,
     TaskSpec,
 )
 from bead.items.validation import (
@@ -53,11 +55,15 @@ def simple_item(simple_template):
     return Item(
         item_template_id=simple_template.id,
         rendered_elements={"sentence": "Test sentence"},
-        constraint_satisfaction={
-            simple_template.constraints[0]: True,
-            simple_template.constraints[1]: True,
-        },
-        model_outputs=[],
+        constraint_satisfaction=(
+            ConstraintSatisfaction(
+                constraint_id=simple_template.constraints[0], satisfied=True
+            ),
+            ConstraintSatisfaction(
+                constraint_id=simple_template.constraints[1], satisfied=True
+            ),
+        ),
+        model_outputs=(),
     )
 
 
@@ -71,42 +77,45 @@ class TestValidateItem:
 
     def test_template_id_mismatch(self, simple_item, simple_template) -> None:
         """Test detection of template ID mismatch."""
-        simple_item.item_template_id = uuid4()
+        simple_item = simple_item.with_(item_template_id=uuid4())
         errors = validate_item(simple_item, simple_template)
         assert len(errors) == 1
         assert "template ID mismatch" in errors[0]
 
     def test_missing_rendered_elements(self, simple_item, simple_template) -> None:
         """Test detection of missing rendered elements."""
-        simple_item.rendered_elements = {}
+        simple_item = simple_item.with_(rendered_elements={})
         errors = validate_item(simple_item, simple_template)
         assert any("Missing rendered elements" in e for e in errors)
 
     def test_extra_rendered_elements(self, simple_item, simple_template) -> None:
         """Test detection of extra rendered elements."""
-        simple_item.rendered_elements["extra"] = "Extra element"
+        rendered = dict(simple_item.rendered_elements)
+        rendered["extra"] = "Extra element"
+        simple_item = simple_item.with_(rendered_elements=rendered)
         errors = validate_item(simple_item, simple_template)
         assert any("Extra rendered elements" in e for e in errors)
 
     def test_missing_constraint_evaluation(self, simple_item, simple_template) -> None:
         """Test detection of missing constraint evaluations."""
-        simple_item.constraint_satisfaction = {}
+        simple_item = simple_item.with_(constraint_satisfaction=())
         errors = validate_item(simple_item, simple_template)
         assert any("Missing constraint evaluations" in e for e in errors)
 
     def test_invalid_model_output(self, simple_item, simple_template) -> None:
         """Test that invalid model outputs are detected."""
-        # Create a model output with wrong type for operation
-        simple_item.model_outputs = [
-            ModelOutput(
-                model_name="test",
-                model_version="1.0",
-                operation="log_probability",
-                inputs={"text": "test"},
-                output="not a number",  # Invalid: should be numeric
-                cache_key="abc123",
+        simple_item = simple_item.with_(
+            model_outputs=(
+                ModelOutput(
+                    model_name="test",
+                    model_version="1.0",
+                    operation="log_probability",
+                    inputs={"text": "test"},
+                    output="not a number",
+                    cache_key="abc123",
+                ),
             )
-        ]
+        )
         errors = validate_item(simple_item, simple_template)
         assert any("should be numeric" in e for e in errors)
 
@@ -265,20 +274,27 @@ class TestValidateConstraintSatisfaction:
 
     def test_missing_constraint(self, simple_item, simple_template) -> None:
         """Test detection of missing constraint evaluation."""
-        simple_item.constraint_satisfaction = {simple_template.constraints[0]: True}
+        simple_item = simple_item.with_(
+            constraint_satisfaction=(
+                ConstraintSatisfaction(
+                    constraint_id=simple_template.constraints[0], satisfied=True
+                ),
+            )
+        )
         errors = validate_constraint_satisfaction(simple_item, simple_template)
         assert len(errors) == 1
         assert "not evaluated" in errors[0]
 
-    def test_non_boolean_value(self, simple_item, simple_template) -> None:
-        """Test detection of non-boolean satisfaction value."""
-        simple_item.constraint_satisfaction[simple_template.constraints[0]] = "true"
-        errors = validate_constraint_satisfaction(simple_item, simple_template)
-        assert any("should be bool" in e for e in errors)
+    def test_non_boolean_value_rejected_at_construction(self, simple_template) -> None:
+        """Non-bool ``satisfied`` is rejected by the model constructor."""
+        with pytest.raises((dx.ValidationError, AssertionError)):
+            ConstraintSatisfaction(
+                constraint_id=simple_template.constraints[0], satisfied="true"
+            )
 
     def test_all_constraints_missing(self, simple_item, simple_template) -> None:
         """Test when all constraints are missing."""
-        simple_item.constraint_satisfaction = {}
+        simple_item = simple_item.with_(constraint_satisfaction=())
         errors = validate_constraint_satisfaction(simple_item, simple_template)
         assert len(errors) == len(simple_template.constraints)
 
@@ -314,13 +330,26 @@ class TestItemPassesAllConstraints:
 
     def test_one_constraint_fails(self, simple_item, simple_template) -> None:
         """Test when one constraint fails."""
-        simple_item.constraint_satisfaction[simple_template.constraints[0]] = False
+        simple_item = simple_item.with_(
+            constraint_satisfaction=(
+                ConstraintSatisfaction(
+                    constraint_id=simple_template.constraints[0], satisfied=False
+                ),
+                ConstraintSatisfaction(
+                    constraint_id=simple_template.constraints[1], satisfied=True
+                ),
+            )
+        )
         assert item_passes_all_constraints(simple_item) is False
 
     def test_all_constraints_fail(self, simple_item, simple_template) -> None:
         """Test when all constraints fail."""
-        for constraint_id in simple_template.constraints:
-            simple_item.constraint_satisfaction[constraint_id] = False
+        simple_item = simple_item.with_(
+            constraint_satisfaction=tuple(
+                ConstraintSatisfaction(constraint_id=cid, satisfied=False)
+                for cid in simple_template.constraints
+            )
+        )
         assert item_passes_all_constraints(simple_item) is False
 
     def test_no_constraints(self) -> None:
@@ -328,14 +357,22 @@ class TestItemPassesAllConstraints:
         item = Item(
             item_template_id=uuid4(),
             rendered_elements={"test": "text"},
-            constraint_satisfaction={},
+            constraint_satisfaction=(),
         )
         assert item_passes_all_constraints(item) is True
 
     def test_mixed_constraints(self, simple_item, simple_template) -> None:
         """Test with mixed constraint satisfaction."""
-        simple_item.constraint_satisfaction[simple_template.constraints[0]] = True
-        simple_item.constraint_satisfaction[simple_template.constraints[1]] = False
+        simple_item = simple_item.with_(
+            constraint_satisfaction=(
+                ConstraintSatisfaction(
+                    constraint_id=simple_template.constraints[0], satisfied=True
+                ),
+                ConstraintSatisfaction(
+                    constraint_id=simple_template.constraints[1], satisfied=False
+                ),
+            )
+        )
         assert item_passes_all_constraints(simple_item) is False
 
 
@@ -497,7 +534,7 @@ class TestGetTaskTypeRequirements:
 
     def test_unknown_task_type_raises_error(self) -> None:
         """Test that unknown task type raises ValueError."""
-        with pytest.raises(ValueError, match="Unknown task type"):
+        with pytest.raises((ValueError, dx.ValidationError), match="Unknown task type"):
             get_task_type_requirements("unknown_task")
 
 
@@ -515,8 +552,10 @@ class TestValidateItemForTaskType:
         """Test invalid structure for forced_choice raises ValueError."""
         from bead.items.ordinal_scale import create_ordinal_scale_item
 
-        item = create_ordinal_scale_item("Text", scale_bounds=(1, 5))
-        with pytest.raises(ValueError, match="forced_choice items must have"):
+        item = create_ordinal_scale_item("Text", scale_bounds=ScaleBounds(min=1, max=5))
+        with pytest.raises(
+            (ValueError, dx.ValidationError), match="forced_choice items must have"
+        ):
             validate_item_for_task_type(item, "forced_choice")
 
     def test_multi_select_valid(self) -> None:
@@ -535,14 +574,18 @@ class TestValidateItemForTaskType:
             options=["A", "B"],
             item_metadata={"min_selections": 3, "max_selections": 1},
         )
-        with pytest.raises(ValueError, match="min_selections <= max_selections"):
+        with pytest.raises(
+            (ValueError, dx.ValidationError), match="min_selections <= max_selections"
+        ):
             validate_item_for_task_type(item, "multi_select")
 
     def test_ordinal_scale_valid(self) -> None:
         """Test valid ordinal_scale item passes validation."""
         from bead.items.ordinal_scale import create_ordinal_scale_item
 
-        item = create_ordinal_scale_item("How natural?", scale_bounds=(1, 7))
+        item = create_ordinal_scale_item(
+            "How natural?", scale_bounds=ScaleBounds(min=1, max=7)
+        )
         assert validate_item_for_task_type(item, "ordinal_scale") is True
 
     def test_ordinal_scale_invalid_bounds(self) -> None:
@@ -552,7 +595,9 @@ class TestValidateItemForTaskType:
             rendered_elements={"text": "Test", "prompt": "Rate this:"},
             item_metadata={"scale_min": 7, "scale_max": 1},
         )
-        with pytest.raises(ValueError, match="scale_min < scale_max"):
+        with pytest.raises(
+            (ValueError, dx.ValidationError), match="scale_min < scale_max"
+        ):
             validate_item_for_task_type(item, "ordinal_scale")
 
     def test_magnitude_valid(self) -> None:
@@ -576,7 +621,9 @@ class TestValidateItemForTaskType:
             rendered_elements={"text": "Test", "prompt": "Enter value:"},
             item_metadata={"min_value": 100, "max_value": 0},
         )
-        with pytest.raises(ValueError, match="min_value < max_value"):
+        with pytest.raises(
+            (ValueError, dx.ValidationError), match="min_value < max_value"
+        ):
             validate_item_for_task_type(item, "magnitude")
 
     def test_binary_valid(self) -> None:
@@ -593,7 +640,9 @@ class TestValidateItemForTaskType:
             rendered_elements={"text": "Test", "prompt": ""},
             item_metadata={},
         )
-        with pytest.raises(ValueError, match="non-empty 'prompt'"):
+        with pytest.raises(
+            (ValueError, dx.ValidationError), match="non-empty 'prompt'"
+        ):
             validate_item_for_task_type(item, "binary")
 
     def test_categorical_valid(self) -> None:
@@ -642,7 +691,9 @@ class TestValidateItemForTaskType:
             item_metadata={"n_unfilled_slots": 1},
             unfilled_slots=[],  # Empty!
         )
-        with pytest.raises(ValueError, match="unfilled_slots field populated"):
+        with pytest.raises(
+            (ValueError, dx.ValidationError), match="unfilled_slots field populated"
+        ):
             validate_item_for_task_type(item, "cloze")
 
 
@@ -730,7 +781,9 @@ class TestInferTaskTypeFromItem:
             rendered_elements={"text": "Test", "prompt": "Answer"},
             item_metadata={},  # No distinguishing metadata
         )
-        with pytest.raises(ValueError, match="Could be binary or free_text"):
+        with pytest.raises(
+            (ValueError, dx.ValidationError), match="Could be binary or free_text"
+        ):
             infer_task_type_from_item(item)
 
     def test_no_match_raises_error(self) -> None:
@@ -740,5 +793,7 @@ class TestInferTaskTypeFromItem:
             rendered_elements={"unknown_key": "value"},
             item_metadata={},
         )
-        with pytest.raises(ValueError, match="Could not infer task type"):
+        with pytest.raises(
+            (ValueError, dx.ValidationError), match="Could not infer task type"
+        ):
             infer_task_type_from_item(item)

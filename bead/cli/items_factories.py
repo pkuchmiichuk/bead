@@ -156,7 +156,9 @@ def create_forced_choice_from_texts(
     """
     try:
         # Load texts
-        texts: list[str] = [line.strip() for line in open(texts_file) if line.strip()]
+        texts: list[str] = [
+            line.strip() for line in texts_file.read_text().splitlines() if line.strip()
+        ]
         print_info(f"Loaded {len(texts)} texts")
 
         # Create items by generating all combinations of n_alternatives from texts
@@ -286,7 +288,9 @@ def create_ordinal_scale_from_texts(
     """
     try:
         # Load texts
-        texts = [line.strip() for line in open(texts_file) if line.strip()]
+        texts = [
+            line.strip() for line in texts_file.read_text().splitlines() if line.strip()
+        ]
         print_info(f"Loaded {len(texts)} texts")
 
         # Create items
@@ -294,8 +298,12 @@ def create_ordinal_scale_from_texts(
             task = progress.add_task(
                 "Creating ordinal scale items...", total=len(texts)
             )
+            from bead.items.item_template import ScaleBounds  # noqa: PLC0415
+
             items = create_ordinal_scale_items_from_texts(
-                texts, scale_bounds=(scale_min, scale_max), prompt=prompt
+                texts,
+                scale_bounds=ScaleBounds(min=scale_min, max=scale_max),
+                prompt=prompt,
             )
             progress.update(task, completed=len(texts))
 
@@ -455,7 +463,9 @@ def create_binary_from_texts(
     """
     try:
         # Load texts
-        texts = [line.strip() for line in open(texts_file) if line.strip()]
+        texts = [
+            line.strip() for line in texts_file.read_text().splitlines() if line.strip()
+        ]
         print_info(f"Loaded {len(texts)} texts")
 
         # Create items
@@ -531,7 +541,9 @@ def create_multi_select_from_texts(
     """
     try:
         # Load texts
-        texts: list[str] = [line.strip() for line in open(texts_file) if line.strip()]
+        texts: list[str] = [
+            line.strip() for line in texts_file.read_text().splitlines() if line.strip()
+        ]
         print_info(f"Loaded {len(texts)} texts")
 
         # Parse options
@@ -615,7 +627,9 @@ def create_magnitude_from_texts(
     """
     try:
         # Load texts
-        texts = [line.strip() for line in open(texts_file) if line.strip()]
+        texts = [
+            line.strip() for line in texts_file.read_text().splitlines() if line.strip()
+        ]
         print_info(f"Loaded {len(texts)} texts")
 
         # Create items
@@ -675,7 +689,9 @@ def create_free_text_from_texts(
     """
     try:
         # Load texts
-        texts = [line.strip() for line in open(texts_file) if line.strip()]
+        texts = [
+            line.strip() for line in texts_file.read_text().splitlines() if line.strip()
+        ]
         print_info(f"Loaded {len(texts)} texts")
 
         # Create items

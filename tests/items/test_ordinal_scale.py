@@ -4,9 +4,11 @@ from __future__ import annotations
 
 from uuid import uuid4
 
+import didactic.api as dx
 import pytest
 
 from bead.items.item import Item
+from bead.items.item_template import ScaleBounds, ScalePointLabel
 from bead.items.ordinal_scale import (
     create_filtered_ordinal_scale_items,
     create_likert_5_item,
@@ -23,7 +25,9 @@ class TestCreateOrdinalScaleItem:
 
     def test_create_basic_ordinal_item(self) -> None:
         """Test creating a basic ordinal scale item."""
-        item = create_ordinal_scale_item("The cat sat on the mat.", scale_bounds=(1, 7))
+        item = create_ordinal_scale_item(
+            "The cat sat on the mat.", scale_bounds=ScaleBounds(min=1, max=7)
+        )
 
         assert isinstance(item, Item)
         assert item.rendered_elements["text"] == "The cat sat on the mat."
@@ -33,7 +37,9 @@ class TestCreateOrdinalScaleItem:
 
     def test_default_prompt(self) -> None:
         """Test default prompt."""
-        item = create_ordinal_scale_item("The cat sat.", scale_bounds=(1, 5))
+        item = create_ordinal_scale_item(
+            "The cat sat.", scale_bounds=ScaleBounds(min=1, max=5)
+        )
 
         assert item.rendered_elements["prompt"] == "Rate this item:"
 
@@ -41,7 +47,7 @@ class TestCreateOrdinalScaleItem:
         """Test custom prompt."""
         item = create_ordinal_scale_item(
             "The cat sat.",
-            scale_bounds=(1, 7),
+            scale_bounds=ScaleBounds(min=1, max=7),
             prompt="How natural is this sentence?",
         )
 
@@ -51,8 +57,11 @@ class TestCreateOrdinalScaleItem:
         """Test scale labels."""
         item = create_ordinal_scale_item(
             "The sky is blue.",
-            scale_bounds=(1, 5),
-            scale_labels={1: "Very Bad", 5: "Very Good"},
+            scale_bounds=ScaleBounds(min=1, max=5),
+            scale_labels=(
+                ScalePointLabel(point=1, label="Very Bad"),
+                ScalePointLabel(point=5, label="Very Good"),
+            ),
         )
 
         assert item.item_metadata["scale_labels"]["1"] == "Very Bad"
@@ -60,38 +69,62 @@ class TestCreateOrdinalScaleItem:
 
     def test_empty_text_raises_error(self) -> None:
         """Test that empty text raises error."""
-        with pytest.raises(ValueError, match="text cannot be empty"):
-            create_ordinal_scale_item("", scale_bounds=(1, 7))
+        with pytest.raises(
+            (ValueError, dx.ValidationError), match="text cannot be empty"
+        ):
+            create_ordinal_scale_item("", scale_bounds=ScaleBounds(min=1, max=7))
 
-        with pytest.raises(ValueError, match="text cannot be empty"):
-            create_ordinal_scale_item("   ", scale_bounds=(1, 7))
+        with pytest.raises(
+            (ValueError, dx.ValidationError), match="text cannot be empty"
+        ):
+            create_ordinal_scale_item("   ", scale_bounds=ScaleBounds(min=1, max=7))
 
     def test_invalid_scale_bounds_raises_error(self) -> None:
         """Test that invalid scale bounds raise error."""
         # min >= max
-        with pytest.raises(ValueError, match="scale_min.*must be less than"):
-            create_ordinal_scale_item("Text", scale_bounds=(5, 5))
+        with pytest.raises(
+            (ValueError, dx.ValidationError), match="scale_min.*must be less than"
+        ):
+            create_ordinal_scale_item("Text", scale_bounds=ScaleBounds(min=5, max=5))
 
-        with pytest.raises(ValueError, match="scale_min.*must be less than"):
-            create_ordinal_scale_item("Text", scale_bounds=(7, 3))
+        with pytest.raises(
+            (ValueError, dx.ValidationError), match="scale_min.*must be less than"
+        ):
+            create_ordinal_scale_item("Text", scale_bounds=ScaleBounds(min=7, max=3))
 
     def test_scale_labels_outside_bounds_raises_error(self) -> None:
         """Test that scale labels outside bounds raise error."""
-        with pytest.raises(ValueError, match="scale_labels key.*outside scale bounds"):
+        with pytest.raises(
+            (ValueError, dx.ValidationError),
+            match="scale_labels key.*outside scale bounds",
+        ):
             create_ordinal_scale_item(
-                "Text", scale_bounds=(1, 5), scale_labels={0: "Too Low", 5: "Good"}
+                "Text",
+                scale_bounds=ScaleBounds(min=1, max=5),
+                scale_labels=(
+                    ScalePointLabel(point=0, label="Too Low"),
+                    ScalePointLabel(point=5, label="Good"),
+                ),
             )
 
-        with pytest.raises(ValueError, match="scale_labels key.*outside scale bounds"):
+        with pytest.raises(
+            (ValueError, dx.ValidationError),
+            match="scale_labels key.*outside scale bounds",
+        ):
             create_ordinal_scale_item(
-                "Text", scale_bounds=(1, 5), scale_labels={1: "Low", 6: "Too High"}
+                "Text",
+                scale_bounds=ScaleBounds(min=1, max=5),
+                scale_labels=(
+                    ScalePointLabel(point=1, label="Low"),
+                    ScalePointLabel(point=6, label="Too High"),
+                ),
             )
 
     def test_with_custom_template_id(self) -> None:
         """Test creating item with custom template ID."""
         template_id = uuid4()
         item = create_ordinal_scale_item(
-            "Text", scale_bounds=(1, 7), item_template_id=template_id
+            "Text", scale_bounds=ScaleBounds(min=1, max=7), item_template_id=template_id
         )
 
         assert item.item_template_id == template_id
@@ -100,7 +133,7 @@ class TestCreateOrdinalScaleItem:
         """Test creating item with metadata."""
         item = create_ordinal_scale_item(
             "Text",
-            scale_bounds=(1, 7),
+            scale_bounds=ScaleBounds(min=1, max=7),
             metadata={"task": "acceptability", "verb": "walk"},
         )
 
@@ -117,7 +150,9 @@ class TestCreateOrdinalScaleItemsFromTexts:
         texts = ["She walks.", "She walk.", "They walk.", "They walks."]
 
         items = create_ordinal_scale_items_from_texts(
-            texts, scale_bounds=(1, 5), prompt="Rate the acceptability:"
+            texts,
+            scale_bounds=ScaleBounds(min=1, max=5),
+            prompt="Rate the acceptability:",
         )
 
         assert len(items) == 4
@@ -133,7 +168,7 @@ class TestCreateOrdinalScaleItemsFromTexts:
 
         items = create_ordinal_scale_items_from_texts(
             texts,
-            scale_bounds=(1, 7),
+            scale_bounds=ScaleBounds(min=1, max=7),
             prompt="Rate this:",
             metadata_fn=lambda text: {"text_length": len(text)},
         )
@@ -147,7 +182,7 @@ class TestCreateOrdinalScaleItemsFromTexts:
         labels = {1: "Bad", 7: "Good"}
 
         items = create_ordinal_scale_items_from_texts(
-            texts, scale_bounds=(1, 7), scale_labels=labels
+            texts, scale_bounds=ScaleBounds(min=1, max=7), scale_labels=labels
         )
 
         assert all("scale_labels" in item.item_metadata for item in items)
@@ -175,7 +210,7 @@ class TestCreateOrdinalScaleItemsFromGroups:
         ordinal_items = create_ordinal_scale_items_from_groups(
             source_items,
             group_by=lambda i: i.item_metadata["verb"],
-            scale_bounds=(1, 7),
+            scale_bounds=ScaleBounds(min=1, max=7),
             prompt="Rate the acceptability:",
         )
 
@@ -197,7 +232,7 @@ class TestCreateOrdinalScaleItemsFromGroups:
         ordinal_items = create_ordinal_scale_items_from_groups(
             source_items,
             group_by=lambda i: i.item_metadata["group"],
-            scale_bounds=(1, 5),
+            scale_bounds=ScaleBounds(min=1, max=5),
             include_group_metadata=False,
         )
 
@@ -214,7 +249,7 @@ class TestCreateOrdinalScaleItemsCrossProduct:
         prompts = ["How natural is this?", "How acceptable is this?"]
 
         items = create_ordinal_scale_items_cross_product(
-            texts, prompts, scale_bounds=(1, 7)
+            texts, prompts, scale_bounds=ScaleBounds(min=1, max=7)
         )
 
         # 2 texts × 2 prompts = 4 items
@@ -231,7 +266,7 @@ class TestCreateOrdinalScaleItemsCrossProduct:
         items = create_ordinal_scale_items_cross_product(
             texts,
             prompts,
-            scale_bounds=(1, 5),
+            scale_bounds=ScaleBounds(min=1, max=5),
             metadata_fn=lambda t, p: {"combined_length": len(t) + len(p)},
         )
 
@@ -260,7 +295,7 @@ class TestCreateFilteredOrdinalScaleItems:
 
         ordinal_items = create_filtered_ordinal_scale_items(
             items,
-            scale_bounds=(1, 7),
+            scale_bounds=ScaleBounds(min=1, max=7),
             prompt="Rate this:",
             item_filter=lambda i: i.item_metadata.get("valid", True),
         )
@@ -280,7 +315,7 @@ class TestCreateFilteredOrdinalScaleItems:
         ]
 
         ordinal_items = create_filtered_ordinal_scale_items(
-            items, scale_bounds=(1, 5), prompt="Rate this:"
+            items, scale_bounds=ScaleBounds(min=1, max=5), prompt="Rate this:"
         )
 
         assert len(ordinal_items) == 3

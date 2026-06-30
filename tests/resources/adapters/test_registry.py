@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import didactic.api as dx
 import pytest
 
 from bead.resources.adapters.glazing import GlazingAdapter
@@ -47,7 +48,7 @@ def test_registry_get_nonexistent_adapter(adapter_registry: AdapterRegistry) -> 
 
 def test_registry_register_empty_name(adapter_registry: AdapterRegistry) -> None:
     """Test registering with empty name raises ValueError."""
-    with pytest.raises(ValueError, match="must be non-empty"):
+    with pytest.raises((ValueError, dx.ValidationError), match="must be non-empty"):
         adapter_registry.register("", GlazingAdapter)
 
 
@@ -61,7 +62,7 @@ def test_registry_register_non_adapter_class(
 
         pass
 
-    with pytest.raises(ValueError, match="must be a subclass"):
+    with pytest.raises((ValueError, dx.ValidationError), match="must be a subclass"):
         adapter_registry.register("invalid", NotAnAdapter)  # type: ignore[arg-type]
 
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from uuid import uuid4
 
+import didactic.api as dx
 import pytest
 
 from bead.items.free_text import (
@@ -61,23 +62,33 @@ class TestCreateFreeTextItem:
 
     def test_empty_text_raises_error(self) -> None:
         """Test that empty text raises error."""
-        with pytest.raises(ValueError, match="text cannot be empty"):
+        with pytest.raises(
+            (ValueError, dx.ValidationError), match="text cannot be empty"
+        ):
             create_free_text_item("", prompt="Question?")
 
-        with pytest.raises(ValueError, match="text cannot be empty"):
+        with pytest.raises(
+            (ValueError, dx.ValidationError), match="text cannot be empty"
+        ):
             create_free_text_item("   ", prompt="Question?")
 
     def test_empty_prompt_raises_error(self) -> None:
         """Test that empty prompt raises error."""
-        with pytest.raises(ValueError, match="prompt is required"):
+        with pytest.raises(
+            (ValueError, dx.ValidationError), match="prompt is required"
+        ):
             create_free_text_item("Text", prompt="")
 
-        with pytest.raises(ValueError, match="prompt is required"):
+        with pytest.raises(
+            (ValueError, dx.ValidationError), match="prompt is required"
+        ):
             create_free_text_item("Text", prompt="   ")
 
     def test_invalid_length_constraints_raise_error(self) -> None:
         """Test that invalid length constraints raise error."""
-        with pytest.raises(ValueError, match="min_length.*cannot be greater than"):
+        with pytest.raises(
+            (ValueError, dx.ValidationError), match="min_length.*cannot be greater than"
+        ):
             create_free_text_item(
                 "Text", prompt="Question?", min_length=100, max_length=50
             )

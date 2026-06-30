@@ -154,8 +154,7 @@ def test_construct_with_filled_templates(cli_runner: CliRunner, tmp_path: Path) 
         rendered_text="The cat ran",
         strategy_name="exhaustive",
     )
-    # Set the ID to match what ItemTemplate will reference
-    filled.id = filled_id
+    filled = filled.with_(id=filled_id)
 
     filled_file = tmp_path / "filled.jsonl"
     with open(filled_file, "w") as f:

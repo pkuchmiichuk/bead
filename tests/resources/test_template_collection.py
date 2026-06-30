@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from uuid import uuid4
 
+import didactic.api as dx
 import pandas as pd
 import polars as pl
 import pytest
@@ -38,7 +39,7 @@ def test_creation_with_all_fields() -> None:
     assert collection.name == "transitive"
     assert collection.description == "Transitive verb templates"
     assert collection.language_code == "en"
-    assert collection.tags == ["transitive", "test"]
+    assert collection.tags == ("transitive", "test")
 
 
 def test_len_returns_correct_count(
@@ -61,7 +62,7 @@ def test_contains_checks_template_presence(
     sample_template_collection: TemplateCollection,
 ) -> None:
     """Test that __contains__ checks template presence."""
-    template = list(sample_template_collection.templates.values())[0]
+    template = list(sample_template_collection.templates)[0]
     assert template.id in sample_template_collection
     assert uuid4() not in sample_template_collection
 
@@ -86,7 +87,7 @@ def test_add_adds_template_successfully() -> None:
     slot = Slot(name="x")
     template = Template(name="test", template_string="{x}.", slots={"x": slot})
 
-    collection.add(template)
+    collection = collection.with_template(template)
     assert len(collection) == 1
     assert template.id in collection
 
@@ -97,10 +98,9 @@ def test_add_raises_error_on_duplicate_id() -> None:
     slot = Slot(name="x")
     template = Template(name="test", template_string="{x}.", slots={"x": slot})
 
-    collection.add(template)
-
-    with pytest.raises(ValueError, match="already exists"):
-        collection.add(template)
+    collection = collection.with_template(template)
+    with pytest.raises((ValueError, dx.ValidationError), match="already exists"):
+        collection = collection.with_template(template)
 
 
 def test_add_many_adds_multiple_templates() -> None:
@@ -113,7 +113,7 @@ def test_add_many_adds_multiple_templates() -> None:
         Template(name="t3", template_string="{z}.", slots={"z": Slot(name="z")}),
     ]
 
-    collection.add_many(templates)
+    collection = collection.with_templates(templates)
     assert len(collection) == 3
 
 
@@ -123,9 +123,8 @@ def test_remove_removes_and_returns_template() -> None:
     template = Template(
         name="test", template_string="{x}.", slots={"x": Slot(name="x")}
     )
-    collection.add(template)
-
-    removed = collection.remove(template.id)
+    collection = collection.with_template(template)
+    collection, removed = collection.without_template(template.id)
     assert removed.name == "test"
     assert len(collection) == 0
 
@@ -134,7 +133,7 @@ def test_remove_raises_key_error_if_not_found() -> None:
     """Test that remove() raises KeyError if not found."""
     collection = TemplateCollection(name="test")
     with pytest.raises(KeyError, match="not found"):
-        collection.remove(uuid4())
+        collection.without_template(uuid4())
 
 
 def test_get_returns_template_if_exists() -> None:
@@ -143,9 +142,8 @@ def test_get_returns_template_if_exists() -> None:
     template = Template(
         name="test", template_string="{x}.", slots={"x": Slot(name="x")}
     )
-    collection.add(template)
-
-    retrieved = collection.get(template.id)
+    collection = collection.with_template(template)
+    retrieved = collection.by_id(template.id)
     assert retrieved is not None
     assert retrieved.name == "test"
 
@@ -153,7 +151,7 @@ def test_get_returns_template_if_exists() -> None:
 def test_get_returns_none_if_not_exists() -> None:
     """Test that get() returns None if template doesn't exist."""
     collection = TemplateCollection(name="test")
-    assert collection.get(uuid4()) is None
+    assert collection.by_id(uuid4()) is None
 
 
 # ============================================================================
@@ -187,9 +185,8 @@ def test_filter_by_tag_filters_correctly() -> None:
         tags=["complex"],
     )
 
-    collection.add(t1)
-    collection.add(t2)
-
+    collection = collection.with_template(t1)
+    collection = collection.with_template(t2)
     simple = collection.filter_by_tag("simple")
     assert len(simple.templates) == 1
 
@@ -205,9 +202,8 @@ def test_filter_by_slot_count() -> None:
         slots={"y": Slot(name="y"), "z": Slot(name="z")},
     )
 
-    collection.add(t1)
-    collection.add(t2)
-
+    collection = collection.with_template(t1)
+    collection = collection.with_template(t2)
     single_slot = collection.filter_by_slot_count(1)
     assert len(single_slot.templates) == 1
 
@@ -239,10 +235,10 @@ def test_filter_preserves_collection_metadata(
 def test_search_by_name() -> None:
     """Test that search() works by name."""
     collection = TemplateCollection(name="test")
-    collection.add(
+    collection = collection.with_template(
         Template(name="transitive", template_string="{x}.", slots={"x": Slot(name="x")})
     )
-    collection.add(
+    collection = collection.with_template(
         Template(
             name="intransitive", template_string="{y}.", slots={"y": Slot(name="y")}
         )
@@ -255,14 +251,14 @@ def test_search_by_name() -> None:
 def test_search_by_template_string() -> None:
     """Test that search() works by template_string."""
     collection = TemplateCollection(name="test")
-    collection.add(
+    collection = collection.with_template(
         Template(
             name="question",
             template_string="Did {x} happen?",
             slots={"x": Slot(name="x")},
         )
     )
-    collection.add(
+    collection = collection.with_template(
         Template(
             name="statement",
             template_string="{y} happened.",
@@ -277,7 +273,7 @@ def test_search_by_template_string() -> None:
 def test_search_invalid_field_raises_error() -> None:
     """Test that search() with invalid field raises error."""
     collection = TemplateCollection(name="test")
-    with pytest.raises(ValueError, match="Invalid field"):
+    with pytest.raises((ValueError, dx.ValidationError), match="Invalid field"):
         collection.search("test", field="invalid")
 
 
@@ -289,11 +285,13 @@ def test_search_invalid_field_raises_error() -> None:
 def test_merge_with_no_overlapping_ids() -> None:
     """Test merge() with no overlapping IDs."""
     c1 = TemplateCollection(name="c1")
-    c1.add(Template(name="t1", template_string="{x}.", slots={"x": Slot(name="x")}))
-
+    c1 = c1.with_template(
+        Template(name="t1", template_string="{x}.", slots={"x": Slot(name="x")})
+    )
     c2 = TemplateCollection(name="c2")
-    c2.add(Template(name="t2", template_string="{y}.", slots={"y": Slot(name="y")}))
-
+    c2 = c2.with_template(
+        Template(name="t2", template_string="{y}.", slots={"y": Slot(name="y")})
+    )
     merged = c1.merge(c2)
     assert len(merged.templates) == 2
 
@@ -302,13 +300,14 @@ def test_merge_with_error_strategy_raises_on_duplicates() -> None:
     """Test merge() with 'error' strategy raises on duplicates."""
     c1 = TemplateCollection(name="c1")
     template = Template(name="t1", template_string="{x}.", slots={"x": Slot(name="x")})
-    c1.add(template)
-
+    c1 = c1.with_template(template)
     c2 = TemplateCollection(name="c2")
     # Add same template to c2
-    c2.templates[template.id] = template
+    c2 = c2.with_(templates=(template,))
 
-    with pytest.raises(ValueError, match="Duplicate template IDs found"):
+    with pytest.raises(
+        (ValueError, dx.ValidationError), match="Duplicate template IDs found"
+    ):
         c1.merge(c2, strategy="error")
 
 
@@ -334,7 +333,7 @@ def test_merge_preserves_language_code() -> None:
 def test_to_dataframe_pandas_creates_correct_structure() -> None:
     """Test that to_dataframe() creates correct structure for pandas."""
     collection = TemplateCollection(name="test")
-    collection.add(
+    collection = collection.with_template(
         Template(
             name="test",
             template_string="{x} {y}.",
@@ -356,7 +355,7 @@ def test_to_dataframe_pandas_creates_correct_structure() -> None:
 def test_to_dataframe_polars_creates_correct_structure() -> None:
     """Test that to_dataframe() creates correct structure for polars."""
     collection = TemplateCollection(name="test")
-    collection.add(
+    collection = collection.with_template(
         Template(
             name="test",
             template_string="{x}.",
@@ -388,10 +387,10 @@ def test_to_dataframe_empty_collection() -> None:
 def test_to_jsonl_writes_file_correctly(tmp_path: Path) -> None:
     """Test that to_jsonl() writes file correctly."""
     collection = TemplateCollection(name="test")
-    collection.add(
+    collection = collection.with_template(
         Template(name="t1", template_string="{x}.", slots={"x": Slot(name="x")})
     )
-    collection.add(
+    collection = collection.with_template(
         Template(name="t2", template_string="{y}.", slots={"y": Slot(name="y")})
     )
 
@@ -407,7 +406,7 @@ def test_from_jsonl_reads_file_correctly(tmp_path: Path) -> None:
     """Test that from_jsonl() reads file correctly."""
     # First write a file
     collection = TemplateCollection(name="test")
-    collection.add(
+    collection = collection.with_template(
         Template(
             name="t1",
             template_string="{x}.",
@@ -427,7 +426,7 @@ def test_from_jsonl_reads_file_correctly(tmp_path: Path) -> None:
 def test_jsonl_roundtrip(tmp_path: Path) -> None:
     """Test roundtrip (save and load)."""
     original = TemplateCollection(name="test")
-    original.add(
+    original = original.with_template(
         Template(
             name="transitive",
             template_string="{subject} {verb} {object}.",
@@ -447,8 +446,8 @@ def test_jsonl_roundtrip(tmp_path: Path) -> None:
     assert len(loaded.templates) == len(original.templates)
 
     # Check that data was preserved
-    orig_template = list(original.templates.values())[0]
-    loaded_template = list(loaded.templates.values())[0]
+    orig_template = list(original.templates)[0]
+    loaded_template = list(loaded.templates)[0]
     assert loaded_template.name == orig_template.name
     assert loaded_template.template_string == orig_template.template_string
     assert len(loaded_template.slots) == len(orig_template.slots)

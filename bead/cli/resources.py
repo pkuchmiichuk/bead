@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any, cast
 
 import click
-from pydantic import ValidationError
+from didactic.api import ValidationError
 from rich.console import Console
 from rich.table import Table
 
@@ -173,8 +173,7 @@ def create_lexicon(
                         item_data["features"] = features
 
                     item = LexicalItem(**item_data)
-                    lexicon.add(item)
-
+                    lexicon = lexicon.with_item(item)
         elif json_file:
             print_info(f"Loading lexical items from JSON: {json_file}")
             with open(json_file, encoding="utf-8") as f:
@@ -258,8 +257,7 @@ def create_lexicon(
                         source=source,
                     )  # type: ignore[arg-type]
 
-                lexicon.add(item)
-
+                lexicon = lexicon.with_item(item)
         # Save lexicon
         output_file.parent.mkdir(parents=True, exist_ok=True)
         lexicon.to_jsonl(str(output_file))
@@ -384,8 +382,7 @@ def create_template(
             name=f"{name}_collection",
             language_code=language_code,
         )
-        collection.add(template)
-
+        collection = collection.with_template(template)
         # Save collection
         output_file.parent.mkdir(parents=True, exist_ok=True)
         collection.to_jsonl(str(output_file))
@@ -599,8 +596,7 @@ def validate_lexicon(ctx: click.Context, lexicon_file: Path) -> None:
                     continue
 
                 try:
-                    item_data = json.loads(line)
-                    LexicalItem(**item_data)
+                    LexicalItem.model_validate_json(line)
                     item_count += 1
                 except json.JSONDecodeError as e:
                     errors.append(f"Line {line_num}: Invalid JSON - {e}")
@@ -661,8 +657,7 @@ def validate_template(ctx: click.Context, template_file: Path) -> None:
                     continue
 
                 try:
-                    template_data = json.loads(line)
-                    Template(**template_data)
+                    Template.model_validate_json(line)
                     template_count += 1
                 except json.JSONDecodeError as e:
                     errors.append(f"Line {line_num}: Invalid JSON - {e}")
@@ -827,7 +822,7 @@ def generate_templates(
         if tags:
             template_data["tags"] = [t.strip() for t in tags.split(",") if t.strip()]
 
-        template = Template(**template_data)
+        template = Template.model_validate(template_data)
 
         # Save to JSONL
         output_file.parent.mkdir(parents=True, exist_ok=True)
@@ -929,8 +924,7 @@ def generate_template_variants(
                 print_error("Base template file is empty")
                 ctx.exit(1)
 
-            base_template_data = json.loads(first_line)
-            base_template = Template(**base_template_data)
+            base_template = Template.model_validate_json(first_line)
 
         variants: list[Template] = []
         base_name = base_template.name
@@ -984,7 +978,7 @@ def generate_template_variants(
                     "substitutions": substitution_map,
                 }
 
-                variant = Template(**variant_data)
+                variant = Template.model_validate(variant_data)
                 variants.append(variant)
 
             print_success(f"Generated {len(variants)} slot-based template variants")
@@ -1005,7 +999,7 @@ def generate_template_variants(
                     "base_template": base_name,
                 }
 
-                variant = Template(**variant_data)
+                variant = Template.model_validate(variant_data)
                 variants.append(variant)
 
             print_success(f"Generated {len(variants)} metadata-only template variants")

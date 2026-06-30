@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from uuid import uuid4
 
+import didactic.api as dx
 import pytest
 
 from bead.lists.stratification import assign_quantiles, assign_quantiles_by_uuid
@@ -90,7 +91,9 @@ class TestAssignQuantiles:
         """Test that n_quantiles must be >= 2."""
         items = [1, 2, 3]
 
-        with pytest.raises(ValueError, match="n_quantiles must be >= 2"):
+        with pytest.raises(
+            (ValueError, dx.ValidationError), match="n_quantiles must be >= 2"
+        ):
             assign_quantiles(
                 items=items,
                 property_getter=lambda x: float(x),
@@ -99,7 +102,9 @@ class TestAssignQuantiles:
 
     def test_empty_items_raises_error(self) -> None:
         """Test that empty items list raises ValueError."""
-        with pytest.raises(ValueError, match="items list cannot be empty"):
+        with pytest.raises(
+            (ValueError, dx.ValidationError), match="items list cannot be empty"
+        ):
             assign_quantiles(
                 items=[],
                 property_getter=lambda x: float(x),
@@ -177,7 +182,9 @@ class TestAssignQuantilesByUUID:
         uuids = [uuid4() for _ in range(5)]
         metadata = {uid: {"value": float(i)} for i, uid in enumerate(uuids)}
 
-        with pytest.raises(ValueError, match="Property 'score' not found"):
+        with pytest.raises(
+            (ValueError, dx.ValidationError), match="Property 'score' not found"
+        ):
             assign_quantiles_by_uuid(
                 item_ids=uuids,
                 item_metadata=metadata,
@@ -205,7 +212,9 @@ class TestAssignQuantilesByUUID:
         uuids = [uuid4() for _ in range(5)]
         metadata = {uid: {"score": float(i)} for i, uid in enumerate(uuids)}
 
-        with pytest.raises(ValueError, match="Stratification key"):
+        with pytest.raises(
+            (ValueError, dx.ValidationError), match="Stratification key"
+        ):
             assign_quantiles_by_uuid(
                 item_ids=uuids,
                 item_metadata=metadata,

@@ -10,7 +10,7 @@ import json
 from pathlib import Path
 
 import click
-from pydantic import ValidationError
+from didactic.api import ValidationError
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
@@ -160,8 +160,7 @@ def partition(
                 line = line.strip()
                 if not line:
                     continue
-                item_data = json.loads(line)
-                item = Item(**item_data)
+                item = Item.model_validate_json(line)
                 items.append(item)
 
         if len(items) == 0:
@@ -193,8 +192,7 @@ def partition(
                         line = line.strip()
                         if not line:
                             continue
-                        constraint_data = json.loads(line)
-                        constraint = ListConstraint(**constraint_data)
+                        constraint = ListConstraint.model_validate_json(line)
                         list_constraints.append(constraint)
             print_info(f"Loaded {len(list_constraints)} list constraint(s)")
 
@@ -210,8 +208,7 @@ def partition(
                         line = line.strip()
                         if not line:
                             continue
-                        constraint_data = json.loads(line)
-                        constraint = BatchConstraint(**constraint_data)
+                        constraint = BatchConstraint.model_validate_json(line)
                         batch_constraints.append(constraint)
             print_info(f"Loaded {len(batch_constraints)} batch constraint(s)")
 
@@ -322,8 +319,7 @@ def list_lists(
                 if not line:
                     continue
                 try:
-                    list_data = json.loads(line)
-                    exp_list = ExperimentList(**list_data)
+                    exp_list = ExperimentList.model_validate_json(line)
                     table.add_row(
                         str(exp_list.list_number),
                         exp_list.name,
@@ -365,8 +361,7 @@ def validate(ctx: click.Context, list_file: Path) -> None:
                 print_error("File is empty")
                 ctx.exit(1)
 
-        list_data = json.loads(first_line)
-        exp_list = ExperimentList(**list_data)
+        exp_list = ExperimentList.model_validate_json(first_line)
 
         print_success(
             f"Experiment list is valid: {exp_list.name} "
@@ -413,8 +408,7 @@ def show_stats(ctx: click.Context, lists_file: Path) -> None:
                 if not line:
                     continue
                 try:
-                    list_data = json.loads(line)
-                    exp_list = ExperimentList(**list_data)
+                    exp_list = ExperimentList.model_validate_json(line)
                     lists_data.append(exp_list)
                 except Exception:
                     continue

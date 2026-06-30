@@ -9,9 +9,10 @@ from uuid import uuid4
 import pandas as pd
 import polars as pl
 import pytest
-from slopit.schemas import AnalysisFlag, FocusMetrics, KeystrokeMetrics, TimingMetrics
+from slopit.schemas import FocusMetrics, KeystrokeMetrics, TimingMetrics
 
 from bead.behavioral.analytics import (
+    AnalysisFlag,
     AnalyticsCollection,
     JudgmentAnalytics,
     ParticipantBehavioralSummary,
@@ -19,8 +20,8 @@ from bead.behavioral.analytics import (
 
 
 @pytest.fixture
-def sample_keystroke_metrics() -> KeystrokeMetrics:
-    """Create sample keystroke metrics."""
+def sample_keystroke_metrics() -> dict[str, float | int]:
+    """Create sample keystroke metrics dict (slopit -> JSON shape)."""
     return KeystrokeMetrics(
         total_keystrokes=50,
         printable_keystrokes=45,
@@ -30,28 +31,28 @@ def sample_keystroke_metrics() -> KeystrokeMetrics:
         median_iki=140.0,
         pause_count=2,
         product_process_ratio=0.9,
-    )
+    ).model_dump()
 
 
 @pytest.fixture
-def sample_focus_metrics() -> FocusMetrics:
-    """Create sample focus metrics."""
+def sample_focus_metrics() -> dict[str, float | int]:
+    """Create sample focus metrics dict."""
     return FocusMetrics(
         blur_count=1,
         total_blur_duration=500.0,
         hidden_count=0,
         total_hidden_duration=0.0,
-    )
+    ).model_dump()
 
 
 @pytest.fixture
-def sample_timing_metrics() -> TimingMetrics:
-    """Create sample timing metrics."""
+def sample_timing_metrics() -> dict[str, float | int]:
+    """Create sample timing metrics dict."""
     return TimingMetrics(
         first_keystroke_latency=1200.0,
         total_response_time=5000.0,
         characters_per_minute=120.0,
-    )
+    ).model_dump()
 
 
 @pytest.fixture
@@ -59,18 +60,17 @@ def sample_flag() -> AnalysisFlag:
     """Create sample analysis flag."""
     return AnalysisFlag(
         type="rapid_response",
-        analyzer="timing",
         severity="medium",
         message="Response time below threshold",
-        confidence=0.85,
+        metadata={"analyzer": "timing", "confidence": 0.85},
     )
 
 
 @pytest.fixture
 def sample_analytics(
-    sample_keystroke_metrics: KeystrokeMetrics,
-    sample_focus_metrics: FocusMetrics,
-    sample_timing_metrics: TimingMetrics,
+    sample_keystroke_metrics: dict,
+    sample_focus_metrics: dict,
+    sample_timing_metrics: dict,
 ) -> JudgmentAnalytics:
     """Create sample judgment analytics."""
     return JudgmentAnalytics(
@@ -105,7 +105,7 @@ class TestJudgmentAnalytics:
 
     def test_creation_with_metrics(
         self,
-        sample_keystroke_metrics: KeystrokeMetrics,
+        sample_keystroke_metrics: dict,
     ) -> None:
         """Test creating analytics with behavioral metrics."""
         analytics = JudgmentAnalytics(
@@ -117,7 +117,7 @@ class TestJudgmentAnalytics:
             keystroke_metrics=sample_keystroke_metrics,
         )
         assert analytics.keystroke_metrics is not None
-        assert analytics.keystroke_metrics.total_keystrokes == 50
+        assert analytics.keystroke_metrics["total_keystrokes"] == 50
 
     def test_has_paste_events(self) -> None:
         """Test paste event detection."""
@@ -143,7 +143,7 @@ class TestJudgmentAnalytics:
             max_severity="medium",
         )
         assert analytics.is_flagged is True
-        assert analytics.get_flag_types() == ["rapid_response"]
+        assert analytics.get_flag_types() == ("rapid_response",)
 
     def test_get_flag_types_empty(self) -> None:
         """Test flag types with no flags."""
@@ -154,7 +154,7 @@ class TestJudgmentAnalytics:
             session_id="s001",
             response_time_ms=1000,
         )
-        assert analytics.get_flag_types() == []
+        assert analytics.get_flag_types() == ()
 
 
 class TestParticipantBehavioralSummary:
@@ -205,7 +205,7 @@ class TestAnalyticsCollection:
     def test_add_analytics(self, sample_analytics: JudgmentAnalytics) -> None:
         """Test adding analytics to collection."""
         collection = AnalyticsCollection(name="test")
-        collection.add_analytics(sample_analytics)
+        collection = collection.with_analytics(sample_analytics)
         assert len(collection) == 1
 
     def test_add_many(self) -> None:
@@ -221,14 +221,14 @@ class TestAnalyticsCollection:
             )
             for i in range(5)
         ]
-        collection.add_many(analytics_list)
+        collection = collection.with_many(analytics_list)
         assert len(collection) == 5
 
     def test_get_by_participant(self) -> None:
         """Test filtering by participant."""
         collection = AnalyticsCollection(name="test")
         for i in range(3):
-            collection.add_analytics(
+            collection = collection.with_analytics(
                 JudgmentAnalytics(
                     item_id=uuid4(),
                     participant_id="p001",
@@ -237,7 +237,7 @@ class TestAnalyticsCollection:
                     response_time_ms=1000,
                 )
             )
-        collection.add_analytics(
+        collection = collection.with_analytics(
             JudgmentAnalytics(
                 item_id=uuid4(),
                 participant_id="p002",
@@ -254,7 +254,7 @@ class TestAnalyticsCollection:
         """Test filtering by item."""
         item_id = uuid4()
         collection = AnalyticsCollection(name="test")
-        collection.add_analytics(
+        collection = collection.with_analytics(
             JudgmentAnalytics(
                 item_id=item_id,
                 participant_id="p001",
@@ -263,7 +263,7 @@ class TestAnalyticsCollection:
                 response_time_ms=1000,
             )
         )
-        collection.add_analytics(
+        collection = collection.with_analytics(
             JudgmentAnalytics(
                 item_id=item_id,
                 participant_id="p002",
@@ -272,7 +272,7 @@ class TestAnalyticsCollection:
                 response_time_ms=1200,
             )
         )
-        collection.add_analytics(
+        collection = collection.with_analytics(
             JudgmentAnalytics(
                 item_id=uuid4(),  # Different item
                 participant_id="p001",
@@ -289,7 +289,7 @@ class TestAnalyticsCollection:
         """Test getting unique participant IDs."""
         collection = AnalyticsCollection(name="test")
         for pid in ["p001", "p002", "p001", "p003"]:
-            collection.add_analytics(
+            collection = collection.with_analytics(
                 JudgmentAnalytics(
                     item_id=uuid4(),
                     participant_id=pid,
@@ -307,7 +307,7 @@ class TestAnalyticsCollection:
         collection = AnalyticsCollection(name="test")
 
         # Add unflagged
-        collection.add_analytics(
+        collection = collection.with_analytics(
             JudgmentAnalytics(
                 item_id=uuid4(),
                 participant_id="p001",
@@ -318,7 +318,7 @@ class TestAnalyticsCollection:
         )
 
         # Add flagged
-        collection.add_analytics(
+        collection = collection.with_analytics(
             JudgmentAnalytics(
                 item_id=uuid4(),
                 participant_id="p002",
@@ -339,7 +339,7 @@ class TestAnalyticsCollection:
         collection = AnalyticsCollection(name="test")
 
         # Add unflagged
-        collection.add_analytics(
+        collection = collection.with_analytics(
             JudgmentAnalytics(
                 item_id=uuid4(),
                 participant_id="p001",
@@ -350,7 +350,7 @@ class TestAnalyticsCollection:
         )
 
         # Add flagged
-        collection.add_analytics(
+        collection = collection.with_analytics(
             JudgmentAnalytics(
                 item_id=uuid4(),
                 participant_id="p002",
@@ -373,20 +373,20 @@ class TestAnalyticsCollection:
         # Low severity flag
         low_flag = AnalysisFlag(
             type="minor_issue",
-            analyzer="focus",
             severity="low",
             message="Minor focus issue",
+            metadata={"analyzer": "focus"},
         )
 
         # High severity flag
         high_flag = AnalysisFlag(
             type="major_issue",
-            analyzer="paste",
             severity="high",
             message="Large paste detected",
+            metadata={"analyzer": "paste"},
         )
 
-        collection.add_analytics(
+        collection = collection.with_analytics(
             JudgmentAnalytics(
                 item_id=uuid4(),
                 participant_id="p001",
@@ -398,7 +398,7 @@ class TestAnalyticsCollection:
             )
         )
 
-        collection.add_analytics(
+        collection = collection.with_analytics(
             JudgmentAnalytics(
                 item_id=uuid4(),
                 participant_id="p002",
@@ -419,8 +419,8 @@ class TestAnalyticsCollection:
 
     def test_get_participant_summaries(
         self,
-        sample_keystroke_metrics: KeystrokeMetrics,
-        sample_focus_metrics: FocusMetrics,
+        sample_keystroke_metrics: dict,
+        sample_focus_metrics: dict,
         sample_flag: AnalysisFlag,
     ) -> None:
         """Test generating participant summaries."""
@@ -428,7 +428,7 @@ class TestAnalyticsCollection:
 
         # Add multiple records for one participant
         for i in range(3):
-            collection.add_analytics(
+            collection = collection.with_analytics(
                 JudgmentAnalytics(
                     item_id=uuid4(),
                     participant_id="p001",
@@ -455,8 +455,7 @@ class TestAnalyticsCollection:
     def test_jsonl_roundtrip(self, sample_analytics: JudgmentAnalytics) -> None:
         """Test saving and loading from JSONL."""
         collection = AnalyticsCollection(name="test")
-        collection.add_analytics(sample_analytics)
-
+        collection = collection.with_analytics(sample_analytics)
         with tempfile.TemporaryDirectory() as tmpdir:
             path = Path(tmpdir) / "analytics.jsonl"
             collection.to_jsonl(path)
@@ -468,8 +467,7 @@ class TestAnalyticsCollection:
     def test_to_dataframe_pandas(self, sample_analytics: JudgmentAnalytics) -> None:
         """Test converting to pandas DataFrame."""
         collection = AnalyticsCollection(name="test")
-        collection.add_analytics(sample_analytics)
-
+        collection = collection.with_analytics(sample_analytics)
         df = collection.to_dataframe(backend="pandas")
         assert isinstance(df, pd.DataFrame)
         assert len(df) == 1
@@ -479,8 +477,7 @@ class TestAnalyticsCollection:
     def test_to_dataframe_polars(self, sample_analytics: JudgmentAnalytics) -> None:
         """Test converting to polars DataFrame."""
         collection = AnalyticsCollection(name="test")
-        collection.add_analytics(sample_analytics)
-
+        collection = collection.with_analytics(sample_analytics)
         df = collection.to_dataframe(backend="polars")
         assert isinstance(df, pl.DataFrame)
         assert len(df) == 1
@@ -501,8 +498,7 @@ class TestAnalyticsCollection:
     ) -> None:
         """Test DataFrame without metrics columns."""
         collection = AnalyticsCollection(name="test")
-        collection.add_analytics(sample_analytics)
-
+        collection = collection.with_analytics(sample_analytics)
         df = collection.to_dataframe(include_metrics=False)
         assert "keystroke_mean_iki" not in df.columns
 
@@ -511,7 +507,6 @@ class TestAnalyticsCollection:
     ) -> None:
         """Test DataFrame without flag columns."""
         collection = AnalyticsCollection(name="test")
-        collection.add_analytics(sample_analytics)
-
+        collection = collection.with_analytics(sample_analytics)
         df = collection.to_dataframe(include_flags=False)
         assert "is_flagged" not in df.columns

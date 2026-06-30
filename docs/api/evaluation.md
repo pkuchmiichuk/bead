@@ -15,3 +15,10 @@ Metrics and evaluation utilities for convergence detection and inter-annotator a
     options:
       show_root_heading: true
       show_source: false
+
+## Per-Annotator Reliability
+
+::: bead.evaluation.reliability
+    options:
+      show_root_heading: true
+      show_source: false

@@ -802,7 +802,7 @@ class MLMFillingStrategy(FillingStrategy):
         for token, log_prob in predictions:
             # Find matching items in lexicons
             for lexicon in lexicons:
-                for item in lexicon.items.values():
+                for item in lexicon.items:
                     # Skip if already seen (uniqueness enforcement)
                     if seen_items is not None and item.id in seen_items:
                         continue
@@ -952,7 +952,7 @@ class MLMFillingStrategy(FillingStrategy):
         for token, log_prob in predictions:
             # Find matching items in lexicons
             for lexicon in lexicons:
-                for item in lexicon.items.values():
+                for item in lexicon.items:
                     # Skip if already seen (uniqueness enforcement)
                     if seen_items is not None and item.id in seen_items:
                         continue
@@ -1131,7 +1131,7 @@ class StrategyFiller(TemplateFiller):
         normalized_lang = validate_iso639_code(language_code) if language_code else None
 
         for slot_name, slot in template.slots.items():
-            candidates = list(self.lexicon.items.values())
+            candidates = list(self.lexicon.items)
 
             # Filter by language code
             if normalized_lang:
@@ -1528,7 +1528,7 @@ class MixedFillingStrategy(FillingStrategy):
 
             # Collect items from all lexicons
             for lexicon in lexicons:
-                for item in lexicon.items.values():
+                for item in lexicon.items:
                     # Filter by language
                     if normalized_lang and item.language_code != normalized_lang:
                         continue

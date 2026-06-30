@@ -47,7 +47,7 @@ class ConstraintResolver:
     def evaluate_slot_constraints(
         self,
         item: LexicalItem,
-        constraints: list[Constraint],
+        constraints: list[Constraint] | tuple[Constraint, ...],
         context: dict[str, ContextValue] | None = None,
     ) -> bool:
         """Evaluate single-slot constraints.
@@ -104,7 +104,7 @@ class ConstraintResolver:
     def evaluate_template_constraints(
         self,
         filled_slots: dict[str, LexicalItem],
-        constraints: list[Constraint],
+        constraints: list[Constraint] | tuple[Constraint, ...],
         context: dict[str, ContextValue] | None = None,
     ) -> bool:
         """Evaluate multi-slot constraints.

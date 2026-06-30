@@ -18,13 +18,17 @@ from rich.table import Table
 from sklearn.metrics import accuracy_score, precision_recall_fscore_support
 from sklearn.model_selection import KFold
 
-from bead.cli.models import _import_class  # type: ignore[attr-defined]
+from bead.active_learning.models import (
+    config_class_for_task_type,
+    model_class_for_task_type,
+)
 from bead.cli.utils import print_error, print_info, print_success
 from bead.data.base import JsonValue
 from bead.data.serialization import read_jsonlines
 from bead.data_collection.jatos import JATOSDataCollector
 from bead.evaluation.interannotator import InterAnnotatorMetrics
 from bead.items.item import Item
+from bead.items.item_template import TaskType
 
 console = Console()
 
@@ -330,9 +334,7 @@ def evaluate(
                 ctx.exit(1)
 
         # Load model
-        model_class_name = f"{task_type.title().replace('_', '')}Model"
-        model_module = f"bead.active_learning.models.{task_type}"
-        model_class = _import_class(f"{model_module}.{model_class_name}")
+        model_class = model_class_for_task_type(cast(TaskType, task_type))
 
         model_instance = model_class.load(model_dir)
         print_success(f"Loaded model from {model_dir}")
@@ -553,13 +555,9 @@ def cross_validate(
             ctx.exit(1)
 
         # Import model and config classes
-        model_class_name = f"{task_type.title().replace('_', '')}Model"
-        config_class_name = f"{task_type.title().replace('_', '')}ModelConfig"
-        model_module = f"bead.active_learning.models.{task_type}"
-        config_module = "bead.config.active_learning"
 
-        model_class = _import_class(f"{model_module}.{model_class_name}")
-        config_class = _import_class(f"{config_module}.{config_class_name}")
+        model_class = model_class_for_task_type(cast(TaskType, task_type))
+        config_class = config_class_for_task_type(cast(TaskType, task_type))
 
         # Create cross-validator
         cv = KFold(n_splits=k_folds, shuffle=True, random_state=random_seed)
@@ -781,13 +779,9 @@ def learning_curve(
             ctx.exit(1)
 
         # Import model and config classes
-        model_class_name = f"{task_type.title().replace('_', '')}Model"
-        config_class_name = f"{task_type.title().replace('_', '')}ModelConfig"
-        model_module = f"bead.active_learning.models.{task_type}"
-        config_module = "bead.config.active_learning"
 
-        model_class = _import_class(f"{model_module}.{model_class_name}")
-        config_class = _import_class(f"{config_module}.{config_class_name}")
+        model_class = model_class_for_task_type(cast(TaskType, task_type))
+        config_class = config_class_for_task_type(cast(TaskType, task_type))
 
         # Parse train sizes
         sizes = [float(s.strip()) for s in train_sizes.split(",")]

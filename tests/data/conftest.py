@@ -66,6 +66,6 @@ def sample_metadata() -> MetadataTracker:
         Metadata tracker with sample data
     """
     metadata = MetadataTracker()
-    metadata.add_provenance(uuid4(), "Template", "filled_from")
-    metadata.add_processing("fill_template", {"strategy": "exhaustive"})
+    metadata = metadata.with_provenance(uuid4(), "Template", "filled_from")
+    metadata = metadata.with_processing("fill_template", {"strategy": "exhaustive"})
     return metadata

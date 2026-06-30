@@ -1,77 +1,58 @@
-"""Simulation configuration models for the bead package."""
+"""Simulation configuration."""
 
 from __future__ import annotations
 
 from pathlib import Path
 from typing import Literal
 
-from pydantic import BaseModel, Field
+import didactic.api as dx
 
 
-class NoiseModelConfig(BaseModel):
-    """Configuration for noise model in simulated judgments.
+class NoiseModelConfig(dx.Model):
+    """Configuration for the noise model in simulated judgments.
 
     Attributes
     ----------
     noise_type : Literal["temperature", "systematic", "random", "none"]
-        Type of noise to apply.
+        Type of noise.
     temperature : float
-        Temperature for scaling (higher = more random). Default: 1.0.
+        Temperature scaling (0.01-10.0).
     bias_strength : float
-        Strength of systematic biases (0.0-1.0). Default: 0.0.
+        Strength of systematic biases (0.0-1.0).
     bias_type : str | None
-        Type of bias ("length", "frequency", "position"). Default: None.
+        Type of bias (e.g. ``"length"``, ``"frequency"``, ``"position"``).
     random_noise_stddev : float
-        Standard deviation for random noise. Default: 0.0.
-
-    Examples
-    --------
-    >>> # Temperature-scaled decisions (more random)
-    >>> config = NoiseModelConfig(noise_type="temperature", temperature=2.0)
-    >>>
-    >>> # Systematic length bias (prefer shorter)
-    >>> config = NoiseModelConfig(
-    ...     noise_type="systematic",
-    ...     bias_strength=0.3,
-    ...     bias_type="length"
-    ... )
-    >>>
-    >>> # Random noise injection
-    >>> config = NoiseModelConfig(
-    ...     noise_type="random",
-    ...     random_noise_stddev=0.1
-    ... )
+        Standard deviation for random noise (>= 0).
     """
 
-    noise_type: Literal["temperature", "systematic", "random", "none"] = Field(
-        default="temperature",
-        description="Type of noise model",
-    )
-    temperature: float = Field(
-        default=1.0,
-        ge=0.01,
-        le=10.0,
-        description="Temperature for scaling decisions",
-    )
-    bias_strength: float = Field(
-        default=0.0,
-        ge=0.0,
-        le=1.0,
-        description="Strength of systematic biases",
-    )
-    bias_type: str | None = Field(
-        default=None,
-        description="Type of systematic bias",
-    )
-    random_noise_stddev: float = Field(
-        default=0.0,
-        ge=0.0,
-        description="Standard deviation for random noise",
+    noise_type: Literal["temperature", "systematic", "random", "none"] = "temperature"
+    temperature: float = 1.0
+    bias_strength: float = 0.0
+    bias_type: str | None = None
+    random_noise_stddev: float = 0.0
+
+    __axioms__ = (
+        dx.axiom(
+            "temperature >= 0.01 and temperature <= 10.0",
+            message="temperature must be between 0.01 and 10.0",
+        ),
+        dx.axiom(
+            "bias_strength >= 0 and bias_strength <= 1",
+            message="bias_strength must be between 0 and 1",
+        ),
+        dx.axiom(
+            "random_noise_stddev >= 0",
+            message="random_noise_stddev must be non-negative",
+        ),
     )
 
 
-class SimulatedAnnotatorConfig(BaseModel):
-    """Configuration for simulated annotator.
+def _default_noise_model() -> NoiseModelConfig:
+    return NoiseModelConfig()
+
+
+class SimulatedAnnotatorConfig(dx.Model):
+    """Configuration for a simulated annotator.
 
     Attributes
     ----------
@@ -84,123 +65,58 @@ class SimulatedAnnotatorConfig(BaseModel):
     random_state : int | None
         Random seed for reproducibility.
     model_output_key : str
-        Key to extract from Item.model_outputs. Default: "lm_score".
+        Key to extract from ``Item.model_outputs``.
     fallback_to_random : bool
-        Whether to fallback to random if model outputs missing. Default: True.
-
-    Examples
-    --------
-    >>> # LM score-based with temperature
-    >>> config = SimulatedAnnotatorConfig(
-    ...     strategy="lm_score",
-    ...     noise_model=NoiseModelConfig(noise_type="temperature", temperature=1.5),
-    ...     random_state=42
-    ... )
-    >>>
-    >>> # Distance-based with embeddings
-    >>> config = SimulatedAnnotatorConfig(
-    ...     strategy="distance",
-    ...     model_output_key="embedding",
-    ...     noise_model=NoiseModelConfig(noise_type="none")
-    ... )
-    >>>
-    >>> # Custom DSL logic
-    >>> config = SimulatedAnnotatorConfig(
-    ...     strategy="dsl",
-    ...     dsl_expression="sample_categorical(softmax(model_scores) / temperature)",
-    ...     noise_model=NoiseModelConfig(noise_type="temperature", temperature=1.0)
-    ... )
+        Whether to fall back to random when model outputs are missing.
     """
 
-    strategy: Literal["lm_score", "distance", "random", "oracle", "dsl"] = Field(
-        default="lm_score",
-        description="Base simulation strategy",
+    strategy: Literal["lm_score", "distance", "random", "oracle", "dsl"] = "lm_score"
+    noise_model: dx.Embed[NoiseModelConfig] = dx.field(
+        default_factory=_default_noise_model
     )
-    noise_model: NoiseModelConfig = Field(
-        default_factory=NoiseModelConfig,
-        description="Noise model configuration",
-    )
-    dsl_expression: str | None = Field(
-        default=None,
-        description="Custom DSL expression for simulation",
-    )
-    random_state: int | None = Field(
-        default=None,
-        description="Random seed for reproducibility",
-    )
-    model_output_key: str = Field(
-        default="lm_score",
-        description="Key to extract from model outputs",
-    )
-    fallback_to_random: bool = Field(
-        default=True,
-        description="Fallback to random if model outputs missing",
-    )
+    dsl_expression: str | None = None
+    random_state: int | None = None
+    model_output_key: str = "lm_score"
+    fallback_to_random: bool = True
 
 
-class SimulationRunnerConfig(BaseModel):
-    """Configuration for simulation runner.
+def _default_annotator_configs() -> tuple[SimulatedAnnotatorConfig, ...]:
+    return (SimulatedAnnotatorConfig(),)
+
+
+class SimulationRunnerConfig(dx.Model):
+    """Configuration for the simulation runner.
 
     Attributes
     ----------
-    annotator_configs : list[SimulatedAnnotatorConfig]
-        List of annotator configurations (for multi-annotator simulation).
+    annotator_configs : tuple[SimulatedAnnotatorConfig, ...]
+        Annotator configurations.
     n_annotators : int
-        Number of simulated annotators. Default: 1.
+        Number of simulated annotators (1-100).
     inter_annotator_correlation : float | None
-        Desired correlation between annotators (0.0-1.0). Default: None (independent).
+        Desired correlation between annotators (0.0-1.0).
     output_format : Literal["dict", "dataframe", "jsonl"]
-        Output format for simulation results. Default: "dict".
+        Output format for simulation results.
     save_path : Path | None
-        Path to save simulation results. Default: None.
-
-    Examples
-    --------
-    >>> # Single annotator
-    >>> config = SimulationRunnerConfig(
-    ...     annotator_configs=[SimulatedAnnotatorConfig(strategy="lm_score")],
-    ...     n_annotators=1
-    ... )
-    >>>
-    >>> # Multiple independent annotators
-    >>> config = SimulationRunnerConfig(
-    ...     annotator_configs=[
-    ...         SimulatedAnnotatorConfig(strategy="lm_score", random_state=1),
-    ...         SimulatedAnnotatorConfig(strategy="lm_score", random_state=2),
-    ...         SimulatedAnnotatorConfig(strategy="lm_score", random_state=3)
-    ...     ],
-    ...     n_annotators=3
-    ... )
-    >>>
-    >>> # Correlated annotators
-    >>> config = SimulationRunnerConfig(
-    ...     annotator_configs=[SimulatedAnnotatorConfig(strategy="lm_score")],
-    ...     n_annotators=5,
-    ...     inter_annotator_correlation=0.7  # 70% agreement
-    ... )
+        Path to save simulation results.
     """
 
-    annotator_configs: list[SimulatedAnnotatorConfig] = Field(
-        default_factory=lambda: [SimulatedAnnotatorConfig()],
-        description="Annotator configurations",
+    annotator_configs: tuple[dx.Embed[SimulatedAnnotatorConfig], ...] = dx.field(
+        default_factory=_default_annotator_configs
     )
-    n_annotators: int = Field(
-        default=1,
-        ge=1,
-        le=100,
-        description="Number of simulated annotators",
-    )
-    inter_annotator_correlation: float | None = Field(
-        default=None,
-        ge=0.0,
-        le=1.0,
-        description="Inter-annotator correlation",
-    )
-    output_format: Literal["dict", "dataframe", "jsonl"] = Field(
-        default="dict",
-        description="Output format",
-    )
-    save_path: Path | None = Field(
-        default=None,
-        description="Path to save results",
+    n_annotators: int = 1
+    inter_annotator_correlation: float | None = None
+    output_format: Literal["dict", "dataframe", "jsonl"] = "dict"
+    save_path: Path | None = None
+
+    __axioms__ = (
+        dx.axiom(
+            "n_annotators >= 1 and n_annotators <= 100",
+            message="n_annotators must be between 1 and 100",
+        ),
+        dx.axiom(
+            "inter_annotator_correlation == None or "
+            "(inter_annotator_correlation >= 0 and inter_annotator_correlation <= 1)",
+            message="inter_annotator_correlation must be between 0 and 1",
+        ),
     )

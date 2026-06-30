@@ -5,7 +5,7 @@ from __future__ import annotations
 from uuid import uuid4
 
 import pytest
-from pydantic import ValidationError
+from didactic.api import ValidationError
 
 from bead.data.range import Range
 from bead.deployment.distribution import (
@@ -26,7 +26,6 @@ from bead.deployment.jspsych.trials import (
     SpanColorMap,
     _assign_span_colors,
     _generate_stimulus_html,
-    _parse_prompt_references,
     _resolve_prompt_references,
     create_completion_trial,
     create_consent_trial,
@@ -35,8 +34,14 @@ from bead.deployment.jspsych.trials import (
     create_trial,
 )
 from bead.items.item import Item
-from bead.items.item_template import ItemTemplate, PresentationSpec, TaskSpec
+from bead.items.item_template import (
+    ItemTemplate,
+    PresentationSpec,
+    ScaleBounds,
+    TaskSpec,
+)
 from bead.items.spans import Span, SpanLabel, SpanSegment
+from bead.labels import parse_label_refs
 
 
 class TestCreateTrial:
@@ -72,7 +77,7 @@ class TestCreateTrial:
             experiment_type="slider_rating",
             title="Test",
             description="Test",
-            instructions="Test instructions",
+            instructions=InstructionsConfig.from_text("Test instructions"),
             distribution_strategy=ListDistributionStrategy(
                 strategy_type=DistributionStrategyType.BALANCED
             ),
@@ -100,7 +105,7 @@ class TestCreateTrial:
             experiment_type="binary_choice",
             title="Test",
             description="Test",
-            instructions="Test instructions",
+            instructions=InstructionsConfig.from_text("Test instructions"),
             distribution_strategy=ListDistributionStrategy(
                 strategy_type=DistributionStrategyType.BALANCED
             ),
@@ -144,7 +149,7 @@ class TestCreateTrial:
             experiment_type="forced_choice",
             title="Test",
             description="Test",
-            instructions="Test instructions",
+            instructions=InstructionsConfig.from_text("Test instructions"),
             distribution_strategy=ListDistributionStrategy(
                 strategy_type=DistributionStrategyType.BALANCED
             ),
@@ -172,7 +177,7 @@ class TestCreateTrial:
             task_type="ordinal_scale",
             task_spec=TaskSpec(
                 prompt="How natural is this sentence?",
-                scale_bounds=(1, 7),
+                scale_bounds=ScaleBounds(min=1, max=7),
             ),
             presentation_spec=PresentationSpec(mode="static"),
         )
@@ -186,7 +191,7 @@ class TestCreateTrial:
             experiment_type="likert_rating",
             title="Test",
             description="Test",
-            instructions="Test instructions",
+            instructions=InstructionsConfig.from_text("Test instructions"),
             distribution_strategy=ListDistributionStrategy(
                 strategy_type=DistributionStrategyType.BALANCED
             ),
@@ -213,7 +218,7 @@ class TestCreateTrial:
                 experiment_type="invalid_type",  # type: ignore
                 title="Test",
                 description="Test",
-                instructions="Test instructions",
+                instructions=InstructionsConfig.from_text("Test instructions"),
                 distribution_strategy=ListDistributionStrategy(
                     strategy_type=DistributionStrategyType.BALANCED
                 ),
@@ -227,7 +232,7 @@ class TestCreateTrial:
             experiment_type="likert_rating",
             title="Test",
             description="Test",
-            instructions="Test instructions",
+            instructions=InstructionsConfig.from_text("Test instructions"),
             distribution_strategy=ListDistributionStrategy(
                 strategy_type=DistributionStrategyType.BALANCED
             ),
@@ -258,7 +263,7 @@ class TestLikertConfiguration:
             task_type="ordinal_scale",
             task_spec=TaskSpec(
                 prompt="How natural is this sentence?",
-                scale_bounds=(1, 5),
+                scale_bounds=ScaleBounds(min=1, max=5),
             ),
             presentation_spec=PresentationSpec(mode="static"),
         )
@@ -272,7 +277,7 @@ class TestLikertConfiguration:
             experiment_type="likert_rating",
             title="Test",
             description="Test",
-            instructions="Test instructions",
+            instructions=InstructionsConfig.from_text("Test instructions"),
             distribution_strategy=ListDistributionStrategy(
                 strategy_type=DistributionStrategyType.BALANCED
             ),
@@ -310,7 +315,7 @@ class TestSliderConfiguration:
             task_type="ordinal_scale",
             task_spec=TaskSpec(
                 prompt="How natural is this sentence?",
-                scale_bounds=(1, 7),
+                scale_bounds=ScaleBounds(min=1, max=7),
             ),
             presentation_spec=PresentationSpec(mode="static"),
         )
@@ -324,7 +329,7 @@ class TestSliderConfiguration:
             experiment_type="slider_rating",
             title="Test",
             description="Test",
-            instructions="Test instructions",
+            instructions=InstructionsConfig.from_text("Test instructions"),
             distribution_strategy=ListDistributionStrategy(
                 strategy_type=DistributionStrategyType.BALANCED
             ),
@@ -494,17 +499,17 @@ class TestSpecialTrials:
 
 
 class TestParsePromptReferences:
-    """Tests for _parse_prompt_references()."""
+    """Tests for parse_label_refs()."""
 
     def test_no_references(self) -> None:
-        """Plain text without references returns an empty list."""
-        refs = _parse_prompt_references("How natural is this sentence?")
+        """Plain text without references returns an empty tuple."""
+        refs = parse_label_refs("How natural is this sentence?")
 
-        assert refs == []
+        assert refs == ()
 
     def test_auto_fill_reference(self) -> None:
         """Single auto-fill reference is parsed with label and no display_text."""
-        refs = _parse_prompt_references("How natural is [[agent]]?")
+        refs = parse_label_refs("How natural is [[agent]]?")
 
         assert len(refs) == 1
         assert refs[0].label == "agent"
@@ -512,7 +517,7 @@ class TestParsePromptReferences:
 
     def test_explicit_text_reference(self) -> None:
         """Explicit text reference is parsed with both label and display_text."""
-        refs = _parse_prompt_references("Did [[event:the breaking]] happen?")
+        refs = parse_label_refs("Did [[event:the breaking]] happen?")
 
         assert len(refs) == 1
         assert refs[0].label == "event"
@@ -520,7 +525,7 @@ class TestParsePromptReferences:
 
     def test_multiple_references(self) -> None:
         """Multiple references are parsed in order of appearance."""
-        refs = _parse_prompt_references("Did [[agent]] cause [[event:the breaking]]?")
+        refs = parse_label_refs("Did [[agent]] cause [[event:the breaking]]?")
 
         assert len(refs) == 2
         assert refs[0].label == "agent"

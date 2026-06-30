@@ -511,7 +511,7 @@ def configure(
         # Save configuration
         output.parent.mkdir(parents=True, exist_ok=True)
 
-        config_dict = sim_config.model_dump()
+        config_dict = json.loads(sim_config.model_dump_json())
 
         if output_format == "yaml":
             with open(output, "w", encoding="utf-8") as f:

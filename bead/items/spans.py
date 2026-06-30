@@ -1,7 +1,7 @@
 """Core span annotation models.
 
-Provides data models for labeled spans, span segments, span labels,
-span relations, and span specifications. Supports discontiguous spans,
+Provides data models for labeled spans, span segments, span labels, span
+relations, and span specifications. Supports discontiguous spans,
 overlapping spans (nested and intersecting), static and interactive modes,
 and two label sources (fixed sets and Wikidata entity search).
 """
@@ -10,35 +10,26 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import Field, field_validator
+import didactic.api as dx
 
 from bead.data.base import BeadBaseModel
 
-# same recursive type as in item.py and item_template.py; duplicated here
-# to avoid circular imports (item.py imports Span from this module).
 type MetadataValue = (
-    str | int | float | bool | None | dict[str, MetadataValue] | list[MetadataValue]
+    str
+    | int
+    | float
+    | bool
+    | None
+    | tuple[MetadataValue, ...]
+    | dict[str, MetadataValue]
 )
+
+# same recursive type as in item.py and item_template.py; duplicated here
+# to avoid circular imports.
 
 SpanIndexMode = Literal["token", "character"]
 SpanInteractionMode = Literal["static", "interactive"]
 LabelSourceType = Literal["fixed", "wikidata"]
-
-
-# factory functions for default values
-def _empty_span_segment_list() -> list[SpanSegment]:
-    """Return empty SpanSegment list."""
-    return []
-
-
-def _empty_span_metadata() -> dict[str, MetadataValue]:
-    """Return empty metadata dict."""
-    return {}
-
-
-def _empty_relation_metadata() -> dict[str, MetadataValue]:
-    """Return empty metadata dict."""
-    return {}
 
 
 class SpanSegment(BeadBaseModel):
@@ -48,62 +39,26 @@ class SpanSegment(BeadBaseModel):
     ----------
     element_name : str
         Which rendered element this segment belongs to.
-    indices : list[int]
+    indices : tuple[int, ...]
         Token or character indices within the element.
     """
 
-    element_name: str = Field(..., description="Rendered element name")
-    indices: list[int] = Field(..., description="Token or character indices")
+    element_name: str
+    indices: tuple[int, ...]
 
-    @field_validator("element_name")
-    @classmethod
-    def validate_element_name(cls, v: str) -> str:
-        """Validate element name is not empty.
-
-        Parameters
-        ----------
-        v : str
-            Element name to validate.
-
-        Returns
-        -------
-        str
-            Validated element name.
-
-        Raises
-        ------
-        ValueError
-            If element name is empty.
-        """
-        if not v or not v.strip():
+    @dx.validates("element_name")
+    def _check_element_name(self, value: str) -> str:
+        if not value or not value.strip():
             raise ValueError("element_name cannot be empty")
-        return v.strip()
+        return value.strip()
 
-    @field_validator("indices")
-    @classmethod
-    def validate_indices(cls, v: list[int]) -> list[int]:
-        """Validate indices are not empty and non-negative.
-
-        Parameters
-        ----------
-        v : list[int]
-            Indices to validate.
-
-        Returns
-        -------
-        list[int]
-            Validated indices.
-
-        Raises
-        ------
-        ValueError
-            If indices are empty or contain negative values.
-        """
-        if not v:
+    @dx.validates("indices")
+    def _check_indices(self, value: tuple[int, ...]) -> tuple[int, ...]:
+        if not value:
             raise ValueError("indices cannot be empty")
-        if any(i < 0 for i in v):
+        if any(i < 0 for i in value):
             raise ValueError("indices must be non-negative")
-        return v
+        return value
 
 
 class SpanLabel(BeadBaseModel):
@@ -119,37 +74,15 @@ class SpanLabel(BeadBaseModel):
         Confidence score for model-assigned labels.
     """
 
-    label: str = Field(..., description="Human-readable label text")
-    label_id: str | None = Field(
-        default=None, description="External ID (e.g. Wikidata QID)"
-    )
-    confidence: float | None = Field(
-        default=None, description="Confidence for model-assigned labels"
-    )
+    label: str
+    label_id: str | None = None
+    confidence: float | None = None
 
-    @field_validator("label")
-    @classmethod
-    def validate_label(cls, v: str) -> str:
-        """Validate label is not empty.
-
-        Parameters
-        ----------
-        v : str
-            Label to validate.
-
-        Returns
-        -------
-        str
-            Validated label.
-
-        Raises
-        ------
-        ValueError
-            If label is empty.
-        """
-        if not v or not v.strip():
+    @dx.validates("label")
+    def _check_label(self, value: str) -> str:
+        if not value or not value.strip():
             raise ValueError("label cannot be empty")
-        return v.strip()
+        return value.strip()
 
 
 class Span(BeadBaseModel):
@@ -161,7 +94,7 @@ class Span(BeadBaseModel):
     ----------
     span_id : str
         Unique identifier within the item.
-    segments : list[SpanSegment]
+    segments : tuple[SpanSegment, ...]
         Index segments composing this span.
     head_index : int | None
         Syntactic head token index.
@@ -173,51 +106,22 @@ class Span(BeadBaseModel):
         Additional span-specific metadata.
     """
 
-    span_id: str = Field(..., description="Unique span ID within item")
-    segments: list[SpanSegment] = Field(
-        default_factory=_empty_span_segment_list, description="Index segments"
-    )
-    head_index: int | None = Field(
-        default=None, description="Syntactic head token index"
-    )
-    label: SpanLabel | None = Field(
-        default=None, description="Span label (None = to-be-labeled)"
-    )
-    span_type: str | None = Field(default=None, description="Semantic category")
-    span_metadata: dict[str, MetadataValue] = Field(
-        default_factory=_empty_span_metadata, description="Span metadata"
-    )
+    span_id: str
+    segments: tuple[dx.Embed[SpanSegment], ...] = ()
+    head_index: int | None = None
+    label: dx.Embed[SpanLabel] | None = None
+    span_type: str | None = None
+    span_metadata: dict[str, MetadataValue] = dx.field(default_factory=dict)
 
-    @field_validator("span_id")
-    @classmethod
-    def validate_span_id(cls, v: str) -> str:
-        """Validate span_id is not empty.
-
-        Parameters
-        ----------
-        v : str
-            Span ID to validate.
-
-        Returns
-        -------
-        str
-            Validated span ID.
-
-        Raises
-        ------
-        ValueError
-            If span_id is empty.
-        """
-        if not v or not v.strip():
+    @dx.validates("span_id")
+    def _check_span_id(self, value: str) -> str:
+        if not value or not value.strip():
             raise ValueError("span_id cannot be empty")
-        return v.strip()
+        return value.strip()
 
 
 class SpanRelation(BeadBaseModel):
     """A typed, directed relation between two spans.
-
-    Used for semantic role labeling, relation extraction, entity linking,
-    coreference, and similar tasks.
 
     Attributes
     ----------
@@ -228,90 +132,47 @@ class SpanRelation(BeadBaseModel):
     target_span_id : str
         ``span_id`` of the target span.
     label : SpanLabel | None
-        Relation label (reuses SpanLabel for consistency).
+        Relation label.
     directed : bool
-        Whether the relation is directed (A->B) or undirected (A--B).
+        Whether the relation is directed (A -> B) or undirected (A -- B).
     relation_metadata : dict[str, MetadataValue]
         Additional relation-specific metadata.
     """
 
-    relation_id: str = Field(..., description="Unique relation ID within item")
-    source_span_id: str = Field(..., description="Source span ID")
-    target_span_id: str = Field(..., description="Target span ID")
-    label: SpanLabel | None = Field(default=None, description="Relation label")
-    directed: bool = Field(default=True, description="Whether relation is directed")
-    relation_metadata: dict[str, MetadataValue] = Field(
-        default_factory=_empty_relation_metadata,
-        description="Relation metadata",
-    )
+    relation_id: str
+    source_span_id: str
+    target_span_id: str
+    label: dx.Embed[SpanLabel] | None = None
+    directed: bool = True
+    relation_metadata: dict[str, MetadataValue] = dx.field(default_factory=dict)
 
-    @field_validator("relation_id")
-    @classmethod
-    def validate_relation_id(cls, v: str) -> str:
-        """Validate relation_id is not empty.
-
-        Parameters
-        ----------
-        v : str
-            Relation ID to validate.
-
-        Returns
-        -------
-        str
-            Validated relation ID.
-
-        Raises
-        ------
-        ValueError
-            If relation_id is empty.
-        """
-        if not v or not v.strip():
+    @dx.validates("relation_id")
+    def _check_relation_id(self, value: str) -> str:
+        if not value or not value.strip():
             raise ValueError("relation_id cannot be empty")
-        return v.strip()
+        return value.strip()
 
-    @field_validator("source_span_id", "target_span_id")
-    @classmethod
-    def validate_span_ids(cls, v: str) -> str:
-        """Validate span IDs are not empty.
-
-        Parameters
-        ----------
-        v : str
-            Span ID to validate.
-
-        Returns
-        -------
-        str
-            Validated span ID.
-
-        Raises
-        ------
-        ValueError
-            If span ID is empty.
-        """
-        if not v or not v.strip():
+    @dx.validates("source_span_id", "target_span_id")
+    def _check_span_id_field(self, value: str) -> str:
+        if not value or not value.strip():
             raise ValueError("span ID cannot be empty")
-        return v.strip()
+        return value.strip()
 
 
 class SpanSpec(BeadBaseModel):
     """Specification for span labeling behavior.
-
-    Configures how spans are displayed, created, and labeled in an
-    experiment. Supports both fixed label sets and Wikidata entity search
-    for both span labels and relation labels.
 
     Attributes
     ----------
     index_mode : SpanIndexMode
         Whether spans index by token or character position.
     interaction_mode : SpanInteractionMode
-        "static" for read-only highlights, "interactive" for participant
-        annotation.
+        ``static`` for read-only highlights, ``interactive`` for
+        participant annotation.
     label_source : LabelSourceType
-        Source of span labels ("fixed" or "wikidata").
-    labels : list[str] | None
-        Fixed span label set (when label_source is "fixed").
+        Source of span labels (``fixed`` or ``wikidata``).
+    labels : tuple[str, ...] | None
+        Fixed span label set when ``label_source == "fixed"``.
     label_colors : dict[str, str] | None
         CSS colors keyed by label name.
     allow_overlapping : bool
@@ -324,7 +185,7 @@ class SpanSpec(BeadBaseModel):
         Whether relation annotation is enabled.
     relation_label_source : LabelSourceType
         Source of relation labels.
-    relation_labels : list[str] | None
+    relation_labels : tuple[str, ...] | None
         Fixed relation label set.
     relation_label_colors : dict[str, str] | None
         CSS colors keyed by relation label name.
@@ -336,62 +197,27 @@ class SpanSpec(BeadBaseModel):
         Maximum number of relations allowed (interactive mode).
     wikidata_language : str
         Language for Wikidata entity search.
-    wikidata_entity_types : list[str] | None
+    wikidata_entity_types : tuple[str, ...] | None
         Restrict Wikidata search to these entity types.
     wikidata_result_limit : int
         Maximum number of Wikidata search results.
     """
 
-    index_mode: SpanIndexMode = Field(default="token", description="Span indexing mode")
-    interaction_mode: SpanInteractionMode = Field(
-        default="static", description="Span interaction mode"
-    )
-    # span label config
-    label_source: LabelSourceType = Field(
-        default="fixed", description="Span label source"
-    )
-    labels: list[str] | None = Field(default=None, description="Fixed span label set")
-    label_colors: dict[str, str] | None = Field(
-        default=None, description="CSS colors per span label"
-    )
-    allow_overlapping: bool = Field(
-        default=True, description="Whether overlapping spans are allowed"
-    )
-    min_spans: int | None = Field(
-        default=None, description="Minimum required spans (interactive)"
-    )
-    max_spans: int | None = Field(
-        default=None, description="Maximum allowed spans (interactive)"
-    )
-    # relation config
-    enable_relations: bool = Field(
-        default=False, description="Whether relation annotation is enabled"
-    )
-    relation_label_source: LabelSourceType = Field(
-        default="fixed", description="Relation label source"
-    )
-    relation_labels: list[str] | None = Field(
-        default=None, description="Fixed relation label set"
-    )
-    relation_label_colors: dict[str, str] | None = Field(
-        default=None, description="CSS colors per relation label"
-    )
-    relation_directed: bool = Field(
-        default=True, description="Default directionality for relations"
-    )
-    min_relations: int | None = Field(
-        default=None, description="Minimum required relations (interactive)"
-    )
-    max_relations: int | None = Field(
-        default=None, description="Maximum allowed relations (interactive)"
-    )
-    # wikidata config (shared by span labels and relation labels)
-    wikidata_language: str = Field(
-        default="en", description="Language for Wikidata entity search"
-    )
-    wikidata_entity_types: list[str] | None = Field(
-        default=None, description="Restrict Wikidata entity types"
-    )
-    wikidata_result_limit: int = Field(
-        default=10, description="Max Wikidata search results"
-    )
+    index_mode: SpanIndexMode = "token"
+    interaction_mode: SpanInteractionMode = "static"
+    label_source: LabelSourceType = "fixed"
+    labels: tuple[str, ...] | None = None
+    label_colors: dict[str, str] | None = None
+    allow_overlapping: bool = True
+    min_spans: int | None = None
+    max_spans: int | None = None
+    enable_relations: bool = False
+    relation_label_source: LabelSourceType = "fixed"
+    relation_labels: tuple[str, ...] | None = None
+    relation_label_colors: dict[str, str] | None = None
+    relation_directed: bool = True
+    min_relations: int | None = None
+    max_relations: int | None = None
+    wikidata_language: str = "en"
+    wikidata_entity_types: tuple[str, ...] | None = None
+    wikidata_result_limit: int = 10

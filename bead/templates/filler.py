@@ -11,6 +11,8 @@ from abc import ABC, abstractmethod
 from collections.abc import Iterable, Iterator
 from typing import TYPE_CHECKING
 
+import didactic.api as dx
+
 from bead.data.base import BeadBaseModel
 from bead.data.language_codes import LanguageCode, validate_iso639_code
 from bead.dsl import ast
@@ -152,36 +154,26 @@ class FilledTemplate(BeadBaseModel):
 
     template_id: str
     template_name: str
-    slot_fillers: dict[str, LexicalItem]
+    slot_fillers: dict[str, dx.Embed[LexicalItem]]
     rendered_text: str
-    strategy_name: str
-    template_slots: dict[str, bool] = {}
+    strategy_name: str = "exhaustive"
+    template_slots: dict[str, bool] = dx.field(default_factory=dict)
 
     @property
-    def unfilled_slots(self) -> set[str]:
-        """Get names of slots that were not filled.
-
-        Returns
-        -------
-        set[str]
-            Set of slot names present in template but not in slot_fillers.
-        """
-        return set(self.template_slots.keys()) - set(self.slot_fillers.keys())
+    def unfilled_slots(self) -> frozenset[str]:
+        """Names of slots present in the template but not in ``slot_fillers``."""
+        return frozenset(self.template_slots.keys()) - frozenset(
+            self.slot_fillers.keys()
+        )
 
     @property
-    def unfilled_required_slots(self) -> set[str]:
-        """Get names of required slots that were not filled.
-
-        Returns
-        -------
-        set[str]
-            Set of required slot names that are unfilled.
-        """
-        return {
+    def unfilled_required_slots(self) -> frozenset[str]:
+        """Names of required slots that were not filled."""
+        return frozenset(
             slot_name
             for slot_name, is_required in self.template_slots.items()
             if is_required and slot_name not in self.slot_fillers
-        }
+        )
 
     @property
     def is_complete(self) -> bool:
@@ -351,7 +343,7 @@ class CSPFiller(TemplateFiller):
 
         for slot_name, slot in template.slots.items():
             candidates: list[LexicalItem] = []
-            for item in self.lexicon.items.values():
+            for item in self.lexicon.items:
                 # Filter by language code if specified
                 if normalized_lang:
                     # Normalize item language code for comparison
@@ -504,11 +496,7 @@ class CSPFiller(TemplateFiller):
         filled_set = set(filled_slots)
 
         for constraint in template.constraints:
-            # Parse the constraint expression to AST
-            if constraint.compiled:
-                ast_node = constraint.compiled
-            else:
-                ast_node = parse(constraint.expression)
+            ast_node = parse(constraint.expression)
 
             # Extract all variable names referenced in the expression
             referenced_vars = self._extract_variables(ast_node)

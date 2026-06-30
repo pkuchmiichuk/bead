@@ -82,6 +82,7 @@ def create_uniqueness(
     """
     try:
         constraint = UniquenessConstraint(
+            constraint_type="uniqueness",
             property_expression=property_expression,
             priority=priority,
         )
@@ -156,6 +157,7 @@ def create_balance(
             counts_dict = {k: int(v) for k, v in parsed.items()}
 
         constraint = BalanceConstraint(
+            constraint_type="balance",
             property_expression=property_expression,
             target_counts=counts_dict,
             tolerance=tolerance,
@@ -217,6 +219,7 @@ def create_quantile(
     """
     try:
         constraint = QuantileConstraint(
+            constraint_type="quantile",
             property_expression=property_expression,
             n_quantiles=n_quantiles,
             priority=priority,
@@ -285,6 +288,7 @@ def create_grouped_quantile(
     """
     try:
         constraint = GroupedQuantileConstraint(
+            constraint_type="grouped_quantile",
             property_expression=property_expression,
             group_by_expression=group_by_expression,
             n_quantiles=n_quantiles,
@@ -346,6 +350,7 @@ def create_diversity(
     """
     try:
         constraint = DiversityConstraint(
+            constraint_type="diversity",
             property_expression=property_expression,
             min_unique_values=min_unique,
             priority=priority,
@@ -419,6 +424,7 @@ def create_size(
             )
 
         constraint = SizeConstraint(
+            constraint_type="size",
             exact_size=exact_size,
             min_size=min_size,
             max_size=max_size,
@@ -492,6 +498,7 @@ def create_batch_coverage(
         values_list = parse_list_option(target_values)
 
         constraint = BatchCoverageConstraint(
+            constraint_type="coverage",
             property_expression=property_expression,
             target_values=values_list,  # type: ignore[arg-type]
             min_coverage=min_coverage,
@@ -563,6 +570,7 @@ def create_batch_balance(
         dist_float = {k: float(v) for k, v in dist_dict.items()}
 
         constraint = BatchBalanceConstraint(
+            constraint_type="balance",
             property_expression=property_expression,
             target_distribution=dist_float,
             tolerance=tolerance,
@@ -624,6 +632,7 @@ def create_batch_diversity(
     """
     try:
         constraint = BatchDiversityConstraint(
+            constraint_type="diversity",
             property_expression=property_expression,
             max_lists_per_value=max_lists_per_value,
             priority=priority,
@@ -684,6 +693,7 @@ def create_batch_min_occurrence(
     """
     try:
         constraint = BatchMinOccurrenceConstraint(
+            constraint_type="min_occurrence",
             property_expression=property_expression,
             min_occurrences=min_occurrences,
             priority=priority,

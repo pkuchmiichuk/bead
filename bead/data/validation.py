@@ -1,41 +1,40 @@
 """Validation utilities for data integrity checks.
 
-This module provides validation functions beyond Pydantic's built-in validation,
-including file validation, reference validation, and provenance chain validation.
+Provides functions beyond didactic's built-in validation, including
+JSONLines-file validation, UUID-reference validation, and provenance-chain
+validation.
 """
 
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import get_type_hints
+from typing import Self
 from uuid import UUID
 
-from pydantic import BaseModel, Field, ValidationError
+import didactic.api as dx
 
 from bead.data.metadata import MetadataTracker
 
 
-class ValidationReport(BaseModel):
-    """Report of validation results.
-
-    A lightweight model for collecting and reporting validation results,
-    including errors, warnings, and statistics about validated objects.
+class ValidationReport(dx.Model):
+    """A frozen report of validation results.
 
     Attributes
     ----------
     valid : bool
-        Overall validation status (False if any errors)
-    errors : list[str]
-        List of error messages (default: empty list)
-    warnings : list[str]
-        List of warning messages (default: empty list)
+        Overall validation status. Set to ``False`` once any error is added.
+    errors : tuple[str, ...]
+        Error messages.
+    warnings : tuple[str, ...]
+        Warning messages.
     object_count : int
-        Number of objects validated (default: 0)
+        Number of objects validated.
 
     Examples
     --------
     >>> report = ValidationReport(valid=True)
-    >>> report.add_error("Invalid field")
+    >>> report = report.add_error("Invalid field")
     >>> report.valid
     False
     >>> report.has_errors()
@@ -45,305 +44,136 @@ class ValidationReport(BaseModel):
     """
 
     valid: bool
-    errors: list[str] = Field(default_factory=list)
-    warnings: list[str] = Field(default_factory=list)
+    errors: tuple[str, ...] = ()
+    warnings: tuple[str, ...] = ()
     object_count: int = 0
 
-    def add_error(self, message: str) -> None:
-        """Add an error message and set valid to False.
+    def add_error(self, message: str) -> Self:
+        """Return a new report with *message* appended and ``valid=False``."""
+        return self.with_(errors=(*self.errors, message), valid=False)
 
-        Parameters
-        ----------
-        message
-            Error message to add.
-
-        Examples
-        --------
-        >>> report = ValidationReport(valid=True)
-        >>> report.add_error("Something went wrong")
-        >>> report.valid
-        False
-        >>> "Something went wrong" in report.errors
-        True
-        """
-        self.errors.append(message)
-        self.valid = False
-
-    def add_warning(self, message: str) -> None:
-        """Add a warning message.
-
-        Warnings do not affect the valid status.
-
-        Parameters
-        ----------
-        message
-            Warning message to add.
-
-        Examples
-        --------
-        >>> report = ValidationReport(valid=True)
-        >>> report.add_warning("This might be an issue")
-        >>> report.valid
-        True
-        >>> report.has_warnings()
-        True
-        """
-        self.warnings.append(message)
+    def add_warning(self, message: str) -> Self:
+        """Return a new report with *message* appended to ``warnings``."""
+        return self.with_(warnings=(*self.warnings, message))
 
     def has_errors(self) -> bool:
-        """Check if report has any errors.
-
-        Returns
-        -------
-        bool
-            True if errors list is non-empty
-
-        Examples
-        --------
-        >>> report = ValidationReport(valid=True)
-        >>> report.has_errors()
-        False
-        >>> report.add_error("error")
-        >>> report.has_errors()
-        True
-        """
+        """Return whether the report contains any errors."""
         return len(self.errors) > 0
 
     def has_warnings(self) -> bool:
-        """Check if report has any warnings.
-
-        Returns
-        -------
-        bool
-            True if warnings list is non-empty
-
-        Examples
-        --------
-        >>> report = ValidationReport(valid=True)
-        >>> report.has_warnings()
-        False
-        >>> report.add_warning("warning")
-        >>> report.has_warnings()
-        True
-        """
+        """Return whether the report contains any warnings."""
         return len(self.warnings) > 0
 
 
 def validate_jsonlines_file(
-    path: Path, model_class: type[BaseModel], strict: bool = True
+    path: Path, model_class: type[dx.Model], strict: bool = True
 ) -> ValidationReport:
-    """Validate JSONLines file against Pydantic model schema.
-
-    Reads and validates each line in a JSONLines file against the provided
-    model class. Empty lines are skipped.
+    """Validate every line of *path* against *model_class*.
 
     Parameters
     ----------
     path
-        Path to JSONLines file to validate.
+        Path to the JSONLines file.
     model_class
-        Pydantic model class to validate against.
+        didactic Model class to validate against.
     strict
-        If True, stop at first error. If False, collect all errors (default: True).
+        If ``True``, return on the first error.
 
     Returns
     -------
     ValidationReport
-        Validation report with results
-
-    Examples
-    --------
-    >>> from pathlib import Path
-    >>> from bead.data.base import BeadBaseModel
-    >>> class TestModel(BeadBaseModel):
-    ...     name: str
-    >>> # validate file
-    >>> report = validate_jsonlines_file(
-    ...     Path("data.jsonl"), TestModel
-    ... )  # doctest: +SKIP
-    >>> report.valid
-    True
+        Report containing the collected errors and the count of validated
+        records.
     """
     report = ValidationReport(valid=True)
-
-    # check if file exists
     if not path.exists():
-        report.add_error(f"File not found: {path}")
-        return report
+        return report.add_error(f"File not found: {path}")
 
     try:
-        # try to read the file
         with path.open("r", encoding="utf-8") as f:
             for line_num, line in enumerate(f, start=1):
                 line = line.strip()
-                if not line:  # skip empty lines
+                if not line:
                     continue
-
                 try:
-                    # try to parse and validate
                     model_class.model_validate_json(line)
-                    report.object_count += 1
-                except ValidationError as e:
-                    error_msg = f"Line {line_num}: Validation error - {e}"
-                    report.add_error(error_msg)
+                    report = report.with_(object_count=report.object_count + 1)
+                except dx.ValidationError as e:
+                    report = report.add_error(f"Line {line_num}: {e}")
                     if strict:
                         return report
-                except Exception as e:
-                    error_msg = f"Line {line_num}: Parse error - {e}"
-                    report.add_error(error_msg)
+                except (ValueError, TypeError) as e:
+                    report = report.add_error(f"Line {line_num}: parse error - {e}")
                     if strict:
                         return report
-
     except OSError as e:
-        report.add_error(f"Failed to read file: {e}")
+        report = report.add_error(f"Failed to read file: {e}")
 
     return report
 
 
 def validate_uuid_references(
-    objects: list[BaseModel], reference_pool: dict[UUID, BaseModel]
+    objects: Sequence[dx.Model], reference_pool: Mapping[UUID, dx.Model]
 ) -> ValidationReport:
-    """Validate that UUID references point to existing objects.
+    """Verify every UUID-typed field in *objects* points into *reference_pool*.
 
-    Checks all UUID fields in objects to ensure they reference valid objects
-    in the reference pool. Supports both single UUID fields and list[UUID] fields.
-
-    Parameters
-    ----------
-    objects
-        List of objects to validate.
-    reference_pool
-        Dictionary of valid UUIDs to objects.
-
-    Returns
-    -------
-    ValidationReport
-        Validation report with results
-
-    Examples
-    --------
-    >>> from uuid import uuid4
-    >>> from bead.data.base import BeadBaseModel
-    >>> class Item(BeadBaseModel):
-    ...     name: str
-    >>> items = [Item(name="test")]
-    >>> pool = {items[0].id: items[0]}
-    >>> report = validate_uuid_references(items, pool)
-    >>> report.valid
-    True
+    Supports single ``UUID`` fields and tuple/list-of-UUID fields. The
+    object's own ``id`` attribute is excluded from the check.
     """
-    report = ValidationReport(valid=True)
-    report.object_count = len(objects)
+    report = ValidationReport(valid=True, object_count=len(objects))
 
     for obj in objects:
-        # get type hints for the object
-        try:
-            type_hints = get_type_hints(type(obj))
-        except Exception:
-            # if we can't get type hints, skip this object
+        specs = getattr(type(obj), "__field_specs__", None)
+        if not specs:
             continue
 
-        # check each field
-        for field_name, field_type in type_hints.items():
-            # skip 'id' field; it's the object's own ID, not a reference
+        for field_name in specs:
             if field_name == "id":
                 continue
-
-            # convert type to string for checking
-            type_str = str(field_type)
-
-            # check if field contains UUID
-            if "UUID" not in type_str:
-                continue
-
-            # get field value
             try:
                 field_value = getattr(obj, field_name)
             except AttributeError:
                 continue
 
-            # check if it's a list of UUIDs
-            if "list" in type_str.lower() or "List" in type_str:
-                if isinstance(field_value, list):
-                    for item in field_value:  # pyright: ignore[reportUnknownVariableType]
-                        if not isinstance(item, UUID):
-                            continue
-                        if item not in reference_pool:
-                            # get object ID for error message
-                            obj_id = getattr(obj, "id", "unknown")
-                            report.add_error(
-                                f"Object {obj_id}: "
-                                f"Field '{field_name}' references "
-                                f"missing UUID {item}"
-                            )
-            # single UUID field
-            elif isinstance(field_value, UUID):
-                if field_value not in reference_pool:
-                    # get object ID for error message
-                    obj_id = getattr(obj, "id", "unknown")
-                    report.add_error(
-                        f"Object {obj_id}: "
-                        f"Field '{field_name}' references "
-                        f"missing UUID {field_value}"
-                    )
+            if isinstance(field_value, (list, tuple)):
+                items: tuple[object, ...] = tuple(field_value)
+                for item in items:
+                    if not isinstance(item, UUID):
+                        continue
+                    if item not in reference_pool:
+                        obj_id = getattr(obj, "id", "unknown")
+                        report = report.add_error(
+                            f"Object {obj_id}: field '{field_name}' "
+                            f"references missing UUID {item}"
+                        )
+            elif isinstance(field_value, UUID) and field_value not in reference_pool:
+                obj_id = getattr(obj, "id", "unknown")
+                report = report.add_error(
+                    f"Object {obj_id}: field '{field_name}' references "
+                    f"missing UUID {field_value}"
+                )
 
     return report
 
 
 def validate_provenance_chain(
-    metadata: MetadataTracker, repository: dict[UUID, BaseModel]
+    metadata: MetadataTracker, repository: Mapping[UUID, dx.Model]
 ) -> ValidationReport:
-    """Validate provenance chain references are valid.
-
-    Checks that all parent_id references in the provenance chain exist in the
-    repository and that parent_type matches the actual type.
-
-    Parameters
-    ----------
-    metadata
-        Metadata tracker with provenance chain to validate.
-    repository
-        Dictionary of valid UUIDs to objects.
-
-    Returns
-    -------
-    ValidationReport
-        Validation report with results
-
-    Examples
-    --------
-    >>> from uuid import uuid4
-    >>> from bead.data.base import BeadBaseModel
-    >>> from bead.data.metadata import MetadataTracker
-    >>> class Template(BeadBaseModel):
-    ...     name: str
-    >>> template = Template(name="test")
-    >>> metadata = MetadataTracker()
-    >>> metadata.add_provenance(template.id, "Template", "filled_from")
-    >>> repo = {template.id: template}
-    >>> report = validate_provenance_chain(metadata, repo)
-    >>> report.valid
-    True
-    """
-    report = ValidationReport(valid=True)
-    report.object_count = len(metadata.provenance)
+    """Validate every parent reference in *metadata*'s provenance chain."""
+    report = ValidationReport(valid=True, object_count=len(metadata.provenance))
 
     for record in metadata.provenance:
-        # check if parent exists
         if record.parent_id not in repository:
-            report.add_error(
+            report = report.add_error(
                 f"Provenance record references missing parent: {record.parent_id}"
             )
             continue
-
-        # check if parent_type matches actual type
         parent_obj = repository[record.parent_id]
         actual_type = type(parent_obj).__name__
-
         if record.parent_type != actual_type:
-            report.add_error(
+            report = report.add_error(
                 f"Provenance record for {record.parent_id}: "
-                f"Expected type '{record.parent_type}', got '{actual_type}'"
+                f"expected type '{record.parent_type}', got '{actual_type}'"
             )
 
     return report

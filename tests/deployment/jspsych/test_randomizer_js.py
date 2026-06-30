@@ -15,7 +15,7 @@ from uuid import uuid4
 import pytest
 
 from bead.deployment.jspsych.randomizer import generate_randomizer_function
-from bead.lists.constraints import OrderingConstraint
+from bead.lists.constraints import OrderingConstraint, OrderingPair
 
 
 def check_node_available() -> bool:
@@ -64,7 +64,10 @@ class TestJavaScriptExecution:
     def test_precedence_constraint(self, tmp_path: Path) -> None:
         """Test precedence constraint enforcement."""
         item_ids = [uuid4() for _ in range(5)]
-        constraint = OrderingConstraint(precedence_pairs=[(item_ids[0], item_ids[4])])
+        constraint = OrderingConstraint(
+            constraint_type="ordering",
+            precedence_pairs=(OrderingPair(before=item_ids[0], after=item_ids[4]),),
+        )
         metadata = {item_id: {"condition": "A"} for item_id in item_ids}
 
         js_code = generate_randomizer_function(item_ids, [constraint], metadata)
@@ -99,7 +102,9 @@ class TestJavaScriptExecution:
     def test_no_adjacent_constraint(self, tmp_path: Path) -> None:
         """Test no-adjacent constraint enforcement."""
         item_ids = [uuid4() for _ in range(6)]
-        constraint = OrderingConstraint(no_adjacent_property="condition")
+        constraint = OrderingConstraint(
+            constraint_type="ordering", no_adjacent_property="condition"
+        )
         metadata = {
             item_ids[0]: {"condition": "A"},
             item_ids[1]: {"condition": "B"},
@@ -144,7 +149,9 @@ class TestJavaScriptExecution:
     def test_practice_items_first(self, tmp_path: Path) -> None:
         """Test practice items appear first."""
         item_ids = [uuid4() for _ in range(5)]
-        constraint = OrderingConstraint(practice_item_property="is_practice")
+        constraint = OrderingConstraint(
+            constraint_type="ordering", practice_item_property="is_practice"
+        )
         metadata = {
             item_ids[0]: {"is_practice": False},
             item_ids[1]: {"is_practice": True},
@@ -194,7 +201,9 @@ class TestJavaScriptExecution:
         """Test blocking creates contiguous blocks."""
         item_ids = [uuid4() for _ in range(6)]
         constraint = OrderingConstraint(
-            block_by_property="block_type", randomize_within_blocks=False
+            constraint_type="ordering",
+            block_by_property="block_type",
+            randomize_within_blocks=False,
         )
         metadata = {
             item_ids[0]: {"block_type": "A"},
@@ -238,7 +247,7 @@ class TestJavaScriptExecution:
         """Test minimum distance constraint enforcement."""
         item_ids = [uuid4() for _ in range(8)]
         constraint = OrderingConstraint(
-            no_adjacent_property="condition", min_distance=2
+            constraint_type="ordering", no_adjacent_property="condition", min_distance=2
         )
         metadata = {
             item_ids[0]: {"condition": "A"},

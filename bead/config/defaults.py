@@ -1,12 +1,12 @@
 """Default configurations for the bead package.
 
-This module provides default configuration instances and helper functions
-for retrieving default configurations.
+Provides ``DEFAULT_CONFIG`` and helpers for retrieving default
+configuration instances.
 """
 
 from __future__ import annotations
 
-from pydantic import BaseModel
+import didactic.api as dx
 
 from bead.config.active_learning import ActiveLearningConfig
 from bead.config.config import BeadConfig
@@ -29,90 +29,18 @@ DEFAULT_CONFIG = BeadConfig(
     active_learning=ActiveLearningConfig(),
     logging=LoggingConfig(),
 )
-"""Default configuration instance.
-
-This configuration uses all default values from each config model.
-It's the base configuration used when no config file is provided.
-
-Examples
---------
->>> from bead.config.defaults import DEFAULT_CONFIG
->>> DEFAULT_CONFIG.profile
-'default'
->>> DEFAULT_CONFIG.paths.data_dir
-PosixPath('data')
-"""
+"""The default configuration instance."""
 
 
 def get_default_config() -> BeadConfig:
-    """Get a copy of the default configuration.
+    """Return a fresh default ``BeadConfig``.
 
-    Returns
-    -------
-    BeadConfig
-        A deep copy of the default configuration.
-
-    Examples
-    --------
-    >>> from bead.config.defaults import get_default_config
-    >>> config = get_default_config()
-    >>> config.profile
-    'default'
-    >>> config.templates.batch_size
-    1000
-
-    Notes
-    -----
-    Returns a deep copy to ensure modifications don't affect the original
-    DEFAULT_CONFIG instance.
+    didactic Models are frozen; this constructor builds a new instance
+    each call so callers can use ``with_(...)`` to derive overrides.
     """
-    return DEFAULT_CONFIG.model_copy(deep=True)
+    return BeadConfig()
 
 
-def get_default_for_model[T: BaseModel](model_type: type[T]) -> T:
-    """Get default instance of any config model.
-
-    Parameters
-    ----------
-    model_type : type[BaseModel]
-        The configuration model type to instantiate.
-
-    Returns
-    -------
-    T
-        Default instance of the specified model type.
-
-    Examples
-    --------
-    >>> from bead.config.defaults import get_default_for_model
-    >>> from bead.config.paths import PathsConfig
-    >>> paths = get_default_for_model(PathsConfig)
-    >>> paths.data_dir
-    PosixPath('data')
-
-    Raises
-    ------
-    TypeError
-        If model_type is not a valid Pydantic model class.
-
-    Notes
-    -----
-    This function provides runtime validation to ensure the input is a valid
-    Pydantic model class, even though the type system constrains it.
-    """
-    # runtime validation for cases where type checking is bypassed
-    try:
-        if not isinstance(model_type, type):  # type: ignore[reportUnnecessaryIsInstance]
-            msg = f"model_type must be a Pydantic BaseModel class, got {model_type}"
-            raise TypeError(msg)
-        if not issubclass(model_type, BaseModel):  # type: ignore[reportUnnecessaryIsInstance]
-            msg = f"model_type must be a Pydantic BaseModel class, got {model_type}"
-            raise TypeError(msg)
-    except TypeError as e:
-        # re-raise TypeError with our custom message
-        if "must be a Pydantic BaseModel class" in str(e):
-            raise
-        msg = f"model_type must be a Pydantic BaseModel class, got {model_type}"
-        raise TypeError(msg) from e
-
+def get_default_for_model[T: dx.Model](model_type: type[T]) -> T:
+    """Return a default instance of the given didactic Model class."""
     return model_type()

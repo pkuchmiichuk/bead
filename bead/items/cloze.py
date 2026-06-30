@@ -147,7 +147,7 @@ def create_cloze_item(
     return Item(
         item_template_id=item_template_id,
         rendered_elements=rendered_elements,
-        unfilled_slots=unfilled_slots_list,
+        unfilled_slots=tuple(unfilled_slots_list),
         item_metadata=item_metadata,
     )
 
@@ -362,7 +362,7 @@ def create_simple_cloze_item(
     unfilled_slots_list: list[UnfilledSlot] = []
     for pos, label in zip(blank_positions, blank_labels, strict=True):
         unfilled_slots_list.append(
-            UnfilledSlot(slot_name=label, position=pos, constraint_ids=[])
+            UnfilledSlot(slot_name=label, position=pos, constraint_ids=())
         )
 
     # Replace tokens at blank positions with "___"
@@ -390,7 +390,7 @@ def create_simple_cloze_item(
     return Item(
         item_template_id=item_template_id,
         rendered_elements=rendered_elements,
-        unfilled_slots=unfilled_slots_list,
+        unfilled_slots=tuple(unfilled_slots_list),
         item_metadata=item_metadata,
     )
 
@@ -725,7 +725,7 @@ def _calculate_positions(
     return positions
 
 
-def _extract_constraint_ids(template: Any, slot_name: str) -> list[UUID]:
+def _extract_constraint_ids(template: Any, slot_name: str) -> tuple[UUID, ...]:
     """Extract constraint UUIDs from a template slot.
 
     Parameters
@@ -741,17 +741,11 @@ def _extract_constraint_ids(template: Any, slot_name: str) -> list[UUID]:
         Constraint UUIDs for this slot.
     """
     if slot_name not in template.slots:
-        return []
+        return ()
 
     slot = template.slots[slot_name]
 
     if not hasattr(slot, "constraints") or slot.constraints is None:
-        return []
+        return ()
 
-    # Extract UUIDs from Constraint objects
-    constraint_ids: list[UUID] = []
-    for constraint in slot.constraints:
-        if hasattr(constraint, "id"):
-            constraint_ids.append(constraint.id)
-
-    return constraint_ids
+    return tuple(c.id for c in slot.constraints if hasattr(c, "id"))

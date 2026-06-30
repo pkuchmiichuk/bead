@@ -79,7 +79,7 @@ def sample_lexicon() -> Lexicon:
     # Create lexicon and add items
     lexicon = Lexicon(name="test_lexicon")
     for item in items_list:
-        lexicon.add(item)
+        lexicon = lexicon.with_item(item)
 
     return lexicon
 

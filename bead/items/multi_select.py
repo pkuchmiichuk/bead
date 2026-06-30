@@ -113,7 +113,7 @@ def create_multi_select_item(
 
     return Item(
         item_template_id=item_template_id,
-        options=list(options),
+        options=tuple(options),
         item_metadata=item_metadata,
     )
 
@@ -339,8 +339,8 @@ def create_multi_select_items_with_foils(
             metadata = metadata_fn(list(correct_combo), list(foil_combo))
         else:
             metadata = {
-                "correct_item_ids": [str(item.id) for item in correct_combo],
-                "foil_item_ids": [str(item.id) for item in foil_combo],
+                "correct_item_ids": tuple(str(item.id) for item in correct_combo),
+                "foil_item_ids": tuple(str(item.id) for item in foil_combo),
                 "n_correct": n_correct,
                 "n_foils": n_foils,
             }
@@ -444,8 +444,8 @@ def create_multi_select_items_cross_product(
             metadata = metadata_fn(list(combo1), list(combo2))
         else:
             metadata = {
-                "source_group1_ids": [str(item.id) for item in combo1],
-                "source_group2_ids": [str(item.id) for item in combo2],
+                "source_group1_ids": tuple(str(item.id) for item in combo1),
+                "source_group2_ids": tuple(str(item.id) for item in combo2),
             }
 
         # Create multi-select item
@@ -573,7 +573,7 @@ def create_filtered_multi_select_items(
             # Create item
             metadata: dict[str, MetadataValue] = {
                 "group_key": str(group_key),
-                "source_item_ids": [str(item.id) for item in combo],
+                "source_item_ids": tuple(str(item.id) for item in combo),
             }
 
             ms_item = create_multi_select_item(

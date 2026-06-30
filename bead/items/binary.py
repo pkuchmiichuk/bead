@@ -96,7 +96,7 @@ def create_binary_item(
 
     # Build item metadata
     item_metadata: dict[str, MetadataValue] = {
-        "binary_options": list(binary_options),
+        "binary_options": tuple(binary_options),
     }
     if metadata:
         item_metadata.update(metadata)

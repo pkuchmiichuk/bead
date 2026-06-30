@@ -221,7 +221,7 @@ def create_ranking_item(
     *items_to_rank: str,
     prompt: str = "Rank these items from best to worst:",
     allow_ties: bool = False,
-    metadata: dict[str, Any] | None = None
+    metadata: dict[str, Any] | None = None,
 ) -> Item:
     """Create a ranking task item.
 
@@ -335,7 +335,7 @@ uv run ruff format bead/
 
 **Configuration** (from pyproject.toml):
 - Line length: 88 characters
-- Target: Python 3.13
+- Target: Python 3.14
 - Conventions: PEP 8, NumPy docstrings
 - Rules: E (errors), F (PyFlakes), I (imports), N (naming), D (docstrings), UP (upgrades), ANN (annotations), B (bugbear), A (builtins), C4 (comprehensions), PLC (Pylint)
 
@@ -359,7 +359,7 @@ def partition_items(
     items: list[UUID],
     n_lists: int,
     metadata: dict[UUID, dict[str, Any]],
-    random_seed: int | None = None
+    random_seed: int | None = None,
 ) -> list[ExperimentList]:
     """Partition items into lists."""
     ...
@@ -367,7 +367,7 @@ def partition_items(
 
 **Configuration** (from pyproject.toml):
 - Mode: strict
-- Python version: 3.13
+- Python version: 3.14
 - Excluded: tests/, adapters/ (external APIs have dynamic types)
 
 ### Running All Checks
@@ -416,10 +416,12 @@ class TestCreateRankingItem:
     def test_creates_item_with_all_fields(self) -> None:
         """Test creating ranking item with all fields."""
         item = create_ranking_item(
-            "A", "B", "C",
+            "A",
+            "B",
+            "C",
             prompt="Rank these:",
             allow_ties=True,
-            metadata={"source": "test"}
+            metadata={"source": "test"},
         )
 
         assert item.task_type == "ranking"
@@ -645,7 +647,7 @@ def create_ranking_item(
     *items_to_rank: str,
     prompt: str = "Rank these items from best to worst:",
     allow_ties: bool = False,
-    metadata: dict[str, Any] | None = None
+    metadata: dict[str, Any] | None = None,
 ) -> Item:
     """Create a ranking task item.
 
@@ -679,21 +681,18 @@ def create_ranking_item(
     if len(items_to_rank) < 2:
         raise ValueError("Must provide at least 2 items for ranking")
 
-    item_metadata = {
-        "n_items_to_rank": len(items_to_rank),
-        "allow_ties": allow_ties
-    }
+    item_metadata = {"n_items_to_rank": len(items_to_rank), "allow_ties": allow_ties}
 
     rendered_elements = {
         "prompt": prompt,
-        **{f"item_{i}": item for i, item in enumerate(items_to_rank)}
+        **{f"item_{i}": item for i, item in enumerate(items_to_rank)},
     }
 
     return Item(
         task_type="ranking",
         rendered_elements=rendered_elements,
         item_metadata=item_metadata,
-        metadata=metadata or {}
+        metadata=metadata or {},
     )
 
 
@@ -702,7 +701,7 @@ def create_ranking_items_from_texts(
     n_items_per_ranking: int,
     prompt: str = "Rank these items from best to worst:",
     allow_ties: bool = False,
-    metadata_fn: Callable[[list[str]], dict[str, Any]] | None = None
+    metadata_fn: Callable[[list[str]], dict[str, Any]] | None = None,
 ) -> list[Item]:
     """Create ranking items from a list of texts.
 
@@ -811,8 +810,7 @@ class SequentialConstraint(ListConstraint):
             True if items are in order, False otherwise.
         """
         values = [
-            self._evaluate_expression(self.property_expression, item)
-            for item in items
+            self._evaluate_expression(self.property_expression, item) for item in items
         ]
 
         if self.ascending:
@@ -831,8 +829,7 @@ class TestSequentialConstraint:
     def test_ascending_order(self):
         """Test constraint accepts ascending order."""
         constraint = SequentialConstraint(
-            property_expression="item['value']",
-            ascending=True
+            property_expression="item['value']", ascending=True
         )
         items = [{"value": 1}, {"value": 2}, {"value": 3}]
         assert constraint.evaluate(items) is True
@@ -840,8 +837,7 @@ class TestSequentialConstraint:
     def test_rejects_unsorted(self):
         """Test constraint rejects unsorted items."""
         constraint = SequentialConstraint(
-            property_expression="item['value']",
-            ascending=True
+            property_expression="item['value']", ascending=True
         )
         items = [{"value": 3}, {"value": 1}, {"value": 2}]
         assert constraint.evaluate(items) is False
@@ -878,9 +874,7 @@ class RankingConfig(BeadBaseModel):
 
     n_items_per_ranking: int = Field(ge=2, le=10)
     allow_ties: bool = Field(default=False)
-    prompt_template: str = Field(
-        default="Rank these items from best to worst:"
-    )
+    prompt_template: str = Field(default="Rank these items from best to worst:")
 ```
 
 **2. Update root config**: Add to `bead/config/config.py`
@@ -888,8 +882,10 @@ class RankingConfig(BeadBaseModel):
 ```python
 from bead.config.ranking import RankingConfig
 
+
 class ItemsConfig(BeadBaseModel):
     """Items configuration."""
+
     ...
     ranking: RankingConfig | None = None
 ```
@@ -913,10 +909,7 @@ Add CLI commands to appropriate module in `bead/cli/`.
 @click.option("--allow-ties", is_flag=True, help="Allow tied rankings")
 @click.option("--output", type=click.Path(), required=True, help="Output path")
 def create_ranking_command(
-    items_file: str,
-    n_items: int,
-    allow_ties: bool,
-    output: str
+    items_file: str, n_items: int, allow_ties: bool, output: str
 ) -> None:
     """Create ranking task items from input file.
 
@@ -933,7 +926,7 @@ def create_ranking_command(
     ranking_items = create_ranking_items_from_texts(
         texts=[item["text"] for item in source_items],
         n_items_per_ranking=n_items,
-        allow_ties=allow_ties
+        allow_ties=allow_ties,
     )
 
     # Write output

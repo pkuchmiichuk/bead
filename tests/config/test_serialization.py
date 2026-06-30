@@ -33,7 +33,7 @@ class TestConfigToDict:
     def test_config_to_dict_includes_modified_values(self) -> None:
         """Test that modified values are included."""
         config = get_default_config()
-        config.logging.level = "DEBUG"
+        config = config.with_(logging=config.logging.with_(level="DEBUG"))
         config_dict = config_to_dict(config, include_defaults=False)
         assert "logging" in config_dict
         assert config_dict["logging"]["level"] == "DEBUG"
@@ -41,7 +41,7 @@ class TestConfigToDict:
     def test_config_to_dict_converts_paths(self) -> None:
         """Test that Path objects are converted to strings."""
         config = get_default_config()
-        config.paths.data_dir = Path("/custom/path")
+        config = config.with_(paths=config.paths.with_(data_dir=Path("/custom/path")))
         config_dict = config_to_dict(config, include_defaults=True)
         assert isinstance(config_dict["paths"]["data_dir"], str)
         assert config_dict["paths"]["data_dir"] == "/custom/path"
@@ -49,8 +49,8 @@ class TestConfigToDict:
     def test_config_to_dict_with_nested_changes(self) -> None:
         """Test that nested changes are properly captured."""
         config = get_default_config()
-        config.logging.level = "ERROR"
-        config.logging.console = False
+        config = config.with_(logging=config.logging.with_(level="ERROR"))
+        config = config.with_(logging=config.logging.with_(console=False))
         config_dict = config_to_dict(config, include_defaults=False)
         assert "logging" in config_dict
         assert config_dict["logging"]["level"] == "ERROR"
@@ -79,7 +79,7 @@ class TestToYaml:
     def test_to_yaml_is_valid_yaml(self) -> None:
         """Test that output is valid YAML."""
         config = get_default_config()
-        config.logging.level = "DEBUG"
+        config = config.with_(logging=config.logging.with_(level="DEBUG"))
         yaml_str = to_yaml(config)
         # Should be parseable as YAML
         parsed = yaml.safe_load(yaml_str)
@@ -88,7 +88,7 @@ class TestToYaml:
     def test_to_yaml_contains_modified_values(self) -> None:
         """Test that YAML contains modified values."""
         config = get_default_config()
-        config.logging.level = "WARNING"
+        config = config.with_(logging=config.logging.with_(level="WARNING"))
         yaml_str = to_yaml(config, include_defaults=False)
         assert "WARNING" in yaml_str
 
@@ -104,7 +104,7 @@ class TestToYaml:
     def test_to_yaml_paths_as_strings(self) -> None:
         """Test that Path objects are serialized as strings."""
         config = get_default_config()
-        config.paths.data_dir = Path("/test/data")
+        config = config.with_(paths=config.paths.with_(data_dir=Path("/test/data")))
         yaml_str = to_yaml(config, include_defaults=True)
         assert "/test/data" in yaml_str
         # Should not contain Path object representation
@@ -114,8 +114,8 @@ class TestToYaml:
     def test_to_yaml_sorted_keys(self) -> None:
         """Test that YAML output has sorted keys."""
         config = get_default_config()
-        config.logging.level = "DEBUG"
-        config.paths.data_dir = Path("/data")
+        config = config.with_(logging=config.logging.with_(level="DEBUG"))
+        config = config.with_(paths=config.paths.with_(data_dir=Path("/data")))
         yaml_str = to_yaml(config, include_defaults=True)
         # Keys should be alphabetically sorted
         # logging should come before paths
@@ -127,8 +127,8 @@ class TestToYaml:
     def test_to_yaml_roundtrip(self) -> None:
         """Test that config can be serialized and deserialized."""
         config = get_default_config()
-        config.logging.level = "ERROR"
-        config.paths.data_dir = Path("/custom/data")
+        config = config.with_(logging=config.logging.with_(level="ERROR"))
+        config = config.with_(paths=config.paths.with_(data_dir=Path("/custom/data")))
 
         # Serialize to YAML
         yaml_str = to_yaml(config, include_defaults=True)
@@ -157,7 +157,7 @@ class TestSaveYaml:
     def test_save_yaml_content_is_valid(self, tmp_path: Path) -> None:
         """Test that saved YAML file has valid content."""
         config = get_default_config()
-        config.logging.level = "DEBUG"
+        config = config.with_(logging=config.logging.with_(level="DEBUG"))
         config_file = tmp_path / "config.yaml"
         save_yaml(config, config_file)
 
@@ -185,8 +185,8 @@ class TestSaveYaml:
     def test_save_yaml_roundtrip(self, tmp_path: Path) -> None:
         """Test saving and loading config."""
         config = get_default_config()
-        config.logging.level = "WARNING"
-        config.paths.data_dir = Path("/test/data")
+        config = config.with_(logging=config.logging.with_(level="WARNING"))
+        config = config.with_(paths=config.paths.with_(data_dir=Path("/test/data")))
 
         config_file = tmp_path / "config.yaml"
         save_yaml(config, config_file, include_defaults=True)
@@ -211,25 +211,24 @@ class TestSaveYaml:
         config_file = tmp_path / "config.yaml"
 
         # Write first version
-        config.logging.level = "INFO"
+        config = config.with_(logging=config.logging.with_(level="INFO"))
         save_yaml(config, config_file)
 
         # Write second version
-        config.logging.level = "DEBUG"
+        config = config.with_(logging=config.logging.with_(level="DEBUG"))
         save_yaml(config, config_file)
 
         # Load and check it has the new value
         with open(config_file) as f:
             content = yaml.safe_load(f)
 
-        # Reload to verify
-        new_config = BeadConfig(**content)
+        new_config = BeadConfig.model_validate(content)
         assert new_config.logging.level == "DEBUG"
 
     def test_save_yaml_without_defaults(self, tmp_path: Path) -> None:
         """Test save_yaml with include_defaults=False."""
         config = get_default_config()
-        config.logging.level = "ERROR"
+        config = config.with_(logging=config.logging.with_(level="ERROR"))
 
         config_file = tmp_path / "config.yaml"
         save_yaml(config, config_file, include_defaults=False)
@@ -255,7 +254,7 @@ class TestBeadConfigToYaml:
     def test_bead_config_to_yaml_is_valid(self) -> None:
         """Test that BeadConfig.to_yaml() produces valid YAML."""
         config = get_default_config()
-        config.logging.level = "DEBUG"
+        config = config.with_(logging=config.logging.with_(level="DEBUG"))
         yaml_str = config.to_yaml()
         parsed = yaml.safe_load(yaml_str)
         assert isinstance(parsed, dict)
@@ -263,7 +262,7 @@ class TestBeadConfigToYaml:
     def test_bead_config_to_yaml_excludes_defaults(self) -> None:
         """Test that BeadConfig.to_yaml() excludes defaults by default."""
         config = get_default_config()
-        config.logging.level = "CRITICAL"
+        config = config.with_(logging=config.logging.with_(level="CRITICAL"))
         yaml_str = config.to_yaml()
         # Should contain the changed value
         assert "CRITICAL" in yaml_str
@@ -280,10 +279,17 @@ class TestDistributionStrategyYAML:
         )
 
         config = get_default_config()
-        config.deployment.distribution_strategy = ListDistributionStrategy(
-            strategy_type=DistributionStrategyType.QUOTA_BASED,
-            strategy_config={"participants_per_list": 25, "allow_overflow": False},
-            max_participants=400,
+        config = config.with_(
+            deployment=config.deployment.with_(
+                distribution_strategy=ListDistributionStrategy(
+                    strategy_type=DistributionStrategyType.QUOTA_BASED,
+                    strategy_config={
+                        "participants_per_list": 25,
+                        "allow_overflow": False,
+                    },
+                    max_participants=400,
+                )
+            )
         )
 
         yaml_str = to_yaml(config, include_defaults=False)
@@ -307,12 +313,16 @@ class TestDistributionStrategyYAML:
 
         # Create config with custom distribution strategy
         config = get_default_config()
-        config.deployment.distribution_strategy = ListDistributionStrategy(
-            strategy_type=DistributionStrategyType.WEIGHTED_RANDOM,
-            strategy_config={
-                "weight_expression": "list_metadata.priority || 1.0",
-                "normalize_weights": True,
-            },
+        config = config.with_(
+            deployment=config.deployment.with_(
+                distribution_strategy=ListDistributionStrategy(
+                    strategy_type=DistributionStrategyType.WEIGHTED_RANDOM,
+                    strategy_config={
+                        "weight_expression": "list_metadata.priority || 1.0",
+                        "normalize_weights": True,
+                    },
+                )
+            )
         )
 
         # Serialize to YAML
@@ -366,9 +376,13 @@ class TestDistributionStrategyYAML:
             elif strategy_type == DistributionStrategyType.METADATA_BASED:
                 strategy_config = {"rank_expression": "0"}
 
-            config.deployment.distribution_strategy = ListDistributionStrategy(
-                strategy_type=strategy_type,
-                strategy_config=strategy_config,
+            config = config.with_(
+                deployment=config.deployment.with_(
+                    distribution_strategy=ListDistributionStrategy(
+                        strategy_type=strategy_type,
+                        strategy_config=strategy_config,
+                    )
+                )
             )
 
             # Should serialize without error

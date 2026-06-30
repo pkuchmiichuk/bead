@@ -8,7 +8,12 @@ import pytest
 
 from bead.config.simulation import SimulatedAnnotatorConfig
 from bead.items.item import Item, UnfilledSlot
-from bead.items.item_template import ItemTemplate, PresentationSpec, TaskSpec
+from bead.items.item_template import (
+    ItemTemplate,
+    PresentationSpec,
+    ScaleBounds,
+    TaskSpec,
+)
 from bead.simulation.annotators.random import RandomAnnotator
 
 
@@ -79,7 +84,7 @@ def test_annotate_ordinal_scale() -> None:
         name="test_ordinal",
         judgment_type="plausibility",
         task_type="ordinal_scale",
-        task_spec=TaskSpec(prompt="Rate 1-7:", scale_bounds=(1, 7)),
+        task_spec=TaskSpec(prompt="Rate 1-7:", scale_bounds=ScaleBounds(min=1, max=7)),
         presentation_spec=PresentationSpec(mode="static"),
     )
 
@@ -104,7 +109,9 @@ def test_annotate_ordinal_scale_custom_range() -> None:
         name="test_ordinal",
         judgment_type="plausibility",
         task_type="ordinal_scale",
-        task_spec=TaskSpec(prompt="Rate 0-10:", scale_bounds=(0, 10)),
+        task_spec=TaskSpec(
+            prompt="Rate 0-10:", scale_bounds=ScaleBounds(min=0, max=10)
+        ),
         presentation_spec=PresentationSpec(mode="static"),
     )
 

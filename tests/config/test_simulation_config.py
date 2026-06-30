@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from pydantic import ValidationError
+from didactic.api import ValidationError
 
 from bead.config.simulation import (
     NoiseModelConfig,

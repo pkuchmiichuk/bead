@@ -20,7 +20,7 @@ def test_evaluate_string_literal() -> None:
     """Test evaluating string literal."""
     evaluator = Evaluator()
     ctx = EvaluationContext()
-    node = ast.Literal(value="hello")
+    node = ast.Literal(kind="literal", value="hello")
     result = evaluator.evaluate(node, ctx)
     assert result == "hello"
 
@@ -29,7 +29,7 @@ def test_evaluate_int_literal() -> None:
     """Test evaluating integer literal."""
     evaluator = Evaluator()
     ctx = EvaluationContext()
-    node = ast.Literal(value=42)
+    node = ast.Literal(kind="literal", value=42)
     result = evaluator.evaluate(node, ctx)
     assert result == 42
 
@@ -38,7 +38,7 @@ def test_evaluate_float_literal() -> None:
     """Test evaluating float literal."""
     evaluator = Evaluator()
     ctx = EvaluationContext()
-    node = ast.Literal(value=3.14)
+    node = ast.Literal(kind="literal", value=3.14)
     result = evaluator.evaluate(node, ctx)
     assert result == 3.14
 
@@ -47,7 +47,7 @@ def test_evaluate_boolean_literal_true() -> None:
     """Test evaluating boolean literal True."""
     evaluator = Evaluator()
     ctx = EvaluationContext()
-    node = ast.Literal(value=True)
+    node = ast.Literal(kind="literal", value=True)
     result = evaluator.evaluate(node, ctx)
     assert result is True
 
@@ -56,7 +56,7 @@ def test_evaluate_boolean_literal_false() -> None:
     """Test evaluating boolean literal False."""
     evaluator = Evaluator()
     ctx = EvaluationContext()
-    node = ast.Literal(value=False)
+    node = ast.Literal(kind="literal", value=False)
     result = evaluator.evaluate(node, ctx)
     assert result is False
 
@@ -67,7 +67,7 @@ def test_evaluate_variable_defined() -> None:
     evaluator = Evaluator()
     ctx = EvaluationContext()
     ctx.set_variable("x", 42)
-    node = ast.Variable(name="x")
+    node = ast.Variable(kind="variable", name="x")
     result = evaluator.evaluate(node, ctx)
     assert result == 42
 
@@ -76,7 +76,7 @@ def test_evaluate_variable_undefined_raises_error() -> None:
     """Test evaluating undefined variable raises error."""
     evaluator = Evaluator()
     ctx = EvaluationContext()
-    node = ast.Variable(name="x")
+    node = ast.Variable(kind="variable", name="x")
     with pytest.raises(EvaluationError, match="Undefined variable: x"):
         evaluator.evaluate(node, ctx)
 
@@ -88,7 +88,10 @@ def test_evaluate_equality_true() -> None:
     ctx = EvaluationContext()
     ctx.set_variable("x", 42)
     node = ast.BinaryOp(
-        operator="==", left=ast.Variable(name="x"), right=ast.Literal(value=42)
+        kind="binary_op",
+        operator="==",
+        left=ast.Variable(kind="variable", name="x"),
+        right=ast.Literal(kind="literal", value=42),
     )
     result = evaluator.evaluate(node, ctx)
     assert result is True
@@ -100,7 +103,10 @@ def test_evaluate_equality_false() -> None:
     ctx = EvaluationContext()
     ctx.set_variable("x", 42)
     node = ast.BinaryOp(
-        operator="==", left=ast.Variable(name="x"), right=ast.Literal(value=50)
+        kind="binary_op",
+        operator="==",
+        left=ast.Variable(kind="variable", name="x"),
+        right=ast.Literal(kind="literal", value=50),
     )
     result = evaluator.evaluate(node, ctx)
     assert result is False
@@ -112,7 +118,10 @@ def test_evaluate_not_equal() -> None:
     ctx = EvaluationContext()
     ctx.set_variable("x", 42)
     node = ast.BinaryOp(
-        operator="!=", left=ast.Variable(name="x"), right=ast.Literal(value=50)
+        kind="binary_op",
+        operator="!=",
+        left=ast.Variable(kind="variable", name="x"),
+        right=ast.Literal(kind="literal", value=50),
     )
     result = evaluator.evaluate(node, ctx)
     assert result is True
@@ -124,7 +133,10 @@ def test_evaluate_less_than() -> None:
     ctx = EvaluationContext()
     ctx.set_variable("x", 42)
     node = ast.BinaryOp(
-        operator="<", left=ast.Variable(name="x"), right=ast.Literal(value=50)
+        kind="binary_op",
+        operator="<",
+        left=ast.Variable(kind="variable", name="x"),
+        right=ast.Literal(kind="literal", value=50),
     )
     result = evaluator.evaluate(node, ctx)
     assert result is True
@@ -136,7 +148,10 @@ def test_evaluate_greater_than() -> None:
     ctx = EvaluationContext()
     ctx.set_variable("x", 42)
     node = ast.BinaryOp(
-        operator=">", left=ast.Variable(name="x"), right=ast.Literal(value=30)
+        kind="binary_op",
+        operator=">",
+        left=ast.Variable(kind="variable", name="x"),
+        right=ast.Literal(kind="literal", value=30),
     )
     result = evaluator.evaluate(node, ctx)
     assert result is True
@@ -148,7 +163,10 @@ def test_evaluate_less_than_or_equal() -> None:
     ctx = EvaluationContext()
     ctx.set_variable("x", 42)
     node = ast.BinaryOp(
-        operator="<=", left=ast.Variable(name="x"), right=ast.Literal(value=42)
+        kind="binary_op",
+        operator="<=",
+        left=ast.Variable(kind="variable", name="x"),
+        right=ast.Literal(kind="literal", value=42),
     )
     result = evaluator.evaluate(node, ctx)
     assert result is True
@@ -160,7 +178,10 @@ def test_evaluate_greater_than_or_equal() -> None:
     ctx = EvaluationContext()
     ctx.set_variable("x", 42)
     node = ast.BinaryOp(
-        operator=">=", left=ast.Variable(name="x"), right=ast.Literal(value=42)
+        kind="binary_op",
+        operator=">=",
+        left=ast.Variable(kind="variable", name="x"),
+        right=ast.Literal(kind="literal", value=42),
     )
     result = evaluator.evaluate(node, ctx)
     assert result is True
@@ -172,7 +193,10 @@ def test_evaluate_and_both_true() -> None:
     evaluator = Evaluator()
     ctx = EvaluationContext()
     node = ast.BinaryOp(
-        operator="and", left=ast.Literal(value=True), right=ast.Literal(value=True)
+        kind="binary_op",
+        operator="and",
+        left=ast.Literal(kind="literal", value=True),
+        right=ast.Literal(kind="literal", value=True),
     )
     result = evaluator.evaluate(node, ctx)
     assert result is True
@@ -183,7 +207,10 @@ def test_evaluate_and_one_false() -> None:
     evaluator = Evaluator()
     ctx = EvaluationContext()
     node = ast.BinaryOp(
-        operator="and", left=ast.Literal(value=True), right=ast.Literal(value=False)
+        kind="binary_op",
+        operator="and",
+        left=ast.Literal(kind="literal", value=True),
+        right=ast.Literal(kind="literal", value=False),
     )
     result = evaluator.evaluate(node, ctx)
     assert result is False
@@ -196,7 +223,10 @@ def test_evaluate_and_short_circuit() -> None:
     ctx.set_variable("x", False)
     # y is not defined, but this should not raise an error due to short-circuit
     node = ast.BinaryOp(
-        operator="and", left=ast.Variable(name="x"), right=ast.Variable(name="y")
+        kind="binary_op",
+        operator="and",
+        left=ast.Variable(kind="variable", name="x"),
+        right=ast.Variable(kind="variable", name="y"),
     )
     result = evaluator.evaluate(node, ctx)
     assert result is False
@@ -207,7 +237,10 @@ def test_evaluate_or_both_false() -> None:
     evaluator = Evaluator()
     ctx = EvaluationContext()
     node = ast.BinaryOp(
-        operator="or", left=ast.Literal(value=False), right=ast.Literal(value=False)
+        kind="binary_op",
+        operator="or",
+        left=ast.Literal(kind="literal", value=False),
+        right=ast.Literal(kind="literal", value=False),
     )
     result = evaluator.evaluate(node, ctx)
     assert result is False
@@ -218,7 +251,10 @@ def test_evaluate_or_one_true() -> None:
     evaluator = Evaluator()
     ctx = EvaluationContext()
     node = ast.BinaryOp(
-        operator="or", left=ast.Literal(value=True), right=ast.Literal(value=False)
+        kind="binary_op",
+        operator="or",
+        left=ast.Literal(kind="literal", value=True),
+        right=ast.Literal(kind="literal", value=False),
     )
     result = evaluator.evaluate(node, ctx)
     assert result is True
@@ -231,7 +267,10 @@ def test_evaluate_or_short_circuit() -> None:
     ctx.set_variable("x", True)
     # y is not defined, but this should not raise an error due to short-circuit
     node = ast.BinaryOp(
-        operator="or", left=ast.Variable(name="x"), right=ast.Variable(name="y")
+        kind="binary_op",
+        operator="or",
+        left=ast.Variable(kind="variable", name="x"),
+        right=ast.Variable(kind="variable", name="y"),
     )
     result = evaluator.evaluate(node, ctx)
     assert result is True
@@ -241,7 +280,9 @@ def test_evaluate_not_true() -> None:
     """Test evaluating not operator (true)."""
     evaluator = Evaluator()
     ctx = EvaluationContext()
-    node = ast.UnaryOp(operator="not", operand=ast.Literal(value=True))
+    node = ast.UnaryOp(
+        kind="unary_op", operator="not", operand=ast.Literal(kind="literal", value=True)
+    )
     result = evaluator.evaluate(node, ctx)
     assert result is False
 
@@ -250,7 +291,11 @@ def test_evaluate_not_false() -> None:
     """Test evaluating not operator (false)."""
     evaluator = Evaluator()
     ctx = EvaluationContext()
-    node = ast.UnaryOp(operator="not", operand=ast.Literal(value=False))
+    node = ast.UnaryOp(
+        kind="unary_op",
+        operator="not",
+        operand=ast.Literal(kind="literal", value=False),
+    )
     result = evaluator.evaluate(node, ctx)
     assert result is True
 
@@ -261,10 +306,16 @@ def test_evaluate_in_present() -> None:
     evaluator = Evaluator()
     ctx = EvaluationContext()
     node = ast.BinaryOp(
+        kind="binary_op",
         operator="in",
-        left=ast.Literal(value=2),
+        left=ast.Literal(kind="literal", value=2),
         right=ast.ListLiteral(
-            elements=[ast.Literal(value=1), ast.Literal(value=2), ast.Literal(value=3)]
+            kind="list_literal",
+            elements=[
+                ast.Literal(kind="literal", value=1),
+                ast.Literal(kind="literal", value=2),
+                ast.Literal(kind="literal", value=3),
+            ],
         ),
     )
     result = evaluator.evaluate(node, ctx)
@@ -276,10 +327,16 @@ def test_evaluate_in_absent() -> None:
     evaluator = Evaluator()
     ctx = EvaluationContext()
     node = ast.BinaryOp(
+        kind="binary_op",
         operator="in",
-        left=ast.Literal(value=5),
+        left=ast.Literal(kind="literal", value=5),
         right=ast.ListLiteral(
-            elements=[ast.Literal(value=1), ast.Literal(value=2), ast.Literal(value=3)]
+            kind="list_literal",
+            elements=[
+                ast.Literal(kind="literal", value=1),
+                ast.Literal(kind="literal", value=2),
+                ast.Literal(kind="literal", value=3),
+            ],
         ),
     )
     result = evaluator.evaluate(node, ctx)
@@ -291,10 +348,16 @@ def test_evaluate_not_in() -> None:
     evaluator = Evaluator()
     ctx = EvaluationContext()
     node = ast.BinaryOp(
+        kind="binary_op",
         operator="not in",
-        left=ast.Literal(value=5),
+        left=ast.Literal(kind="literal", value=5),
         right=ast.ListLiteral(
-            elements=[ast.Literal(value=1), ast.Literal(value=2), ast.Literal(value=3)]
+            kind="list_literal",
+            elements=[
+                ast.Literal(kind="literal", value=1),
+                ast.Literal(kind="literal", value=2),
+                ast.Literal(kind="literal", value=3),
+            ],
         ),
     )
     result = evaluator.evaluate(node, ctx)
@@ -307,7 +370,10 @@ def test_evaluate_addition() -> None:
     evaluator = Evaluator()
     ctx = EvaluationContext()
     node = ast.BinaryOp(
-        operator="+", left=ast.Literal(value=5), right=ast.Literal(value=3)
+        kind="binary_op",
+        operator="+",
+        left=ast.Literal(kind="literal", value=5),
+        right=ast.Literal(kind="literal", value=3),
     )
     result = evaluator.evaluate(node, ctx)
     assert result == 8
@@ -318,7 +384,10 @@ def test_evaluate_subtraction() -> None:
     evaluator = Evaluator()
     ctx = EvaluationContext()
     node = ast.BinaryOp(
-        operator="-", left=ast.Literal(value=5), right=ast.Literal(value=3)
+        kind="binary_op",
+        operator="-",
+        left=ast.Literal(kind="literal", value=5),
+        right=ast.Literal(kind="literal", value=3),
     )
     result = evaluator.evaluate(node, ctx)
     assert result == 2
@@ -329,7 +398,10 @@ def test_evaluate_multiplication() -> None:
     evaluator = Evaluator()
     ctx = EvaluationContext()
     node = ast.BinaryOp(
-        operator="*", left=ast.Literal(value=5), right=ast.Literal(value=3)
+        kind="binary_op",
+        operator="*",
+        left=ast.Literal(kind="literal", value=5),
+        right=ast.Literal(kind="literal", value=3),
     )
     result = evaluator.evaluate(node, ctx)
     assert result == 15
@@ -340,7 +412,10 @@ def test_evaluate_division() -> None:
     evaluator = Evaluator()
     ctx = EvaluationContext()
     node = ast.BinaryOp(
-        operator="/", left=ast.Literal(value=6), right=ast.Literal(value=3)
+        kind="binary_op",
+        operator="/",
+        left=ast.Literal(kind="literal", value=6),
+        right=ast.Literal(kind="literal", value=3),
     )
     result = evaluator.evaluate(node, ctx)
     assert result == 2.0
@@ -351,7 +426,10 @@ def test_evaluate_modulo() -> None:
     evaluator = Evaluator()
     ctx = EvaluationContext()
     node = ast.BinaryOp(
-        operator="%", left=ast.Literal(value=7), right=ast.Literal(value=3)
+        kind="binary_op",
+        operator="%",
+        left=ast.Literal(kind="literal", value=7),
+        right=ast.Literal(kind="literal", value=3),
     )
     result = evaluator.evaluate(node, ctx)
     assert result == 1
@@ -361,7 +439,9 @@ def test_evaluate_unary_minus() -> None:
     """Test evaluating unary minus operator."""
     evaluator = Evaluator()
     ctx = EvaluationContext()
-    node = ast.UnaryOp(operator="-", operand=ast.Literal(value=5))
+    node = ast.UnaryOp(
+        kind="unary_op", operator="-", operand=ast.Literal(kind="literal", value=5)
+    )
     result = evaluator.evaluate(node, ctx)
     assert result == -5
 
@@ -370,7 +450,9 @@ def test_evaluate_unary_plus() -> None:
     """Test evaluating unary plus operator."""
     evaluator = Evaluator()
     ctx = EvaluationContext()
-    node = ast.UnaryOp(operator="+", operand=ast.Literal(value=5))
+    node = ast.UnaryOp(
+        kind="unary_op", operator="+", operand=ast.Literal(kind="literal", value=5)
+    )
     result = evaluator.evaluate(node, ctx)
     assert result == 5
 
@@ -381,7 +463,11 @@ def test_evaluate_function_call_no_args() -> None:
     evaluator = Evaluator()
     ctx = EvaluationContext()
     ctx.set_function("get_value", lambda: 42)
-    node = ast.FunctionCall(function=ast.Variable(name="get_value"), arguments=[])
+    node = ast.FunctionCall(
+        kind="function_call",
+        function=ast.Variable(kind="variable", name="get_value"),
+        arguments=[],
+    )
     result = evaluator.evaluate(node, ctx)
     assert result == 42
 
@@ -392,7 +478,9 @@ def test_evaluate_function_call_one_arg() -> None:
     ctx = EvaluationContext()
     ctx.set_function("double", lambda x: x * 2)
     node = ast.FunctionCall(
-        function=ast.Variable(name="double"), arguments=[ast.Literal(value=5)]
+        kind="function_call",
+        function=ast.Variable(kind="variable", name="double"),
+        arguments=[ast.Literal(kind="literal", value=5)],
     )
     result = evaluator.evaluate(node, ctx)
     assert result == 10
@@ -404,8 +492,12 @@ def test_evaluate_function_call_multiple_args() -> None:
     ctx = EvaluationContext()
     ctx.set_function("add", lambda x, y: x + y)
     node = ast.FunctionCall(
-        function=ast.Variable(name="add"),
-        arguments=[ast.Literal(value=3), ast.Literal(value=4)],
+        kind="function_call",
+        function=ast.Variable(kind="variable", name="add"),
+        arguments=[
+            ast.Literal(kind="literal", value=3),
+            ast.Literal(kind="literal", value=4),
+        ],
     )
     result = evaluator.evaluate(node, ctx)
     assert result == 7
@@ -415,7 +507,11 @@ def test_evaluate_undefined_function_raises_error() -> None:
     """Test evaluating undefined function raises error."""
     evaluator = Evaluator()
     ctx = EvaluationContext()
-    node = ast.FunctionCall(function=ast.Variable(name="foo"), arguments=[])
+    node = ast.FunctionCall(
+        kind="function_call",
+        function=ast.Variable(kind="variable", name="foo"),
+        arguments=[],
+    )
     with pytest.raises(EvaluationError, match="Undefined function: foo"):
         evaluator.evaluate(node, ctx)
 
@@ -428,12 +524,15 @@ def test_evaluate_nested_function_calls() -> None:
     ctx.set_function("add", lambda x, y: x + y)
     # add(double(3), 4)
     node = ast.FunctionCall(
-        function=ast.Variable(name="add"),
+        kind="function_call",
+        function=ast.Variable(kind="variable", name="add"),
         arguments=[
             ast.FunctionCall(
-                function=ast.Variable(name="double"), arguments=[ast.Literal(value=3)]
+                kind="function_call",
+                function=ast.Variable(kind="variable", name="double"),
+                arguments=[ast.Literal(kind="literal", value=3)],
             ),
-            ast.Literal(value=4),
+            ast.Literal(kind="literal", value=4),
         ],
     )
     result = evaluator.evaluate(node, ctx)
@@ -451,7 +550,11 @@ def test_evaluate_attribute_on_object() -> None:
             self.lemma = "walk"
 
     ctx.set_variable("item", Item())
-    node = ast.AttributeAccess(object=ast.Variable(name="item"), attribute="lemma")
+    node = ast.AttributeAccess(
+        kind="attribute_access",
+        object=ast.Variable(kind="variable", name="item"),
+        attribute="lemma",
+    )
     result = evaluator.evaluate(node, ctx)
     assert result == "walk"
 
@@ -461,7 +564,11 @@ def test_evaluate_attribute_on_dict() -> None:
     evaluator = Evaluator()
     ctx = EvaluationContext()
     ctx.set_variable("item", {"lemma": "walk", "pos": "VERB"})
-    node = ast.AttributeAccess(object=ast.Variable(name="item"), attribute="lemma")
+    node = ast.AttributeAccess(
+        kind="attribute_access",
+        object=ast.Variable(kind="variable", name="item"),
+        attribute="lemma",
+    )
     result = evaluator.evaluate(node, ctx)
     assert result == "walk"
 
@@ -476,7 +583,11 @@ def test_evaluate_undefined_attribute_raises_error() -> None:
             self.lemma = "walk"
 
     ctx.set_variable("item", Item())
-    node = ast.AttributeAccess(object=ast.Variable(name="item"), attribute="foo")
+    node = ast.AttributeAccess(
+        kind="attribute_access",
+        object=ast.Variable(kind="variable", name="item"),
+        attribute="foo",
+    )
     with pytest.raises(EvaluationError, match="has no attribute: foo"):
         evaluator.evaluate(node, ctx)
 
@@ -496,7 +607,12 @@ def test_evaluate_nested_attribute_access() -> None:
 
     ctx.set_variable("obj", Outer())
     node = ast.AttributeAccess(
-        object=ast.AttributeAccess(object=ast.Variable(name="obj"), attribute="inner"),
+        kind="attribute_access",
+        object=ast.AttributeAccess(
+            kind="attribute_access",
+            object=ast.Variable(kind="variable", name="obj"),
+            attribute="inner",
+        ),
         attribute="value",
     )
     result = evaluator.evaluate(node, ctx)
@@ -508,7 +624,7 @@ def test_evaluate_empty_list() -> None:
     """Test evaluating empty list."""
     evaluator = Evaluator()
     ctx = EvaluationContext()
-    node = ast.ListLiteral(elements=[])
+    node = ast.ListLiteral(kind="list_literal", elements=[])
     result = evaluator.evaluate(node, ctx)
     assert result == []
 
@@ -518,7 +634,12 @@ def test_evaluate_list_with_elements() -> None:
     evaluator = Evaluator()
     ctx = EvaluationContext()
     node = ast.ListLiteral(
-        elements=[ast.Literal(value=1), ast.Literal(value=2), ast.Literal(value=3)]
+        kind="list_literal",
+        elements=[
+            ast.Literal(kind="literal", value=1),
+            ast.Literal(kind="literal", value=2),
+            ast.Literal(kind="literal", value=3),
+        ],
     )
     result = evaluator.evaluate(node, ctx)
     assert result == [1, 2, 3]
@@ -533,12 +654,19 @@ def test_evaluate_nested_boolean_expression() -> None:
     ctx.set_variable("y", 20)
     # (x > 5) and (y < 30)
     node = ast.BinaryOp(
+        kind="binary_op",
         operator="and",
         left=ast.BinaryOp(
-            operator=">", left=ast.Variable(name="x"), right=ast.Literal(value=5)
+            kind="binary_op",
+            operator=">",
+            left=ast.Variable(kind="variable", name="x"),
+            right=ast.Literal(kind="literal", value=5),
         ),
         right=ast.BinaryOp(
-            operator="<", left=ast.Variable(name="y"), right=ast.Literal(value=30)
+            kind="binary_op",
+            operator="<",
+            left=ast.Variable(kind="variable", name="y"),
+            right=ast.Literal(kind="literal", value=30),
         ),
     )
     result = evaluator.evaluate(node, ctx)
@@ -553,11 +681,14 @@ def test_evaluate_complex_expression_with_function() -> None:
     ctx.set_variable("lemma", "walking")
     # len(lemma) > 5
     node = ast.BinaryOp(
+        kind="binary_op",
         operator=">",
         left=ast.FunctionCall(
-            function=ast.Variable(name="len"), arguments=[ast.Variable(name="lemma")]
+            kind="function_call",
+            function=ast.Variable(kind="variable", name="len"),
+            arguments=[ast.Variable(kind="variable", name="lemma")],
         ),
-        right=ast.Literal(value=5),
+        right=ast.Literal(kind="literal", value=5),
     )
     result = evaluator.evaluate(node, ctx)
     assert result is True
@@ -569,9 +700,12 @@ def test_evaluate_type_error_in_operator() -> None:
     evaluator = Evaluator()
     ctx = EvaluationContext()
     node = ast.BinaryOp(
-        operator="<", left=ast.Literal(value="hello"), right=ast.Literal(value=5)
+        kind="binary_op",
+        operator="<",
+        left=ast.Literal(kind="literal", value="hello"),
+        right=ast.Literal(kind="literal", value=5),
     )
-    with pytest.raises(EvaluationError, match="Type error in operation"):
+    with pytest.raises(EvaluationError, match="Cannot compare"):
         evaluator.evaluate(node, ctx)
 
 
@@ -580,7 +714,10 @@ def test_evaluate_division_by_zero() -> None:
     evaluator = Evaluator()
     ctx = EvaluationContext()
     node = ast.BinaryOp(
-        operator="/", left=ast.Literal(value=5), right=ast.Literal(value=0)
+        kind="binary_op",
+        operator="/",
+        left=ast.Literal(kind="literal", value=5),
+        right=ast.Literal(kind="literal", value=0),
     )
     with pytest.raises(EvaluationError, match="Division by zero"):
         evaluator.evaluate(node, ctx)
@@ -591,7 +728,10 @@ def test_evaluate_modulo_by_zero() -> None:
     evaluator = Evaluator()
     ctx = EvaluationContext()
     node = ast.BinaryOp(
-        operator="%", left=ast.Literal(value=5), right=ast.Literal(value=0)
+        kind="binary_op",
+        operator="%",
+        left=ast.Literal(kind="literal", value=5),
+        right=ast.Literal(kind="literal", value=0),
     )
     with pytest.raises(EvaluationError, match="Modulo by zero"):
         evaluator.evaluate(node, ctx)
@@ -602,7 +742,10 @@ def test_evaluate_unknown_operator() -> None:
     evaluator = Evaluator()
     ctx = EvaluationContext()
     node = ast.BinaryOp(
-        operator="***", left=ast.Literal(value=5), right=ast.Literal(value=3)
+        kind="binary_op",
+        operator="***",
+        left=ast.Literal(kind="literal", value=5),
+        right=ast.Literal(kind="literal", value=3),
     )
     with pytest.raises(EvaluationError, match="Unknown operator"):
         evaluator.evaluate(node, ctx)
@@ -612,7 +755,9 @@ def test_evaluate_unknown_unary_operator() -> None:
     """Test unknown unary operator."""
     evaluator = Evaluator()
     ctx = EvaluationContext()
-    node = ast.UnaryOp(operator="~", operand=ast.Literal(value=5))
+    node = ast.UnaryOp(
+        kind="unary_op", operator="~", operand=ast.Literal(kind="literal", value=5)
+    )
     with pytest.raises(EvaluationError, match="Unknown unary operator"):
         evaluator.evaluate(node, ctx)
 
@@ -684,7 +829,10 @@ def test_evaluate_string_concatenation() -> None:
     evaluator = Evaluator()
     ctx = EvaluationContext()
     node = ast.BinaryOp(
-        operator="+", left=ast.Literal(value="hello"), right=ast.Literal(value=" world")
+        kind="binary_op",
+        operator="+",
+        left=ast.Literal(kind="literal", value="hello"),
+        right=ast.Literal(kind="literal", value=" world"),
     )
     result = evaluator.evaluate(node, ctx)
     assert result == "hello world"
@@ -696,7 +844,9 @@ def test_evaluate_unary_minus_on_variable() -> None:
     evaluator = Evaluator()
     ctx = EvaluationContext()
     ctx.set_variable("x", 5)
-    node = ast.UnaryOp(operator="-", operand=ast.Variable(name="x"))
+    node = ast.UnaryOp(
+        kind="unary_op", operator="-", operand=ast.Variable(kind="variable", name="x")
+    )
     result = evaluator.evaluate(node, ctx)
     assert result == -5
 
@@ -706,6 +856,10 @@ def test_evaluate_dict_key_not_found() -> None:
     evaluator = Evaluator()
     ctx = EvaluationContext()
     ctx.set_variable("item", {"lemma": "walk"})
-    node = ast.AttributeAccess(object=ast.Variable(name="item"), attribute="pos")
+    node = ast.AttributeAccess(
+        kind="attribute_access",
+        object=ast.Variable(kind="variable", name="item"),
+        attribute="pos",
+    )
     with pytest.raises(EvaluationError, match="Dictionary does not have key: pos"):
         evaluator.evaluate(node, ctx)

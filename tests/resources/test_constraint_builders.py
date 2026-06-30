@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import didactic.api as dx
 import pytest
 
 from bead.resources.constraint_builders import (
@@ -79,7 +80,9 @@ class TestAgreementConstraintBuilder:
         """Test that agreement requires at least 2 slots."""
         builder = AgreementConstraintBuilder("case")
 
-        with pytest.raises(ValueError, match="at least 2 slot names"):
+        with pytest.raises(
+            (ValueError, dx.ValidationError), match="at least 2 slot names"
+        ):
             builder.build("noun")
 
     def test_feature_name_preserved(self) -> None:
@@ -117,7 +120,7 @@ class TestConditionalConstraintBuilder:
     def test_with_context(self) -> None:
         """Test conditional with context variables."""
         builder = ConditionalConstraintBuilder()
-        context = {"allowed_nouns": {"cat", "dog"}}
+        context = {"allowed_nouns": ("cat", "dog")}
 
         constraint = builder.build(
             condition="det.lemma == 'a'",
@@ -125,7 +128,7 @@ class TestConditionalConstraintBuilder:
             context=context,
         )
 
-        assert constraint.context == context
+        assert dict(constraint.context) == context
 
     def test_without_description(self) -> None:
         """Test conditional without description."""
@@ -155,7 +158,7 @@ class TestSetMembershipConstraintBuilder:
 
         assert isinstance(constraint, Constraint)
         assert "verb.lemma in allowed_values" in constraint.expression
-        assert constraint.context["allowed_values"] == allowed
+        assert set(constraint.context["allowed_values"]) == allowed
         assert constraint.description == "Motion verbs"
 
     def test_blacklist(self) -> None:
@@ -170,7 +173,7 @@ class TestSetMembershipConstraintBuilder:
         )
 
         assert "verb.lemma not in forbidden_values" in constraint.expression
-        assert constraint.context["forbidden_values"] == forbidden
+        assert set(constraint.context["forbidden_values"]) == forbidden
 
     def test_nested_property_path(self) -> None:
         """Test constraint with nested property path."""
@@ -190,14 +193,14 @@ class TestSetMembershipConstraintBuilder:
         builder = SetMembershipConstraintBuilder()
 
         # Neither provided
-        with pytest.raises(ValueError, match="Exactly one of"):
+        with pytest.raises((ValueError, dx.ValidationError), match="Exactly one of"):
             builder.build(
                 slot_name="verb",
                 property_path="lemma",
             )
 
         # Both provided
-        with pytest.raises(ValueError, match="Exactly one of"):
+        with pytest.raises((ValueError, dx.ValidationError), match="Exactly one of"):
             builder.build(
                 slot_name="verb",
                 property_path="lemma",

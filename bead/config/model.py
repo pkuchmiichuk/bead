@@ -1,49 +1,43 @@
-"""Model configuration models for the bead package."""
+"""Model configuration."""
 
 from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, Field
+import didactic.api as dx
 
 
-class ModelConfig(BaseModel):
+class ModelConfig(dx.Model):
     """Configuration for language models.
 
-    Parameters
+    Attributes
     ----------
-    provider : str
-        Model provider name.
+    provider : Literal["huggingface", "openai", "anthropic"]
+        Model provider.
     model_name : str
         Model identifier.
     batch_size : int
-        Inference batch size.
-    device : str
+        Inference batch size (must be > 0).
+    device : Literal["cpu", "cuda", "mps"]
         Device to use for computation.
     max_length : int
-        Maximum sequence length.
+        Maximum sequence length (must be > 0).
     temperature : float
-        Sampling temperature.
+        Sampling temperature (must be >= 0).
     cache_outputs : bool
         Whether to cache model outputs.
-
-    Examples
-    --------
-    >>> config = ModelConfig()
-    >>> config.provider
-    'huggingface'
-    >>> config.device
-    'cpu'
     """
 
-    provider: Literal["huggingface", "openai", "anthropic"] = Field(
-        default="huggingface", description="Model provider"
+    provider: Literal["huggingface", "openai", "anthropic"] = "huggingface"
+    model_name: str = "gpt2"
+    batch_size: int = 8
+    device: Literal["cpu", "cuda", "mps"] = "cpu"
+    max_length: int = 512
+    temperature: float = 1.0
+    cache_outputs: bool = True
+
+    __axioms__ = (
+        dx.axiom("batch_size > 0", message="batch_size must be positive"),
+        dx.axiom("max_length > 0", message="max_length must be positive"),
+        dx.axiom("temperature >= 0", message="temperature must be non-negative"),
     )
-    model_name: str = Field(default="gpt2", description="Model identifier")
-    batch_size: int = Field(default=8, description="Inference batch size", gt=0)
-    device: Literal["cpu", "cuda", "mps"] = Field(
-        default="cpu", description="Device to use"
-    )
-    max_length: int = Field(default=512, description="Max sequence length", gt=0)
-    temperature: float = Field(default=1.0, description="Sampling temperature", ge=0)
-    cache_outputs: bool = Field(default=True, description="Cache model outputs")

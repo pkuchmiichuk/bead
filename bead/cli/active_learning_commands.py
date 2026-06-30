@@ -12,9 +12,10 @@ from pathlib import Path
 from typing import Any, Literal
 
 import click
+import didactic.api as dx
 import numpy as np
 import yaml
-from pydantic import BaseModel, Field, ValidationError
+from didactic.api import ValidationError
 from rich.console import Console
 from rich.progress import (
     BarColumn,
@@ -49,53 +50,69 @@ console = Console()
 StoppingCriterion = Literal["max_iterations", "convergence", "performance_threshold"]
 
 
-class RunLoopConfig(BaseModel):
-    """Loop configuration for active learning run command."""
+class RunLoopConfig(dx.Model):
+    """Loop configuration for the active learning run command."""
 
-    max_iterations: int = Field(default=10, gt=0)
-    budget_per_iteration: int = Field(default=100, gt=0)
+    max_iterations: int = 10
+    budget_per_iteration: int = 100
     stopping_criterion: StoppingCriterion = "max_iterations"
-    performance_threshold: float | None = Field(default=None, ge=0, le=1)
+    performance_threshold: float | None = None
     metric_name: str = "accuracy"
-    convergence_patience: int = Field(default=3, gt=0)
-    convergence_threshold: float = Field(default=0.01, gt=0)
+    convergence_patience: int = 3
+    convergence_threshold: float = 0.01
 
 
-class RunModelConfig(BaseModel):
-    """Model configuration for active learning run command."""
+class RunModelConfig(dx.Model):
+    """Model configuration for the active learning run command."""
 
     type: Literal["binary", "categorical", "forced_choice"] = "binary"
     model_name: str = "bert-base-uncased"
-    max_length: int = Field(default=128, gt=0)
-    learning_rate: float = Field(default=2e-5, gt=0)
-    batch_size: int = Field(default=16, gt=0)
-    num_epochs: int = Field(default=3, gt=0)
+    max_length: int = 128
+    learning_rate: float = 2e-5
+    batch_size: int = 16
+    num_epochs: int = 3
     device: Literal["cpu", "cuda", "mps"] = "cpu"
 
 
-class RunSelectionConfig(BaseModel):
-    """Selection configuration for active learning run command."""
+class RunSelectionConfig(dx.Model):
+    """Selection configuration for the active learning run command."""
 
     method: Literal["entropy", "margin", "least_confidence"] = "entropy"
-    batch_size: int | None = Field(default=None, gt=0)
+    batch_size: int | None = None
 
 
-class RunDataConfig(BaseModel):
-    """Data paths configuration for active learning run command."""
+class RunDataConfig(dx.Model):
+    """Data paths configuration for the active learning run command."""
 
-    initial_items: Path
-    unlabeled_pool: Path
-    item_template: Path
-    human_ratings: Path | None = None
+    initial_items: str
+    unlabeled_pool: str
+    item_template: str
+    human_ratings: str | None = None
 
 
-class ActiveLearningRunConfig(BaseModel):
-    """Full configuration for active learning run command."""
+def _default_run_loop_config() -> RunLoopConfig:
+    return RunLoopConfig()
 
-    loop: RunLoopConfig = Field(default_factory=RunLoopConfig)
-    model: RunModelConfig = Field(default_factory=RunModelConfig)
-    selection: RunSelectionConfig = Field(default_factory=RunSelectionConfig)
-    data: RunDataConfig
+
+def _default_run_model_config() -> RunModelConfig:
+    return RunModelConfig()
+
+
+def _default_run_selection_config() -> RunSelectionConfig:
+    return RunSelectionConfig()
+
+
+class ActiveLearningRunConfig(dx.Model):
+    """Full configuration for the active learning run command."""
+
+    data: dx.Embed[RunDataConfig]
+    loop: dx.Embed[RunLoopConfig] = dx.field(default_factory=_default_run_loop_config)
+    model: dx.Embed[RunModelConfig] = dx.field(
+        default_factory=_default_run_model_config
+    )
+    selection: dx.Embed[RunSelectionConfig] = dx.field(
+        default_factory=_default_run_selection_config
+    )
 
 
 def load_run_config(config_path: Path) -> ActiveLearningRunConfig:
@@ -196,8 +213,7 @@ def _load_items(path: Path) -> list[Item]:
             line = line.strip()
             if not line:
                 continue
-            item_data = json.loads(line)
-            items.append(Item(**item_data))
+            items.append(Item.model_validate_json(line))
     return items
 
 
@@ -435,8 +451,7 @@ def select_items(
                 line = line.strip()
                 if not line:
                     continue
-                item_data = json.loads(line)
-                item = Item(**item_data)
+                item = Item.model_validate_json(line)
                 unlabeled_items.append(item)
 
         if len(unlabeled_items) == 0:
@@ -749,7 +764,7 @@ def run(
         summary = {
             "iterations_completed": len(loop.iteration_history),
             "total_items_selected": total_items_selected,
-            "config": run_config.model_dump(mode="json"),
+            "config": run_config.model_dump(),
         }
         summary_path = output_dir / "run_summary.json"
         with open(summary_path, "w", encoding="utf-8") as f:

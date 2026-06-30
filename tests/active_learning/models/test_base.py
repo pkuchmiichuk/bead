@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
-from pydantic import ValidationError
+from didactic.api import ValidationError
 
 from bead.active_learning.config import (
     MixedEffectsConfig,
@@ -48,7 +48,7 @@ class TestVarianceComponents:
 
     def test_variance_must_be_non_negative(self) -> None:
         """Test that variance must be >= 0."""
-        with pytest.raises(ValidationError, match="greater than or equal to 0"):
+        with pytest.raises(ValidationError, match="non-negative"):
             VarianceComponents(
                 grouping_factor="participant",
                 effect_type="intercept",
@@ -59,7 +59,7 @@ class TestVarianceComponents:
 
     def test_n_groups_must_be_positive(self) -> None:
         """Test that n_groups must be >= 1."""
-        with pytest.raises(ValidationError, match="greater than or equal to 1"):
+        with pytest.raises(ValidationError, match=">= 1"):
             VarianceComponents(
                 grouping_factor="participant",
                 effect_type="intercept",
@@ -160,17 +160,17 @@ class TestMixedEffectsConfig:
 
     def test_prior_variance_must_be_non_negative(self) -> None:
         """Test that prior_variance must be >= 0."""
-        with pytest.raises(ValidationError, match="greater than or equal to 0"):
+        with pytest.raises(ValidationError, match="non-negative"):
             MixedEffectsConfig(prior_variance=-0.1)
 
     def test_regularization_strength_must_be_non_negative(self) -> None:
         """Test that regularization_strength must be >= 0."""
-        with pytest.raises(ValidationError, match="greater than or equal to 0"):
+        with pytest.raises(ValidationError, match="non-negative"):
             MixedEffectsConfig(regularization_strength=-0.01)
 
     def test_min_samples_must_be_positive(self) -> None:
         """Test that min_samples_for_random_effects must be >= 1."""
-        with pytest.raises(ValidationError, match="greater than or equal to 1"):
+        with pytest.raises(ValidationError, match=">= 1"):
             MixedEffectsConfig(min_samples_for_random_effects=0)
 
     def test_random_effects_spec_optional(self) -> None:

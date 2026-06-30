@@ -2,11 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Annotated
-
 from langcodes import Language
 from langcodes.tag_parser import LanguageTagError
-from pydantic import AfterValidator, Field
 
 
 def validate_iso639_code(code: str | None) -> str | None:
@@ -53,9 +50,5 @@ def validate_iso639_code(code: str | None) -> str | None:
         raise ValueError(f"Invalid language code: {code!r}") from e
 
 
-# type alias for language codes
-LanguageCode = Annotated[
-    str | None,
-    AfterValidator(validate_iso639_code),
-    Field(description="ISO 639-1 or ISO 639-3 language code"),
-]
+# Plain type alias. Models that use it normalize via @dx.validates("language_code").
+type LanguageCode = str | None

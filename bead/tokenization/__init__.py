@@ -11,6 +11,16 @@ learning. The alignment module maps between the two.
 from __future__ import annotations
 
 from bead.tokenization.config import TokenizerBackend, TokenizerConfig
+from bead.tokenization.parsers import (
+    UNIVERSAL_DEPENDENCIES,
+    DependencyParser,
+    ParsedSentence,
+    ParsedToken,
+    SpacyParser,
+    StanzaParser,
+    create_parser,
+    parse_to_spans,
+)
 from bead.tokenization.tokenizers import (
     DisplayToken,
     SpacyTokenizer,
@@ -21,12 +31,20 @@ from bead.tokenization.tokenizers import (
 )
 
 __all__ = [
+    "UNIVERSAL_DEPENDENCIES",
+    "DependencyParser",
     "DisplayToken",
+    "ParsedSentence",
+    "ParsedToken",
+    "SpacyParser",
     "SpacyTokenizer",
+    "StanzaParser",
     "StanzaTokenizer",
     "TokenizedText",
     "TokenizerBackend",
     "TokenizerConfig",
     "WhitespaceTokenizer",
+    "create_parser",
     "create_tokenizer",
+    "parse_to_spans",
 ]

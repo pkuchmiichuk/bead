@@ -287,13 +287,13 @@ def _extract_allowed_items_from_expression(
                         if isinstance(arg, ast.Literal) and isinstance(arg.value, str):
                             try:
                                 uuids.add(UUID(arg.value))
-                            except (ValueError, AttributeError):
+                            except ValueError, AttributeError:
                                 pass
                 # handle string literals (for str(self.id) pattern)
                 elif isinstance(elem, ast.Literal) and isinstance(elem.value, str):
                     try:
                         uuids.add(UUID(elem.value))
-                    except (ValueError, AttributeError):
+                    except ValueError, AttributeError:
                         pass
 
             if uuids:
@@ -313,7 +313,7 @@ def _extract_allowed_items_from_expression(
                         elif isinstance(item, str):
                             try:
                                 uuids.add(UUID(item))
-                            except (ValueError, AttributeError):
+                            except ValueError, AttributeError:
                                 pass
                     if uuids:
                         return uuids

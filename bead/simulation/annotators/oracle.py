@@ -118,7 +118,7 @@ class OracleAnnotator(SimulatedAnnotator):
                 raise ValueError(msg)
             scale_bounds = template.task_spec.scale_bounds
             if scale_bounds is not None:
-                min_val, max_val = scale_bounds
+                min_val, max_val = scale_bounds.min, scale_bounds.max
             else:
                 min_val, max_val = 1, 7
             if not (min_val <= ground_truth <= max_val):
@@ -145,9 +145,10 @@ class OracleAnnotator(SimulatedAnnotator):
             return float(ground_truth)
 
         elif task_type == "multi_select":
-            if not isinstance(ground_truth, list):
+            if not isinstance(ground_truth, list | tuple):
                 msg = (
-                    f"multi_select ground truth must be list, got {type(ground_truth)}"
+                    f"multi_select ground truth must be list or tuple, "
+                    f"got {type(ground_truth)}"
                 )
                 raise ValueError(msg)
             options = template.task_spec.options or []

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel, Field
+import didactic.api as dx
 
 from bead.config.active_learning import ActiveLearningConfig
 from bead.config.deployment import DeploymentConfig
@@ -12,24 +12,51 @@ from bead.config.item import ItemConfig
 from bead.config.list import ListConfig
 from bead.config.logging import LoggingConfig
 from bead.config.paths import PathsConfig
+from bead.config.protocol import ProtocolConfig
 from bead.config.resources import ResourceConfig
 from bead.config.template import TemplateConfig
 
 
-class BeadConfig(BaseModel):
+def _default_paths() -> PathsConfig:
+    return PathsConfig()
+
+
+def _default_resources() -> ResourceConfig:
+    return ResourceConfig()
+
+
+def _default_templates() -> TemplateConfig:
+    return TemplateConfig()
+
+
+def _default_items() -> ItemConfig:
+    return ItemConfig()
+
+
+def _default_lists() -> ListConfig:
+    return ListConfig()
+
+
+def _default_deployment() -> DeploymentConfig:
+    return DeploymentConfig()
+
+
+def _default_active_learning() -> ActiveLearningConfig:
+    return ActiveLearningConfig()
+
+
+def _default_logging() -> LoggingConfig:
+    return LoggingConfig()
+
+
+def _default_protocol() -> ProtocolConfig:
+    return ProtocolConfig()
+
+
+class BeadConfig(dx.Model):
     """Main configuration for the bead package.
 
-    Reflects the actual bead/ module structure:
-    - active_learning: Active learning (models, trainers, loop, selection)
-    - data_collection: Human data collection (JATOS, Prolific)
-    - deployment: Experiment deployment (jsPsych, JATOS)
-    - evaluation: Model evaluation and metrics
-    - items: Item generation and management
-    - lists: List construction and balancing
-    - resources: Linguistic resources (VerbNet, PropBank, UniMorph)
-    - templates: Template management
-
-    Parameters
+    Attributes
     ----------
     profile : str
         Configuration profile name.
@@ -46,147 +73,73 @@ class BeadConfig(BaseModel):
     deployment : DeploymentConfig
         Deployment configuration.
     active_learning : ActiveLearningConfig
-        Active learning configuration (models, trainers, loop, selection).
+        Active learning configuration.
     logging : LoggingConfig
         Logging configuration.
-
-    Examples
-    --------
-    >>> config = BeadConfig()
-    >>> config.profile
-    'default'
-    >>> config.paths.data_dir
-    PosixPath('data')
-    >>> config.active_learning.forced_choice_model.model_name
-    'bert-base-uncased'
-    >>> config.active_learning.trainer.trainer_type
-    'huggingface'
-    >>> config.active_learning.loop.max_iterations
-    10
+    protocol : ProtocolConfig
+        Annotation-protocol configuration.
     """
 
-    profile: str = Field(default="default", description="Configuration profile name")
-    paths: PathsConfig = Field(
-        default_factory=PathsConfig, description="Paths configuration"
+    profile: str = "default"
+    paths: dx.Embed[PathsConfig] = dx.field(default_factory=_default_paths)
+    resources: dx.Embed[ResourceConfig] = dx.field(default_factory=_default_resources)
+    templates: dx.Embed[TemplateConfig] = dx.field(default_factory=_default_templates)
+    items: dx.Embed[ItemConfig] = dx.field(default_factory=_default_items)
+    lists: dx.Embed[ListConfig] = dx.field(default_factory=_default_lists)
+    deployment: dx.Embed[DeploymentConfig] = dx.field(
+        default_factory=_default_deployment
     )
-    resources: ResourceConfig = Field(
-        default_factory=ResourceConfig, description="Resources configuration"
+    active_learning: dx.Embed[ActiveLearningConfig] = dx.field(
+        default_factory=_default_active_learning
     )
-    templates: TemplateConfig = Field(
-        default_factory=TemplateConfig, description="Templates configuration"
-    )
-    items: ItemConfig = Field(
-        default_factory=ItemConfig, description="Items configuration"
-    )
-    lists: ListConfig = Field(
-        default_factory=ListConfig, description="Lists configuration"
-    )
-    deployment: DeploymentConfig = Field(
-        default_factory=DeploymentConfig, description="Deployment configuration"
-    )
-    active_learning: ActiveLearningConfig = Field(
-        default_factory=ActiveLearningConfig,
-        description="Active learning configuration",
-    )
-    logging: LoggingConfig = Field(
-        default_factory=LoggingConfig, description="Logging configuration"
-    )
+    logging: dx.Embed[LoggingConfig] = dx.field(default_factory=_default_logging)
+    protocol: dx.Embed[ProtocolConfig] = dx.field(default_factory=_default_protocol)
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert configuration to dictionary.
-
-        Returns
-        -------
-        dict[str, Any]
-            Configuration as a dictionary.
-
-        Examples
-        --------
-        >>> config = BeadConfig()
-        >>> d = config.to_dict()
-        >>> d["profile"]
-        'default'
-        """
+        """Render the configuration as a plain ``dict``."""
         return self.model_dump()
 
     def to_yaml(self) -> str:
-        """Convert configuration to YAML string.
-
-        Returns
-        -------
-        str
-            Configuration as YAML string.
-
-        Examples
-        --------
-        >>> config = BeadConfig()
-        >>> yaml_str = config.to_yaml()
-        >>> 'profile: default' in yaml_str
-        True
-        """
+        """Render the configuration as a YAML string."""
         from bead.config.serialization import to_yaml  # noqa: PLC0415
 
         return to_yaml(self, include_defaults=False)
 
     def validate_paths(self) -> list[str]:
-        """Validate all path fields exist.
+        """Return any path-related validation errors.
 
-        Returns
-        -------
-        list[str]
-            List of validation errors. Empty if all paths are valid.
-
-        Examples
-        --------
-        >>> config = BeadConfig()
-        >>> errors = config.validate_paths()
-        >>> len(errors)
-        0
+        Empty list means every required path either exists or is a
+        relative path (in which case the caller is responsible for
+        creating it).
         """
         errors: list[str] = []
 
-        # check paths config
-        if not self.paths.data_dir.exists() and self.paths.data_dir.is_absolute():
-            errors.append(f"data_dir does not exist: {self.paths.data_dir}")
-        if not self.paths.output_dir.exists() and self.paths.output_dir.is_absolute():
-            errors.append(f"output_dir does not exist: {self.paths.output_dir}")
-        if not self.paths.cache_dir.exists() and self.paths.cache_dir.is_absolute():
-            errors.append(f"cache_dir does not exist: {self.paths.cache_dir}")
+        for label, path in (
+            ("data_dir", self.paths.data_dir),
+            ("output_dir", self.paths.output_dir),
+            ("cache_dir", self.paths.cache_dir),
+        ):
+            if not path.exists() and path.is_absolute():
+                errors.append(f"{label} does not exist: {path}")
         if self.paths.temp_dir is not None and not self.paths.temp_dir.exists():
             errors.append(f"temp_dir does not exist: {self.paths.temp_dir}")
 
-        # check resource paths
-        if (
-            self.resources.lexicon_path is not None
-            and not self.resources.lexicon_path.exists()
+        for label, path in (
+            ("lexicon_path", self.resources.lexicon_path),
+            ("templates_path", self.resources.templates_path),
+            ("constraints_path", self.resources.constraints_path),
         ):
-            errors.append(f"lexicon_path does not exist: {self.resources.lexicon_path}")
-        if (
-            self.resources.templates_path is not None
-            and not self.resources.templates_path.exists()
-        ):
-            errors.append(
-                f"templates_path does not exist: {self.resources.templates_path}"
-            )
-        if (
-            self.resources.constraints_path is not None
-            and not self.resources.constraints_path.exists()
-        ):
-            errors.append(
-                f"constraints_path does not exist: {self.resources.constraints_path}"
-            )
+            if path is not None and not path.exists():
+                errors.append(f"{label} does not exist: {path}")
 
-        # check training logging dir
-        if (
-            not self.active_learning.trainer.logging_dir.exists()
-            and self.active_learning.trainer.logging_dir.is_absolute()
-        ):
-            log_dir = self.active_learning.trainer.logging_dir
-            errors.append(f"logging_dir does not exist: {log_dir}")
+        logging_dir = self.active_learning.trainer.logging_dir
+        if not logging_dir.exists() and logging_dir.is_absolute():
+            errors.append(f"logging_dir does not exist: {logging_dir}")
 
-        # check logging file
         if self.logging.file is not None and not self.logging.file.parent.exists():
-            parent_dir = self.logging.file.parent
-            errors.append(f"logging file parent directory does not exist: {parent_dir}")
+            errors.append(
+                f"logging file parent directory does not exist: "
+                f"{self.logging.file.parent}"
+            )
 
         return errors

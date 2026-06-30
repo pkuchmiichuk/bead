@@ -123,7 +123,7 @@ verb_lexicon = Lexicon(
     name="verbnet_verbs",
     description="All VerbNet verbs with inflected forms",
     language_code="eng",
-    items=verb_items_dict,
+    items=tuple(verb_items_dict.values()),
 )
 
 output_path = lexicons_dir / "verbnet_verbs.jsonl"
@@ -224,7 +224,7 @@ verb_lexicon = Lexicon.from_jsonl(verb_lexicon_path, "verbnet_verbs")
 print(f"Loaded {len(verb_lexicon.items)} verb forms")
 
 # Access specific items
-for _item_id, item in list(verb_lexicon.items.items())[:3]:
+for item in list(verb_lexicon.items)[:3]:
     print(f"{item.lemma} → {item.form}")
     print(f"  VerbNet class: {item.features.get('verbnet_class')}")
     print(f"  Thematic roles: {item.features.get('themroles', [])}")

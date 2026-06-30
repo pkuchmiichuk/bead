@@ -2,738 +2,317 @@
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Literal, Self
 from uuid import UUID
 
-from pydantic import Field, ValidationInfo, field_validator
+import didactic.api as dx
 
 from bead.data.base import BeadBaseModel
 from bead.items.spans import SpanSpec
 from bead.tokenization.config import TokenizerConfig
 
-# type aliases for JSON-serializable metadata values
 type MetadataValue = (
-    str | int | float | bool | None | dict[str, MetadataValue] | list[MetadataValue]
+    str
+    | int
+    | float
+    | bool
+    | None
+    | tuple[MetadataValue, ...]
+    | dict[str, MetadataValue]
 )
 
-
-# factory functions for default values with explicit types
-def _empty_item_element_list() -> list[ItemElement]:
-    """Return empty ItemElement list."""
-    return []
-
-
-def _empty_item_template_list() -> list[ItemTemplate]:
-    """Return empty ItemTemplate list."""
-    return []
-
-
-def _empty_metadata_dict() -> dict[str, MetadataValue]:
-    """Return empty metadata dict."""
-    return {}
-
-
-def _empty_display_format_dict() -> dict[str, str | int | float | bool]:
-    """Return empty display format dict."""
-    return {}
-
-
-def _empty_uuid_list() -> list[UUID]:
-    """Return empty UUID list."""
-    return []
-
-
-# type aliases for judgment and task types
 JudgmentType = Literal[
-    "acceptability",  # Linguistic acceptability/grammaticality/naturalness
-    "inference",  # Semantic relationship (NLI: entailment/neutral/contradiction)
-    "similarity",  # Semantic similarity/distance/relatedness
-    "plausibility",  # Likelihood/plausibility of events or statements
-    "comprehension",  # Understanding/recall of content
-    "preference",  # Subjective preference between alternatives
-    "extraction",  # Extracting structured info (labeled spans) from text
+    "acceptability",
+    "inference",
+    "similarity",
+    "plausibility",
+    "comprehension",
+    "preference",
+    "extraction",
 ]
 
 TaskType = Literal[
-    "forced_choice",  # Pick exactly one option (UI: radio buttons)
-    "multi_select",  # Pick one or more options (UI: checkboxes)
-    "ordinal_scale",  # Value on ordered discrete scale (UI: Likert, slider)
-    "magnitude",  # Unbounded numeric value (UI: number input)
-    "binary",  # Yes/no, true/false (UI: toggle, buttons)
-    "categorical",  # Pick from unordered categories (UI: dropdown, radio)
-    "free_text",  # Open-ended text (UI: text input, textarea)
-    "cloze",  # Fill-in-the-blank with unfilled slots (UI: inferred)
-    "span_labeling",  # Select and label text spans (UI: token selection)
+    "forced_choice",
+    "multi_select",
+    "ordinal_scale",
+    "magnitude",
+    "binary",
+    "categorical",
+    "free_text",
+    "cloze",
+    "span_labeling",
 ]
 
 ElementRefType = Literal["text", "filled_template_ref"]
-
 PresentationMode = Literal["static", "self_paced", "timed_sequence"]
-
-ChunkingUnit = Literal[
-    "character",
-    "word",
-    "sentence",
-    "constituent",
-    "custom",
-]
-
+ChunkingUnit = Literal["character", "word", "sentence", "constituent", "custom"]
 ParseType = Literal["constituency", "dependency"]
 
 
 class ChunkingSpec(BeadBaseModel):
     """Specification for text segmentation in incremental presentation.
 
-    Defines how to segment text for self-paced reading or timed sequence
-    presentation. Supports character-level, word-level, sentence-level,
-    constituent-based (with parsing), or custom boundary segmentation.
-
     Attributes
     ----------
     unit : ChunkingUnit
-        Segmentation unit type. Defaults to "word".
+        Segmentation unit type. Defaults to ``"word"``.
     parse_type : ParseType | None
-        Type of parsing for constituent chunking ("constituency" or "dependency").
-    constituent_labels : list[str] | None
-        Labels for constituent chunking. For constituency parsing, these are
-        constituent types (e.g., ["NP", "VP", "S"]). For dependency parsing,
-        these are dependency relations (e.g., ["nsubj", "dobj", "root"]).
+        Type of parsing for constituent chunking.
+    constituent_labels : tuple[str, ...] | None
+        Labels for constituent chunking.
     parser : Literal["stanza", "spacy"] | None
-        Parser library to use for constituent chunking.
+        Parser library for constituent chunking.
     parse_language : str | None
-        ISO 639 language code for parser (e.g., "en", "es", "zh").
-    custom_boundaries : list[int] | None
+        ISO 639 language code.
+    custom_boundaries : tuple[int, ...] | None
         Token indices for custom chunking boundaries.
-
-    Examples
-    --------
-    >>> # Word-by-word chunking
-    >>> ChunkingSpec(unit="word")
-    >>> # Chunk by noun phrases (constituency)
-    >>> ChunkingSpec(
-    ...     unit="constituent",
-    ...     parse_type="constituency",
-    ...     constituent_labels=["NP"],
-    ...     parser="stanza",
-    ...     parse_language="en"
-    ... )
-    >>> # Chunk by subjects and objects (dependency)
-    >>> ChunkingSpec(
-    ...     unit="constituent",
-    ...     parse_type="dependency",
-    ...     constituent_labels=["nsubj", "dobj"],
-    ...     parser="spacy",
-    ...     parse_language="en"
-    ... )
-    >>> # Custom boundaries at specific token positions
-    >>> ChunkingSpec(unit="custom", custom_boundaries=[0, 3, 7, 10])
     """
 
-    unit: ChunkingUnit = Field(default="word", description="Segmentation unit type")
-    parse_type: ParseType | None = Field(
-        default=None, description="Parsing type for constituent chunking"
-    )
-    constituent_labels: list[str] | None = Field(
-        default=None,
-        description="Constituent or dependency labels for chunking",
-    )
-    parser: Literal["stanza", "spacy"] | None = Field(
-        default=None, description="Parser library"
-    )
-    parse_language: str | None = Field(
-        default=None, description="ISO 639 language code"
-    )
-    custom_boundaries: list[int] | None = Field(
-        default=None, description="Custom token boundary indices"
-    )
+    unit: ChunkingUnit = "word"
+    parse_type: ParseType | None = None
+    constituent_labels: tuple[str, ...] | None = None
+    parser: Literal["stanza", "spacy"] | None = None
+    parse_language: str | None = None
+    custom_boundaries: tuple[int, ...] | None = None
 
 
 class TimingParams(BeadBaseModel):
     """Timing parameters for stimulus presentation.
 
-    Defines timing constraints for timed sequence presentations,
-    including per-chunk duration, inter-stimulus intervals, and
-    response timeouts.
-
     Attributes
     ----------
     duration_ms : int | None
-        Duration in milliseconds to display each chunk (for timed sequences).
+        Per-chunk display duration (ms).
     isi_ms : int | None
-        Inter-stimulus interval in milliseconds between chunks.
+        Inter-stimulus interval (ms).
     timeout_ms : int | None
-        Maximum time in milliseconds to wait for response.
+        Response timeout (ms).
     mask_char : str | None
-        Character to use for masking non-current chunks (e.g., "_").
+        Character used to mask non-current chunks.
     cumulative : bool
-        If True, show all previous chunks; if False, show only current chunk.
-
-    Examples
-    --------
-    >>> # RSVP (Rapid Serial Visual Presentation)
-    >>> TimingParams(
-    ...     duration_ms=250,
-    ...     isi_ms=50,
-    ...     cumulative=False,
-    ...     mask_char="_"
-    ... )
-    >>> # Self-paced with timeout
-    >>> TimingParams(timeout_ms=5000, cumulative=True)
+        Show all previous chunks (``True``) or only the current chunk.
     """
 
-    duration_ms: int | None = Field(
-        default=None, description="Per-chunk display duration (ms)"
-    )
-    isi_ms: int | None = Field(default=None, description="Inter-stimulus interval (ms)")
-    timeout_ms: int | None = Field(default=None, description="Response timeout (ms)")
-    mask_char: str | None = Field(default=None, description="Masking character")
-    cumulative: bool = Field(
-        default=True, description="Show all previous chunks or only current"
-    )
+    duration_ms: int | None = None
+    isi_ms: int | None = None
+    timeout_ms: int | None = None
+    mask_char: str | None = None
+    cumulative: bool = True
+
+
+class ScaleBounds(BeadBaseModel):
+    """Inclusive integer bounds for an ordinal scale.
+
+    Attributes
+    ----------
+    min : int
+        Minimum scale value (inclusive).
+    max : int
+        Maximum scale value (inclusive).
+    """
+
+    min: int
+    max: int
+
+
+class ScalePointLabel(BeadBaseModel):
+    """A label attached to a specific point on an ordinal scale.
+
+    Attributes
+    ----------
+    point : int
+        Scale point value.
+    label : str
+        Human-readable label for that point.
+    """
+
+    point: int
+    label: str
 
 
 class TaskSpec(BeadBaseModel):
     """Parameters for the response collection task.
 
-    Specifies task-specific parameters like prompts, options, scale bounds,
-    validation rules, etc. The appropriate parameters depend on the task_type
-    specified in ItemTemplate. The task_type itself is not included here since
-    it's part of the ItemTemplate structure.
-
     Attributes
     ----------
     prompt : str
         Question or instruction shown to participants.
-    scale_bounds : tuple[int, int] | None
+    scale_bounds : ScaleBounds | None
         Min and max values for ordinal_scale task.
-    scale_labels : dict[int, str] | None
-        Optional labels for specific scale points (ordinal_scale).
-    options : list[str] | None
-        Available options for forced_choice, multi_select, or categorical tasks.
-        For forced_choice/multi_select: element names to choose from.
-        For categorical: category labels.
+    scale_labels : tuple[ScalePointLabel, ...]
+        Labels for individual scale points.
+    options : tuple[str, ...] | None
+        Available options.
     min_selections : int | None
-        Minimum number of selections required (multi_select only).
+        Minimum number of selections (multi_select).
     max_selections : int | None
-        Maximum number of selections allowed (multi_select only).
+        Maximum number of selections (multi_select).
     text_validation_pattern : str | None
-        Regular expression pattern for validating free_text responses.
+        Regex for free-text validation.
     max_length : int | None
-        Maximum character length for free_text responses.
+        Maximum length for free-text responses.
     span_spec : SpanSpec | None
-        Span labeling specification (for span_labeling tasks or
-        composite tasks with span overlays).
-
-    Examples
-    --------
-    >>> # Ordinal scale task (e.g., acceptability rating)
-    >>> TaskSpec(
-    ...     prompt="How natural does this sentence sound?",
-    ...     scale_bounds=(1, 7),
-    ...     scale_labels={1: "Very unnatural", 7: "Very natural"}
-    ... )
-    >>> # Categorical task (e.g., NLI)
-    >>> TaskSpec(
-    ...     prompt="What is the relationship?",
-    ...     options=["Entailment", "Neutral", "Contradiction"]
-    ... )
-    >>> # Binary task
-    >>> TaskSpec(
-    ...     prompt="Is this sentence grammatical?"
-    ... )
-    >>> # Forced choice task (e.g., minimal pair)
-    >>> TaskSpec(
-    ...     prompt="Which sounds more natural?",
-    ...     options=["sentence_a", "sentence_b"]
-    ... )
-    >>> # Multi-select task (e.g., select all grammatical)
-    >>> TaskSpec(
-    ...     prompt="Select all grammatical sentences:",
-    ...     options=["sent_a", "sent_b", "sent_c"],
-    ...     min_selections=1
-    ... )
-    >>> # Free text task
-    >>> TaskSpec(
-    ...     prompt="Who performed the action?",
-    ...     max_length=50
-    ... )
+        Span labeling specification.
     """
 
-    prompt: str = Field(..., description="Participant prompt/question")
-    scale_bounds: tuple[int, int] | None = Field(
-        default=None, description="Scale bounds for ordinal_scale task"
-    )
-    scale_labels: dict[int, str] | None = Field(
-        default=None, description="Labels for scale points"
-    )
-    options: list[str] | None = Field(
-        default=None,
-        description="Options for forced_choice/multi_select/categorical tasks",
-    )
-    min_selections: int | None = Field(
-        default=None, description="Minimum selections for multi_select task"
-    )
-    max_selections: int | None = Field(
-        default=None, description="Maximum selections for multi_select task"
-    )
-    text_validation_pattern: str | None = Field(
-        default=None, description="Regex pattern for text validation"
-    )
-    max_length: int | None = Field(default=None, description="Maximum text length")
-    span_spec: SpanSpec | None = Field(
-        default=None, description="Span labeling specification"
-    )
+    prompt: str
+    scale_bounds: dx.Embed[ScaleBounds] | None = None
+    scale_labels: tuple[dx.Embed[ScalePointLabel], ...] = ()
+    options: tuple[str, ...] | None = None
+    min_selections: int | None = None
+    max_selections: int | None = None
+    text_validation_pattern: str | None = None
+    max_length: int | None = None
+    span_spec: dx.Embed[SpanSpec] | None = None
 
-    @field_validator("prompt")
-    @classmethod
-    def validate_prompt(cls, v: str) -> str:
-        """Validate prompt is not empty.
-
-        Parameters
-        ----------
-        v : str
-            Prompt to validate.
-
-        Returns
-        -------
-        str
-            Validated prompt.
-
-        Raises
-        ------
-        ValueError
-            If prompt is empty or contains only whitespace.
-        """
-        if not v or not v.strip():
+    @dx.validates("prompt")
+    def _check_prompt(self, value: str) -> str:
+        if not value or not value.strip():
             raise ValueError("Prompt cannot be empty")
-        return v.strip()
+        return value.strip()
+
+
+def _default_chunking() -> ChunkingSpec:
+    return ChunkingSpec()
+
+
+def _default_timing() -> TimingParams:
+    return TimingParams()
 
 
 class PresentationSpec(BeadBaseModel):
     """Specification of stimulus presentation method.
 
-    Defines how stimuli are displayed to participants (static, self-paced,
-    or timed sequence), including segmentation and timing parameters.
-    Separate from judgment specification to maintain clean separation
-    of concerns.
-
     Attributes
     ----------
     mode : PresentationMode
-        Presentation mode (static, self_paced, or timed_sequence). Defaults to
-        "static".
+        Presentation mode.
     chunking : ChunkingSpec
-        Chunking specification for incremental presentations. Defaults to
-        word-level chunking.
+        Chunking specification.
     timing : TimingParams
-        Timing parameters for timed presentations. Defaults to cumulative
-        display with no fixed durations.
+        Timing parameters.
     display_format : dict[str, str | int | float | bool]
         Additional display formatting options.
     tokenizer_config : TokenizerConfig | None
-        Display tokenizer configuration for span annotation. When set,
-        controls how text is tokenized for span indexing and display.
-
-    Examples
-    --------
-    >>> # Static presentation (default)
-    >>> PresentationSpec()
-    >>> # Self-paced word-by-word reading
-    >>> PresentationSpec(
-    ...     mode="self_paced",
-    ...     chunking=ChunkingSpec(unit="word")
-    ... )
-    >>> # Self-paced by noun phrases
-    >>> PresentationSpec(
-    ...     mode="self_paced",
-    ...     chunking=ChunkingSpec(
-    ...         unit="constituent",
-    ...         parse_type="constituency",
-    ...         constituent_labels=["NP"],
-    ...         parser="stanza",
-    ...         parse_language="en"
-    ...     )
-    ... )
-    >>> # RSVP (timed sequence)
-    >>> PresentationSpec(
-    ...     mode="timed_sequence",
-    ...     chunking=ChunkingSpec(unit="word"),
-    ...     timing=TimingParams(duration_ms=250, isi_ms=50, cumulative=False)
-    ... )
+        Display tokenizer configuration for span annotation.
     """
 
-    mode: PresentationMode = Field(default="static", description="Presentation mode")
-    chunking: ChunkingSpec = Field(
-        default_factory=ChunkingSpec, description="Chunking specification"
-    )
-    timing: TimingParams = Field(
-        default_factory=TimingParams, description="Timing parameters"
-    )
-    display_format: dict[str, str | int | float | bool] = Field(
-        default_factory=_empty_display_format_dict,
-        description="Display formatting options",
-    )
-    tokenizer_config: TokenizerConfig | None = Field(
-        default=None,
-        description="Display tokenizer config for span annotation",
-    )
+    mode: PresentationMode = "static"
+    chunking: dx.Embed[ChunkingSpec] = dx.field(default_factory=_default_chunking)
+    timing: dx.Embed[TimingParams] = dx.field(default_factory=_default_timing)
+    display_format: dict[str, str | int | float | bool] = dx.field(default_factory=dict)
+    tokenizer_config: dx.Embed[TokenizerConfig] | None = None
 
 
 class ItemElement(BeadBaseModel):
     """A structured element within an item template.
 
-    ItemElements represent distinct parts of a complex item,
-    such as context, target sentence, question, or response options.
-    Elements can be static text or references to filled templates.
-
     Attributes
     ----------
     element_type : ElementRefType
-        Type of element ("text" or "filled_template_ref").
+        Type of element.
     element_name : str
-        Unique name for this element within the item.
+        Unique name within the item.
     content : str | None
         Static text content (for text elements).
     filled_template_ref_id : UUID | None
         UUID of filled template (for reference elements).
     element_metadata : dict[str, MetadataValue]
-        Additional element-specific metadata.
+        Additional metadata.
     order : int | None
-        Display order for this element (optional).
-
-    Examples
-    --------
-    >>> # Text element
-    >>> context = ItemElement(
-    ...     element_type="text",
-    ...     element_name="context",
-    ...     content="Mary loves books.",
-    ...     order=1
-    ... )
-    >>> # Template reference element
-    >>> target = ItemElement(
-    ...     element_type="filled_template_ref",
-    ...     element_name="target",
-    ...     filled_template_ref_id=UUID("..."),
-    ...     order=2
-    ... )
+        Display order.
     """
 
-    element_type: ElementRefType = Field(..., description="Type of element")
-    element_name: str = Field(..., description="Unique element name within item")
-    content: str | None = Field(default=None, description="Static text content")
-    filled_template_ref_id: UUID | None = Field(
-        default=None, description="Filled template reference"
-    )
-    element_metadata: dict[str, MetadataValue] = Field(
-        default_factory=_empty_metadata_dict, description="Element-specific metadata"
-    )
-    order: int | None = Field(
-        default=None, description="Display order for this element"
-    )
+    element_type: ElementRefType
+    element_name: str
+    content: str | None = None
+    filled_template_ref_id: UUID | None = None
+    element_metadata: dict[str, MetadataValue] = dx.field(default_factory=dict)
+    order: int | None = None
 
-    @field_validator("element_name")
-    @classmethod
-    def validate_element_name(cls, v: str) -> str:
-        """Validate element name is not empty.
-
-        Parameters
-        ----------
-        v : str
-            Element name to validate.
-
-        Returns
-        -------
-        str
-            Validated element name.
-
-        Raises
-        ------
-        ValueError
-            If name is empty or contains only whitespace.
-        """
-        if not v or not v.strip():
+    @dx.validates("element_name")
+    def _check_element_name(self, value: str) -> str:
+        if not value or not value.strip():
             raise ValueError("Element name cannot be empty")
-        return v.strip()
+        return value.strip()
 
     @property
     def is_text(self) -> bool:
-        """Check if this is a text element.
-
-        Returns
-        -------
-        bool
-            True if element_type is "text".
-        """
+        """Return whether this is a text element."""
         return self.element_type == "text"
 
     @property
     def is_template_ref(self) -> bool:
-        """Check if this references a filled template.
-
-        Returns
-        -------
-        bool
-            True if element_type is "filled_template_ref".
-        """
+        """Return whether this references a filled template."""
         return self.element_type == "filled_template_ref"
 
 
 class ItemTemplate(BeadBaseModel):
     """Template specification for constructing experimental items.
 
-    ItemTemplate defines how to construct an experimental item with three
-    orthogonal dimensions: what semantic property to measure (judgment_type),
-    how to collect the response (task_type), and how to present the stimulus
-    (presentation_spec).
-
-    This is distinct from Template (in bead.resources.structures), which defines
-    linguistic structure. ItemTemplate defines experimental structure.
-
     Attributes
     ----------
     name : str
-        Template name (e.g., "acceptability_rating").
+        Template name.
     description : str | None
-        Human-readable description of this item template.
+        Human-readable description.
     judgment_type : JudgmentType
-        Semantic property being measured (acceptability, inference, etc.).
+        Semantic property being measured.
     task_type : TaskType
-        Response collection method (forced_choice, ordinal_scale, etc.).
-    elements : list[ItemElement]
+        Response collection method.
+    elements : tuple[ItemElement, ...]
         Elements that compose this item.
-    constraints : list[UUID]
-        UUIDs of constraints on items (typically model-based).
+    constraints : tuple[UUID, ...]
+        UUIDs of constraints on items.
     task_spec : TaskSpec
-        Task-specific parameters (prompt, options, scale bounds, etc.).
+        Task-specific parameters.
     presentation_spec : PresentationSpec
-        Specification of how to present stimuli.
-    presentation_order : list[str] | None
+        Presentation specification.
+    presentation_order : tuple[str, ...] | None
         Order to present elements (by element_name).
     template_metadata : dict[str, MetadataValue]
-        Additional template metadata.
-
-    Examples
-    --------
-    >>> # Acceptability judgment with ordinal scale task
-    >>> template = ItemTemplate(
-    ...     name="acceptability_rating",
-    ...     judgment_type="acceptability",
-    ...     task_type="ordinal_scale",
-    ...     task_spec=TaskSpec(
-    ...         prompt="How natural is this sentence?",
-    ...         scale_bounds=(1, 7),
-    ...         scale_labels={1: "Very unnatural", 7: "Very natural"}
-    ...     ),
-    ...     presentation_spec=PresentationSpec(mode="static"),
-    ...     elements=[
-    ...         ItemElement(
-    ...             element_type="filled_template_ref",
-    ...             element_name="sentence",
-    ...             filled_template_ref_id=UUID("...")
-    ...         )
-    ...     ]
-    ... )
-    >>> # Minimal pair: acceptability judgment with forced choice task
-    >>> minimal_pair = ItemTemplate(
-    ...     name="minimal_pair",
-    ...     judgment_type="acceptability",
-    ...     task_type="forced_choice",
-    ...     elements=[
-    ...         ItemElement(
-    ...             element_type="text", element_name="sent_a", content="Who..."
-    ...         ),
-    ...         ItemElement(
-    ...             element_type="text", element_name="sent_b", content="Whom..."
-    ...         )
-    ...     ],
-    ...     task_spec=TaskSpec(
-    ...         prompt="Which sounds more natural?",
-    ...         options=["sent_a", "sent_b"]
-    ...     ),
-    ...     presentation_spec=PresentationSpec(mode="static")
-    ... )
-    >>> # Odd-man-out: similarity judgment with forced choice task
-    >>> odd_man_out = ItemTemplate(
-    ...     name="odd_man_out",
-    ...     judgment_type="similarity",
-    ...     task_type="forced_choice",
-    ...     elements=[...],  # 4 elements
-    ...     task_spec=TaskSpec(
-    ...         prompt="Which is most different?",
-    ...         options=["opt_a", "opt_b", "opt_c", "opt_d"]
-    ...     ),
-    ...     presentation_spec=PresentationSpec(mode="static")
-    ... )
+        Additional metadata.
     """
 
-    name: str = Field(..., description="Template name")
-    description: str | None = Field(default=None, description="Template description")
-    judgment_type: JudgmentType = Field(
-        ..., description="Semantic property being measured"
-    )
-    task_type: TaskType = Field(..., description="Response collection method")
-    elements: list[ItemElement] = Field(
-        default_factory=_empty_item_element_list, description="Item elements"
-    )
-    constraints: list[UUID] = Field(
-        default_factory=_empty_uuid_list, description="Constraint UUIDs"
-    )
-    task_spec: TaskSpec = Field(..., description="Task-specific parameters")
-    presentation_spec: PresentationSpec = Field(
-        ..., description="Presentation specification"
-    )
-    presentation_order: list[str] | None = Field(
-        default=None, description="Element presentation order"
-    )
-    template_metadata: dict[str, MetadataValue] = Field(
-        default_factory=_empty_metadata_dict, description="Additional metadata"
-    )
+    name: str
+    judgment_type: JudgmentType
+    task_type: TaskType
+    task_spec: dx.Embed[TaskSpec]
+    presentation_spec: dx.Embed[PresentationSpec]
+    description: str | None = None
+    elements: tuple[dx.Embed[ItemElement], ...] = ()
+    constraints: tuple[UUID, ...] = ()
+    presentation_order: tuple[str, ...] | None = None
+    template_metadata: dict[str, MetadataValue] = dx.field(default_factory=dict)
 
-    @field_validator("name")
-    @classmethod
-    def validate_name(cls, v: str) -> str:
-        """Validate template name is not empty.
-
-        Parameters
-        ----------
-        v : str
-            Template name to validate.
-
-        Returns
-        -------
-        str
-            Validated template name.
-
-        Raises
-        ------
-        ValueError
-            If name is empty or contains only whitespace.
-        """
-        if not v or not v.strip():
+    @dx.validates("name")
+    def _check_name(self, value: str) -> str:
+        if not value or not value.strip():
             raise ValueError("Template name cannot be empty")
-        return v.strip()
+        return value.strip()
 
-    @field_validator("elements")
-    @classmethod
-    def validate_unique_element_names(cls, v: list[ItemElement]) -> list[ItemElement]:
-        """Validate all element names are unique within template.
-
-        Parameters
-        ----------
-        v : list[ItemElement]
-            List of elements to validate.
-
-        Returns
-        -------
-        list[ItemElement]
-            Validated elements.
-
-        Raises
-        ------
-        ValueError
-            If duplicate element names found.
-        """
-        if not v:
-            return v
-
-        names = [elem.element_name for elem in v]
+    @dx.validates("elements")
+    def _check_unique_element_names(
+        self, value: tuple[ItemElement, ...]
+    ) -> tuple[ItemElement, ...]:
+        if not value:
+            return value
+        names = [elem.element_name for elem in value]
         if len(names) != len(set(names)):
             duplicates = [name for name in names if names.count(name) > 1]
             raise ValueError(f"Duplicate element names: {set(duplicates)}")
-
-        return v
-
-    @field_validator("presentation_order", mode="after")
-    @classmethod
-    def validate_presentation_order(
-        cls, v: list[str] | None, info: ValidationInfo
-    ) -> list[str] | None:
-        """Validate presentation_order matches element names.
-
-        Parameters
-        ----------
-        v : list[str] | None
-            Presentation order list to validate.
-        info : ValidationInfo
-            Pydantic validation info containing other field values.
-
-        Returns
-        -------
-        list[str] | None
-            Validated presentation order.
-
-        Raises
-        ------
-        ValueError
-            If presentation_order contains names not in elements,
-            or is missing names from elements.
-        """
-        if v is None:
-            return v
-
-        # get elements from validation info
-        elements = info.data.get("elements", [])
-        if not elements:
-            return v
-
-        element_names = {e.element_name for e in elements}
-        order_names = set(v)
-
-        # check for names in order that aren't in elements
-        extra = order_names - element_names
-        if extra:
-            raise ValueError(
-                f"presentation_order contains element names not in elements: {extra}"
-            )
-
-        # check for names in elements that aren't in order
-        missing = element_names - order_names
-        if missing:
-            raise ValueError(
-                f"presentation_order missing element names from elements: {missing}"
-            )
-
-        return v
+        return value
 
     def get_element_by_name(self, name: str) -> ItemElement | None:
-        """Get an element by its name.
-
-        Parameters
-        ----------
-        name : str
-            Element name to search for.
-
-        Returns
-        -------
-        ItemElement | None
-            Element with matching name, or None if not found.
-
-        Examples
-        --------
-        >>> elem = template.get_element_by_name("sentence")
-        >>> if elem:
-        ...     print(elem.element_type)
-        """
+        """Return the element with the given *name*, or ``None``."""
         for elem in self.elements:
             if elem.element_name == name:
                 return elem
         return None
 
-    def get_template_ref_elements(self) -> list[ItemElement]:
-        """Get all elements that reference filled templates.
-
-        Returns
-        -------
-        list[ItemElement]
-            Elements with element_type="filled_template_ref".
-
-        Examples
-        --------
-        >>> refs = template.get_template_ref_elements()
-        >>> print(f"Found {len(refs)} template references")
-        """
-        return [elem for elem in self.elements if elem.is_template_ref]
+    def get_template_ref_elements(self) -> tuple[ItemElement, ...]:
+        """Return every element that references a filled template."""
+        return tuple(elem for elem in self.elements if elem.is_template_ref)
 
 
 class ItemTemplateCollection(BeadBaseModel):
@@ -744,61 +323,21 @@ class ItemTemplateCollection(BeadBaseModel):
     name : str
         Name of this collection.
     description : str | None
-        Description of this collection.
-    templates : list[ItemTemplate]
+        Description.
+    templates : tuple[ItemTemplate, ...]
         Item templates in this collection.
-
-    Examples
-    --------
-    >>> collection = ItemTemplateCollection(
-    ...     name="acceptability_study",
-    ...     description="Templates for acceptability judgments"
-    ... )
-    >>> collection.add_template(template)
     """
 
-    name: str = Field(..., description="Collection name")
-    description: str | None = Field(default=None, description="Collection description")
-    templates: list[ItemTemplate] = Field(
-        default_factory=_empty_item_template_list, description="Item templates"
-    )
+    name: str
+    description: str | None = None
+    templates: tuple[dx.Embed[ItemTemplate], ...] = ()
 
-    @field_validator("name")
-    @classmethod
-    def validate_name(cls, v: str) -> str:
-        """Validate collection name is not empty.
-
-        Parameters
-        ----------
-        v : str
-            Collection name to validate.
-
-        Returns
-        -------
-        str
-            Validated collection name.
-
-        Raises
-        ------
-        ValueError
-            If name is empty or contains only whitespace.
-        """
-        if not v or not v.strip():
+    @dx.validates("name")
+    def _check_name(self, value: str) -> str:
+        if not value or not value.strip():
             raise ValueError("Collection name cannot be empty")
-        return v.strip()
+        return value.strip()
 
-    def add_template(self, template: ItemTemplate) -> None:
-        """Add a template to the collection.
-
-        Parameters
-        ----------
-        template : ItemTemplate
-            Template to add.
-
-        Examples
-        --------
-        >>> collection.add_template(my_template)
-        >>> print(f"Collection now has {len(collection.templates)} templates")
-        """
-        self.templates.append(template)
-        self.update_modified_time()
+    def with_template(self, template: ItemTemplate) -> Self:
+        """Return a new collection with *template* appended."""
+        return self.with_(templates=(*self.templates, template)).touched()

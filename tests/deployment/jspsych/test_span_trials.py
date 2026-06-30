@@ -10,6 +10,7 @@ from bead.deployment.distribution import (
 )
 from bead.deployment.jspsych.config import (
     ExperimentConfig,
+    InstructionsConfig,
     SpanDisplayConfig,
 )
 from bead.deployment.jspsych.trials import (
@@ -86,8 +87,8 @@ class TestSpanMetadataSerialization:
 
         metadata = _serialize_item_metadata(item, template)
 
-        assert metadata["tokenized_elements"] == {"text": ["Hello", "world"]}
-        assert metadata["token_space_after"] == {"text": [True, False]}
+        assert dict(metadata["tokenized_elements"]) == {"text": ("Hello", "world")}
+        assert dict(metadata["token_space_after"]) == {"text": [True, False]}
 
     def test_span_relations_serialized(self) -> None:
         """Test that span_relations are serialized."""
@@ -152,7 +153,7 @@ class TestSpanMetadataSerialization:
 
         assert metadata["span_spec"] is not None
         assert metadata["span_spec"]["interaction_mode"] == "interactive"
-        assert metadata["span_spec"]["labels"] == ["PER", "ORG"]
+        assert metadata["span_spec"]["labels"] == ("PER", "ORG")
 
     def test_no_span_spec_is_none(self) -> None:
         """Test that span_spec is None when not set."""
@@ -315,7 +316,7 @@ class TestSpanLabelingTrial:
         # Span spec
         assert trial["span_spec"] is not None
         assert trial["span_spec"]["interaction_mode"] == "interactive"
-        assert trial["span_spec"]["labels"] == ["PER", "ORG"]
+        assert trial["span_spec"]["labels"] == ("PER", "ORG")
 
         # Display config
         assert trial["display_config"] is not None
@@ -344,7 +345,7 @@ class TestSpanCompositeTrial:
             experiment_type="span_labeling",
             title="Test",
             description="Test",
-            instructions="Test",
+            instructions=InstructionsConfig.from_text("Test"),
             distribution_strategy=_make_strategy(),
         )
 

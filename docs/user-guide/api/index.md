@@ -88,6 +88,7 @@ from bead.deployment.distribution import (
     ListDistributionStrategy,
 )
 from bead.deployment.jspsych.config import ExperimentConfig
+from bead.deployment.jspsych.config import InstructionsConfig
 from bead.deployment.jspsych.generator import JsPsychExperimentGenerator
 from bead.items.item_template import ItemTemplate, PresentationSpec, TaskSpec
 
@@ -105,15 +106,14 @@ template = ItemTemplate(
 )
 
 # Link items to template
+items = [item.with_(item_template_id=template.id) for item in items]
 items_dict = {item.id: item for item in items}
-for item in items_dict.values():
-    item.item_template_id = template.id
 
 config = ExperimentConfig(
     experiment_type="forced_choice",
     title="Acceptability Study",
     description="Rate sentence pairs",
-    instructions="Select the more natural sentence",
+    instructions=InstructionsConfig.from_text("Select the more natural sentence"),
     distribution_strategy=ListDistributionStrategy(
         strategy_type=DistributionStrategyType.BALANCED
     ),
@@ -143,6 +143,11 @@ Each stage has detailed documentation:
 - [Stage 4: Lists](lists.md) - Partitioning, constraints
 - [Stage 5: Deployment](deployment.md) - jsPsych generation, JATOS export
 - [Stage 6: Training](training.md) - Active learning, convergence detection
+
+Upstream of Stage 1, you can build naturalistic stimuli directly from text:
+
+- [Corpus Ingestion](corpus.md) - Stream a corpus, dependency-parse it, and keep
+  only sentences whose syntactic structure matches a constraint
 
 ## Complete Workflow
 

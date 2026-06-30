@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from uuid import uuid4
 
+import didactic.api as dx
 import pytest
 
 from bead.items.binary import (
@@ -29,7 +30,10 @@ class TestCreateBinaryItem:
         assert isinstance(item, Item)
         assert item.rendered_elements["text"] == "The cat sat on the mat."
         assert item.rendered_elements["prompt"] == "Is this grammatical?"
-        assert item.item_metadata["binary_options"] == ["yes", "no"]
+        assert item.item_metadata["binary_options"] == (
+            "yes",
+            "no",
+        )
 
     def test_default_prompt(self) -> None:
         """Test default prompt."""
@@ -45,22 +49,35 @@ class TestCreateBinaryItem:
             binary_options=("true", "false"),
         )
 
-        assert item.item_metadata["binary_options"] == ["true", "false"]
+        assert item.item_metadata["binary_options"] == (
+            "true",
+            "false",
+        )
 
     def test_empty_text_raises_error(self) -> None:
         """Test that empty text raises error."""
-        with pytest.raises(ValueError, match="text cannot be empty"):
+        with pytest.raises(
+            (ValueError, dx.ValidationError), match="text cannot be empty"
+        ):
             create_binary_item("")
 
-        with pytest.raises(ValueError, match="text cannot be empty"):
+        with pytest.raises(
+            (ValueError, dx.ValidationError), match="text cannot be empty"
+        ):
             create_binary_item("   ")
 
     def test_invalid_binary_options_raises_error(self) -> None:
         """Test that invalid binary_options raises error."""
-        with pytest.raises(ValueError, match="binary_options must contain exactly 2"):
+        with pytest.raises(
+            (ValueError, dx.ValidationError),
+            match="binary_options must contain exactly 2",
+        ):
             create_binary_item("Text", binary_options=("yes",))
 
-        with pytest.raises(ValueError, match="binary_options must contain exactly 2"):
+        with pytest.raises(
+            (ValueError, dx.ValidationError),
+            match="binary_options must contain exactly 2",
+        ):
             create_binary_item("Text", binary_options=("yes", "no", "maybe"))
 
     def test_with_custom_template_id(self) -> None:
@@ -78,7 +95,10 @@ class TestCreateBinaryItem:
 
         assert item.item_metadata["judgment"] == "grammaticality"
         assert item.item_metadata["verb"] == "walk"
-        assert item.item_metadata["binary_options"] == ["yes", "no"]
+        assert item.item_metadata["binary_options"] == (
+            "yes",
+            "no",
+        )
 
 
 class TestCreateBinaryItemsFromTexts:

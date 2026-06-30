@@ -76,19 +76,12 @@ paths:
   data_dir: .test_data
 
 resources:
-  auto_download: false
-  cache_resources: true
-  default_language: eng
+  cache_external: true
 
 templates:
   filling_strategy: random
   max_combinations: 100
   random_seed: 42
-
-models:
-  default_language_model: gpt2
-  use_gpu: false
-  cache_model_outputs: true
 """
     config_file.write_text(config_content)
     return config_file
@@ -173,14 +166,14 @@ def mock_lexicon_file(tmp_path: Path) -> Path:
     )
 
     # Add items using add() method since items is a dict
-    lexicon.add(
+    lexicon = lexicon.with_item(
         LexicalItem(
             lemma="run",
             language_code="eng",
             features={"pos": "VERB"},
         )
     )
-    lexicon.add(
+    lexicon = lexicon.with_item(
         LexicalItem(
             lemma="walk",
             language_code="eng",
@@ -223,7 +216,7 @@ def mock_template_file(tmp_path: Path) -> Path:
         name="test_templates",
         description="Test templates",
     )
-    collection.add(template)
+    collection = collection.with_template(template)
 
     template_file = tmp_path / "test_templates.jsonl"
     collection.to_jsonl(str(template_file))

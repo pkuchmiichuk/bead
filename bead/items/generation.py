@@ -183,17 +183,23 @@ def _default_metadata_extractor(
         "combination_type": "cross_product",
     }
 
-    # add lexical item features
     if lexical_item.features:
         for key, value in lexical_item.features.items():
-            metadata[f"lexical_feature_{key}"] = value
-
-    # add lexical item features as attributes
-    if lexical_item.features:
-        for key, value in lexical_item.features.items():
-            metadata[f"lexical_attr_{key}"] = value
+            metadata[f"lexical_feature_{key}"] = _coerce_to_metadata(value)
+            metadata[f"lexical_attr_{key}"] = _coerce_to_metadata(value)
 
     return metadata
+
+
+def _coerce_to_metadata(value: object) -> MetadataValue:
+    """Coerce a JsonValue tree into a MetadataValue tree (lists become tuples)."""
+    if isinstance(value, list):
+        return tuple(_coerce_to_metadata(elem) for elem in value)
+    if isinstance(value, dict):
+        return {str(k): _coerce_to_metadata(v) for k, v in value.items()}
+    if isinstance(value, str | int | float | bool | type(None)):
+        return value
+    raise TypeError(f"Unsupported metadata value type: {type(value).__name__}")
 
 
 def create_filtered_cross_product_items(
@@ -296,10 +302,7 @@ def _create_temp_lexicon(items: list[LexicalItem]) -> Lexicon:
     Lexicon
         Temporary lexicon.
     """
-    lexicon = Lexicon(name="temp")
-    for item in items:
-        lexicon.add(item)
-    return lexicon
+    return Lexicon(name="temp", items=tuple(items))
 
 
 def create_stratified_cross_product_items(

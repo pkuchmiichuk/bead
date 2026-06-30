@@ -13,7 +13,7 @@ Integration Points
 
 from __future__ import annotations
 
-import re
+import json
 import warnings
 from collections.abc import Callable
 from uuid import UUID, uuid4
@@ -24,10 +24,9 @@ from bead.items.spans import (
     Span,
     SpanSpec,
 )
+from bead.labels import parse_label_refs
 from bead.tokenization.config import TokenizerConfig
 from bead.tokenization.tokenizers import TokenizedText, create_tokenizer
-
-_SPAN_REF_PATTERN = re.compile(r"\[\[([^\]:]+?)(?::([^\]]+?))?\]\]")
 
 
 def tokenize_item(
@@ -56,24 +55,23 @@ def tokenize_item(
 
     tokenize = create_tokenizer(tokenizer_config)
 
-    tokenized_elements: dict[str, list[str]] = {}
-    token_space_after: dict[str, list[bool]] = {}
+    tokenized_elements: dict[str, tuple[str, ...]] = {}
+    token_space_after: dict[str, tuple[bool, ...]] = {}
 
     for name, text in item.rendered_elements.items():
         result: TokenizedText = tokenize(text)
         tokenized_elements[name] = result.token_texts
         token_space_after[name] = result.space_after_flags
 
-    # create new item with tokenization data
-    data = item.model_dump()
-    data["tokenized_elements"] = tokenized_elements
-    data["token_space_after"] = token_space_after
-    return Item(**data)
+    return item.with_(
+        tokenized_elements=tokenized_elements,
+        token_space_after=token_space_after,
+    ).touched()
 
 
 def _validate_span_indices(
     spans: list[Span],
-    tokenized_elements: dict[str, list[str]],
+    tokenized_elements: dict[str, tuple[str, ...]],
 ) -> None:
     """Validate span indices are within token bounds.
 
@@ -81,7 +79,7 @@ def _validate_span_indices(
     ----------
     spans : list[Span]
         Spans to validate.
-    tokenized_elements : dict[str, list[str]]
+    tokenized_elements : dict[str, tuple[str, ...]]
         Tokenized element data.
 
     Raises
@@ -163,19 +161,20 @@ def create_span_item(
     if span_spec is None:
         span_spec = SpanSpec(
             interaction_mode="static",
-            labels=labels,
+            labels=tuple(labels) if labels is not None else None,
         )
 
     # store span_spec in item metadata for downstream access
-    span_spec_data: dict[str, MetadataValue] = {}
-    for k, v in span_spec.model_dump(mode="json").items():
-        span_spec_data[k] = v
+    span_spec_data: dict[str, MetadataValue] = dict(
+        json.loads(span_spec.model_dump_json())
+    )
 
     # tokenize
+    tokenized_elements: dict[str, tuple[str, ...]]
+    token_space_after: dict[str, tuple[bool, ...]]
     if tokens is not None:
-        tokenized_elements = {"text": tokens}
-        # infer space_after from text
-        token_space_after = {"text": _infer_space_after(tokens, text)}
+        tokenized_elements = {"text": tuple(tokens)}
+        token_space_after = {"text": tuple(_infer_space_after(tokens, text))}
     else:
         if tokenizer_config is None:
             tokenizer_config = TokenizerConfig()
@@ -184,7 +183,6 @@ def create_span_item(
         tokenized_elements = {"text": result.token_texts}
         token_space_after = {"text": result.space_after_flags}
 
-    # validate spans
     _validate_span_indices(spans, tokenized_elements)
 
     item_metadata: dict[str, MetadataValue] = {"_span_spec": span_spec_data}
@@ -194,7 +192,7 @@ def create_span_item(
     return Item(
         item_template_id=item_template_id,
         rendered_elements={"text": text, "prompt": prompt},
-        spans=spans,
+        spans=tuple(spans),
         tokenized_elements=tokenized_elements,
         token_space_after=token_space_after,
         item_metadata=item_metadata,
@@ -243,20 +241,20 @@ def create_interactive_span_item(
     if item_template_id is None:
         item_template_id = uuid4()
 
-    # build span spec from label parameters
     span_spec = SpanSpec(
         interaction_mode="interactive",
         label_source=label_source,
-        labels=label_set,
+        labels=tuple(label_set) if label_set is not None else None,
     )
-    span_spec_data: dict[str, MetadataValue] = {}
-    for k, v in span_spec.model_dump(mode="json").items():
-        span_spec_data[k] = v
+    span_spec_data: dict[str, MetadataValue] = dict(
+        json.loads(span_spec.model_dump_json())
+    )
 
-    # tokenize
+    tokenized_elements: dict[str, tuple[str, ...]]
+    token_space_after: dict[str, tuple[bool, ...]]
     if tokens is not None:
-        tokenized_elements = {"text": tokens}
-        token_space_after = {"text": _infer_space_after(tokens, text)}
+        tokenized_elements = {"text": tuple(tokens)}
+        token_space_after = {"text": tuple(_infer_space_after(tokens, text))}
     else:
         if tokenizer_config is None:
             tokenizer_config = TokenizerConfig()
@@ -272,7 +270,7 @@ def create_interactive_span_item(
     return Item(
         item_template_id=item_template_id,
         rendered_elements={"text": text, "prompt": prompt},
-        spans=[],
+        spans=(),
         tokenized_elements=tokenized_elements,
         token_space_after=token_space_after,
         item_metadata=item_metadata,
@@ -324,33 +322,28 @@ def add_spans_to_item(
     if prompt_text:
         all_spans = list(item.spans) + spans
         span_labels = {s.label.label for s in all_spans if s.label is not None}
-        for match in _SPAN_REF_PATTERN.finditer(prompt_text):
-            ref_label = match.group(1)
-            if ref_label not in span_labels:
+        for ref in parse_label_refs(prompt_text):
+            if ref.label not in span_labels:
                 warnings.warn(
-                    f"Prompt contains [[{ref_label}]] but no span with "
-                    f"label '{ref_label}' exists. Available labels: "
+                    f"Prompt contains [[{ref.label}]] but no span with "
+                    f"label '{ref.label}' exists. Available labels: "
                     f"{sorted(span_labels)}",
                     UserWarning,
                     stacklevel=2,
                 )
 
-    # build new item with spans
-    data = item.model_dump()
     # merge existing spans with new ones
-    existing_spans = data.get("spans", [])
-    data["spans"] = existing_spans + [s.model_dump() for s in spans]
+    new_spans = (*item.spans, *spans)
 
     # store span_spec in item metadata if provided
+    item_metadata = dict(item.item_metadata)
     if span_spec is not None:
-        item_metadata = dict(data.get("item_metadata", {}))
         span_spec_data: dict[str, MetadataValue] = {}
-        for k, v in span_spec.model_dump(mode="json").items():
+        for k, v in json.loads(span_spec.model_dump_json()).items():
             span_spec_data[k] = v
         item_metadata["_span_spec"] = span_spec_data
-        data["item_metadata"] = item_metadata
 
-    return Item(**data)
+    return item.with_(spans=new_spans, item_metadata=item_metadata).touched()
 
 
 def create_span_items_from_texts(
@@ -390,7 +383,7 @@ def create_span_items_from_texts(
     items: list[Item] = []
     for text in texts:
         result = tokenize(text)
-        tokens = result.token_texts
+        tokens = list(result.token_texts)
         spans = span_extractor(text, tokens)
         item = create_span_item(
             text=text,

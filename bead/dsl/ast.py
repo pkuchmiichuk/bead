@@ -1,24 +1,18 @@
-"""Abstract Syntax Tree node definitions for constraint DSL.
+"""AST node definitions for the constraint DSL.
 
-This module defines the AST nodes that represent parsed constraint expressions.
-Each node type corresponds to a construct in the constraint DSL grammar.
+The hierarchy is a discriminated union rooted at ``ASTNode``; the
+``kind`` field distinguishes variants and supports JSON round-trips.
 """
 
 from __future__ import annotations
 
-from bead.data.base import BeadBaseModel
+from typing import Literal as _Lit
+
+import didactic.api as dx
 
 
-class ASTNode(BeadBaseModel):
-    """Base class for all AST nodes.
-
-    All AST nodes inherit from BeadBaseModel to get:
-    - Automatic validation
-    - Serialization support
-    - Metadata tracking
-    """
-
-    pass
+class ASTNode(dx.TaggedUnion, discriminator="kind"):
+    """Discriminated union of AST node variants."""
 
 
 class Literal(ASTNode):
@@ -26,143 +20,91 @@ class Literal(ASTNode):
 
     Examples
     --------
-    >>> node = Literal(value="hello")
+    >>> node = Literal(kind="literal", value="hello")
     >>> node.value
     'hello'
-    >>> node = Literal(value=42)
-    >>> node.value
-    42
     """
 
+    kind: _Lit["literal"]
     value: str | int | float | bool
 
 
 class Variable(ASTNode):
     """Variable reference node.
 
-    References a variable in the evaluation context (e.g., item attributes).
-
     Examples
     --------
-    >>> node = Variable(name="lemma")
+    >>> node = Variable(kind="variable", name="lemma")
     >>> node.name
     'lemma'
     """
 
+    kind: _Lit["variable"]
     name: str
 
 
 class BinaryOp(ASTNode):
-    """Binary operation node.
-
-    Represents operations like: a == b, x > y, p and q
+    """Binary operation node (e.g. ``a == b``, ``x and y``).
 
     Attributes
     ----------
     operator : str
-        The operator (==, !=, <, >, <=, >=, and, or, in, etc.)
+        Operator symbol or keyword.
     left : ASTNode
-        Left operand
+        Left operand.
     right : ASTNode
-        Right operand
-
-    Examples
-    --------
-    >>> left = Variable(name="pos")
-    >>> right = Literal(value="VERB")
-    >>> node = BinaryOp(operator="==", left=left, right=right)
-    >>> node.operator
-    '=='
+        Right operand.
     """
 
+    kind: _Lit["binary_op"]
     operator: str
     left: ASTNode
     right: ASTNode
 
 
 class UnaryOp(ASTNode):
-    """Unary operation node.
+    """Unary operation node (e.g. ``not x``, ``-y``)."""
 
-    Represents operations like: not x, -y
-
-    Examples
-    --------
-    >>> operand = Variable(name="is_transitive")
-    >>> node = UnaryOp(operator="not", operand=operand)
-    >>> node.operator
-    'not'
-    """
-
+    kind: _Lit["unary_op"]
     operator: str
     operand: ASTNode
 
 
 class FunctionCall(ASTNode):
-    """Function call node.
+    """Function or method call node.
 
-    Represents function calls and method calls like:
-    - len(x), startswith("pre")
-    - obj.method(arg)
-
-    Examples
-    --------
-    >>> func = Variable(name="len")
-    >>> arg = Variable(name="lemma")
-    >>> node = FunctionCall(function=func, arguments=[arg])
-    >>> node.function.name
-    'len'
+    Attributes
+    ----------
+    function : ASTNode
+        The function being called (Variable for ``len(x)``,
+        AttributeAccess for ``obj.method(...)``).
+    arguments : tuple[ASTNode, ...]
+        Argument expressions.
     """
 
-    function: ASTNode  # Variable for functions, AttributeAccess for methods
-    arguments: list[ASTNode]
+    kind: _Lit["function_call"]
+    function: ASTNode
+    arguments: tuple[ASTNode, ...] = ()
 
 
 class ListLiteral(ASTNode):
-    """List literal node.
+    """List literal node (e.g. ``["a", "b"]``)."""
 
-    Represents list literals like: ["a", "b", "c"]
-
-    Examples
-    --------
-    >>> elements = [Literal(value="a"), Literal(value="b")]
-    >>> node = ListLiteral(elements=elements)
-    >>> len(node.elements)
-    2
-    """
-
-    elements: list[ASTNode]
+    kind: _Lit["list_literal"]
+    elements: tuple[ASTNode, ...] = ()
 
 
 class AttributeAccess(ASTNode):
-    """Attribute access node.
+    """Attribute access node (e.g. ``item.lemma``)."""
 
-    Represents attribute access like: item.lemma, obj.property
-
-    Examples
-    --------
-    >>> obj = Variable(name="item")
-    >>> node = AttributeAccess(object=obj, attribute="lemma")
-    >>> node.attribute
-    'lemma'
-    """
-
+    kind: _Lit["attribute_access"]
     object: ASTNode
     attribute: str
 
 
 class Subscript(ASTNode):
-    """Subscript access node.
+    """Subscript access node (e.g. ``item['key']``, ``obj[0]``)."""
 
-    Represents subscript access like: item['key'], obj[0]
-
-    Examples
-    --------
-    >>> obj = Variable(name="item")
-    >>> key = Literal(value="key")
-    >>> node = Subscript(object=obj, index=key)
-    >>> node.index.value
-    'key'
-    """
-
+    kind: _Lit["subscript"]
     object: ASTNode
     index: ASTNode

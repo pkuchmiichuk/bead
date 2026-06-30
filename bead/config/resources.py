@@ -1,16 +1,16 @@
-"""Resource configuration models for the bead package."""
+"""Resource configuration."""
 
 from __future__ import annotations
 
 from pathlib import Path
 
-from pydantic import BaseModel, Field
+import didactic.api as dx
 
 
-class ResourceConfig(BaseModel):
+class ResourceConfig(dx.Model):
     """Configuration for external resources.
 
-    Parameters
+    Attributes
     ----------
     lexicon_path : Path | None
         Path to lexicon file.
@@ -18,30 +18,14 @@ class ResourceConfig(BaseModel):
         Path to templates file.
     constraints_path : Path | None
         Path to constraints file.
-    external_adapters : list[str]
-        List of external adapters to enable.
+    external_adapters : tuple[str, ...]
+        External adapters to enable.
     cache_external : bool
         Whether to cache external resource lookups.
-
-    Examples
-    --------
-    >>> config = ResourceConfig()
-    >>> config.cache_external
-    True
-    >>> config.external_adapters
-    []
     """
 
-    lexicon_path: Path | None = Field(default=None, description="Path to lexicon file")
-    templates_path: Path | None = Field(
-        default=None, description="Path to templates file"
-    )
-    constraints_path: Path | None = Field(
-        default=None, description="Path to constraints file"
-    )
-    external_adapters: list[str] = Field(
-        default_factory=list, description="External adapters to enable"
-    )
-    cache_external: bool = Field(
-        default=True, description="Cache external resource lookups"
-    )
+    lexicon_path: Path | None = None
+    templates_path: Path | None = None
+    constraints_path: Path | None = None
+    external_adapters: tuple[str, ...] = ()
+    cache_external: bool = True

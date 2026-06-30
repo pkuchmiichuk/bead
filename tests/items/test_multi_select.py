@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from uuid import uuid4
 
+import didactic.api as dx
 import pytest
 
 from bead.items.item import Item
@@ -47,12 +48,16 @@ class TestCreateMultiSelectItem:
 
     def test_requires_at_least_two_options(self) -> None:
         """Test that at least 2 options are required."""
-        with pytest.raises(ValueError, match="At least 2 options required"):
+        with pytest.raises(
+            (ValueError, dx.ValidationError), match="At least 2 options required"
+        ):
             create_multi_select_item("Only one")
 
     def test_min_selections_validation(self) -> None:
         """Test that min_selections must be at least 1."""
-        with pytest.raises(ValueError, match="min_selections must be at least 1"):
+        with pytest.raises(
+            (ValueError, dx.ValidationError), match="min_selections must be at least 1"
+        ):
             create_multi_select_item("A", "B", min_selections=0)
 
     def test_min_max_validation(self) -> None:
@@ -294,7 +299,10 @@ class TestCreateFilteredMultiSelectItems:
         ]
 
         # Should raise error when filtering leaves only 1 item
-        with pytest.raises(ValueError, match="has only 1 item\\(s\\) after filtering"):
+        with pytest.raises(
+            (ValueError, dx.ValidationError),
+            match="has only 1 item\\(s\\) after filtering",
+        ):
             create_filtered_multi_select_items(
                 items,
                 group_by=lambda i: "group",

@@ -16,6 +16,11 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
 
 from bead.active_learning.config import MixedEffectsConfig
+from bead.active_learning.models import (
+    MODEL_CLASSES,
+    config_class_for_task_type,
+    model_class_for_task_type,
+)
 from bead.cli.display import (
     print_error,
     print_info,
@@ -23,50 +28,9 @@ from bead.cli.display import (
 )
 from bead.data.serialization import read_jsonlines
 from bead.items.item import Item
+from bead.items.item_template import TaskType
 
 console = Console()
-
-# Task type to model class mapping
-TASK_TYPE_MODELS = {
-    "forced_choice": "bead.active_learning.models.forced_choice.ForcedChoiceModel",
-    "categorical": "bead.active_learning.models.categorical.CategoricalModel",
-    "binary": "bead.active_learning.models.binary.BinaryModel",
-    "multi_select": "bead.active_learning.models.multi_select.MultiSelectModel",
-    "ordinal_scale": "bead.active_learning.models.ordinal_scale.OrdinalScaleModel",
-    "magnitude": "bead.active_learning.models.magnitude.MagnitudeModel",
-    "free_text": "bead.active_learning.models.free_text.FreeTextModel",
-    "cloze": "bead.active_learning.models.cloze.ClozeModel",
-}
-
-# Config classes for each task type
-TASK_TYPE_CONFIGS = {
-    "forced_choice": "bead.config.active_learning.ForcedChoiceModelConfig",
-    "categorical": "bead.config.active_learning.CategoricalModelConfig",
-    "binary": "bead.config.active_learning.BinaryModelConfig",
-    "multi_select": "bead.config.active_learning.MultiSelectModelConfig",
-    "ordinal_scale": "bead.config.active_learning.OrdinalScaleModelConfig",
-    "magnitude": "bead.config.active_learning.MagnitudeModelConfig",
-    "free_text": "bead.config.active_learning.FreeTextModelConfig",
-    "cloze": "bead.config.active_learning.ClozeModelConfig",
-}
-
-
-def _import_class(module_path: str) -> type:
-    """Dynamically import a class from module path.
-
-    Parameters
-    ----------
-    module_path : str
-        Fully qualified path to class (e.g., 'bead.models.forced_choice.Model').
-
-    Returns
-    -------
-    type
-        Imported class.
-    """
-    module_name, class_name = module_path.rsplit(".", 1)
-    module = __import__(module_name, fromlist=[class_name])
-    return getattr(module, class_name)
 
 
 @click.group()
@@ -123,7 +87,7 @@ def models() -> None:
 @click.option(
     "--task-type",
     required=True,
-    type=click.Choice(list(TASK_TYPE_MODELS.keys())),
+    type=click.Choice(list(MODEL_CLASSES.keys())),
     help="Task type for model",
 )
 @click.option(
@@ -395,8 +359,8 @@ def train_model(
         mixed_effects_config = MixedEffectsConfig(mode=mode)
 
         # Import model class and config dynamically
-        model_class = _import_class(TASK_TYPE_MODELS[task_type])
-        config_class = _import_class(TASK_TYPE_CONFIGS[task_type])
+        model_class = model_class_for_task_type(cast(TaskType, task_type))
+        config_class = config_class_for_task_type(cast(TaskType, task_type))
 
         # Build model config
         config_dict = {
@@ -581,22 +545,22 @@ def predict(
                 "Model config missing 'task_type' field. "
                 "This model may have been trained with an older version of bead."
             )
-            print_info("Valid task types: " + ", ".join(TASK_TYPE_MODELS.keys()))
+            print_info("Valid task types: " + ", ".join(MODEL_CLASSES.keys()))
             ctx.exit(1)
 
         task_type = config_dict["task_type"]
-        if task_type not in TASK_TYPE_MODELS:
+        if task_type not in MODEL_CLASSES:
             print_error(
                 f"Unknown task type '{task_type}' in model config. "
-                f"Valid types: {', '.join(TASK_TYPE_MODELS.keys())}"
+                f"Valid types: {', '.join(MODEL_CLASSES.keys())}"
             )
             ctx.exit(1)
 
         print_success(f"Detected task type: {task_type}")
 
         # Import model class
-        model_class = _import_class(TASK_TYPE_MODELS[task_type])
-        config_class = _import_class(TASK_TYPE_CONFIGS[task_type])
+        model_class = model_class_for_task_type(cast(TaskType, task_type))
+        config_class = config_class_for_task_type(cast(TaskType, task_type))
         model_config = config_class(**config_dict)
 
         # Initialize model and load weights
@@ -766,22 +730,22 @@ def predict_proba(
                 "Model config missing 'task_type' field. "
                 "This model may have been trained with an older version of bead."
             )
-            print_info("Valid task types: " + ", ".join(TASK_TYPE_MODELS.keys()))
+            print_info("Valid task types: " + ", ".join(MODEL_CLASSES.keys()))
             ctx.exit(1)
 
         task_type = config_dict["task_type"]
-        if task_type not in TASK_TYPE_MODELS:
+        if task_type not in MODEL_CLASSES:
             print_error(
                 f"Unknown task type '{task_type}' in model config. "
-                f"Valid types: {', '.join(TASK_TYPE_MODELS.keys())}"
+                f"Valid types: {', '.join(MODEL_CLASSES.keys())}"
             )
             ctx.exit(1)
 
         print_success(f"Detected task type: {task_type}")
 
         # Import model class
-        model_class = _import_class(TASK_TYPE_MODELS[task_type])
-        config_class = _import_class(TASK_TYPE_CONFIGS[task_type])
+        model_class = model_class_for_task_type(cast(TaskType, task_type))
+        config_class = config_class_for_task_type(cast(TaskType, task_type))
         model_config = config_class(**config_dict)
 
         # Initialize model and load weights

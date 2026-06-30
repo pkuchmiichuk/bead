@@ -1,270 +1,122 @@
 """Metadata tracking models for provenance and processing history.
 
-This module provides models for tracking provenance chains and processing history
-for all bead objects. This enables full traceability of data transformations.
+Tracks provenance chains and processing history for full data lineage.
+Models are frozen; updates return new instances through pure ``with_*``
+methods.
 """
 
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Self
 from uuid import UUID
 
-from pydantic import Field
+import didactic.api as dx
 
 from bead.data.base import BeadBaseModel, JsonValue
 from bead.data.timestamps import now_iso8601
 
 
-def _empty_provenance_list() -> list[ProvenanceRecord]:
-    """Create empty provenance list."""
-    return []
-
-
-def _empty_processing_list() -> list[ProcessingRecord]:
-    """Create empty processing list."""
-    return []
-
-
 class ProvenanceRecord(BeadBaseModel):
-    """Record of a provenance relationship between objects.
-
-    Tracks a single parent-child relationship in the provenance chain, including
-    what the parent was, its type, and the nature of the relationship.
+    """A single parent-child relationship in a provenance chain.
 
     Attributes
     ----------
     parent_id : UUID
-        UUID of the parent object in the provenance chain
+        UUID of the parent object.
     parent_type : str
-        Type name of the parent object (e.g., "LexicalItem", "Template")
+        Type name of the parent object (e.g. "LexicalItem").
     relationship : str
-        Type of relationship (e.g., "derived_from", "filled_from", "generated_from")
+        Nature of the relationship (e.g. "derived_from").
     timestamp : datetime
-        When this relationship was established (UTC with timezone)
-
-    Examples
-    --------
-    >>> from uuid import uuid4
-    >>> parent_id = uuid4()
-    >>> record = ProvenanceRecord(
-    ...     parent_id=parent_id,
-    ...     parent_type="Template",
-    ...     relationship="filled_from"
-    ... )
-    >>> record.parent_type
-    'Template'
-    >>> record.timestamp is not None
-    True
+        When this relationship was established.
     """
 
     parent_id: UUID
     parent_type: str
     relationship: str
-    timestamp: datetime = Field(default_factory=now_iso8601)
+    timestamp: datetime = dx.field(default_factory=now_iso8601)
 
 
 class ProcessingRecord(BeadBaseModel):
-    """Record of a processing operation applied to an object.
-
-    Tracks a single operation in the processing history, including the operation
-    name, parameters used, when it was performed, and who/what performed it.
+    """A single processing operation in an object's history.
 
     Attributes
     ----------
     operation : str
-        Name of the operation (e.g., "fill_template", "apply_constraint", "filter")
+        Name of the operation.
     parameters : dict[str, JsonValue]
-        Parameters passed to the operation (default: empty dict)
+        Parameters passed to the operation.
     timestamp : datetime
-        When the operation was performed (UTC with timezone)
+        When the operation was performed.
     operator : str | None
-        Who/what performed the operation (e.g., "TemplateFiller-v1.0", user ID)
-        (default: None)
-
-    Examples
-    --------
-    >>> record = ProcessingRecord(
-    ...     operation="fill_template",
-    ...     parameters={"strategy": "exhaustive", "max_items": 100},
-    ...     operator="TemplateFiller-v1.0"
-    ... )
-    >>> record.operation
-    'fill_template'
-    >>> record.parameters["strategy"]
-    'exhaustive'
-    >>> record.timestamp is not None
-    True
+        Identity of the agent that performed the operation.
     """
 
     operation: str
-    parameters: dict[str, JsonValue] = Field(default_factory=dict)
-    timestamp: datetime = Field(default_factory=now_iso8601)
+    parameters: dict[str, JsonValue] = dx.field(default_factory=dict)
+    timestamp: datetime = dx.field(default_factory=now_iso8601)
     operator: str | None = None
 
 
 class MetadataTracker(BeadBaseModel):
-    """Metadata tracking for provenance and processing history.
-
-    Tracks both provenance (where data came from) and processing history
-    (what operations were applied) for complete data lineage.
+    """Frozen tracker for provenance and processing history.
 
     Attributes
     ----------
-    provenance : list[ProvenanceRecord]
-        Chain of provenance relationships (default: empty list)
-    processing_history : list[ProcessingRecord]
-        History of processing operations (default: empty list)
+    provenance : tuple[ProvenanceRecord, ...]
+        Provenance relationships in insertion order.
+    processing_history : tuple[ProcessingRecord, ...]
+        Processing operations in chronological order.
     custom_metadata : dict[str, JsonValue]
-        Custom metadata fields (default: empty dict)
+        Custom annotations.
 
     Examples
     --------
     >>> from uuid import uuid4
     >>> tracker = MetadataTracker()
     >>> parent_id = uuid4()
-    >>> tracker.add_provenance(parent_id, "Template", "filled_from")
-    >>> tracker.add_processing("fill_template", {"strategy": "exhaustive"})
+    >>> tracker = tracker.with_provenance(parent_id, "Template", "filled_from")
+    >>> tracker = tracker.with_processing("fill_template", {"strategy": "exhaustive"})
     >>> len(tracker.provenance)
     1
     >>> len(tracker.processing_history)
     1
-    >>> chain = tracker.get_provenance_chain()
-    >>> len(chain)
-    1
     """
 
-    provenance: list[ProvenanceRecord] = Field(default_factory=_empty_provenance_list)
-    processing_history: list[ProcessingRecord] = Field(
-        default_factory=_empty_processing_list
-    )
-    custom_metadata: dict[str, JsonValue] = Field(default_factory=dict)
+    provenance: tuple[dx.Embed[ProvenanceRecord], ...] = ()
+    processing_history: tuple[dx.Embed[ProcessingRecord], ...] = ()
+    custom_metadata: dict[str, JsonValue] = dx.field(default_factory=dict)
 
-    def add_provenance(
+    def with_provenance(
         self, parent_id: UUID, parent_type: str, relationship: str
-    ) -> None:
-        """Add a provenance record to the chain.
-
-        Creates a new provenance record and adds it to the provenance list.
-        The timestamp is automatically set to the current time.
-
-        Parameters
-        ----------
-        parent_id : UUID
-            UUID of the parent object
-        parent_type : str
-            Type name of the parent object (e.g., "Template", "LexicalItem")
-        relationship : str
-            Type of relationship (e.g., "derived_from", "filled_from")
-
-        Examples
-        --------
-        >>> from uuid import uuid4
-        >>> tracker = MetadataTracker()
-        >>> parent_id = uuid4()
-        >>> tracker.add_provenance(parent_id, "Template", "filled_from")
-        >>> len(tracker.provenance)
-        1
-        >>> tracker.provenance[0].parent_type
-        'Template'
-        """
+    ) -> Self:
+        """Return a new tracker with one additional provenance record."""
         record = ProvenanceRecord(
-            parent_id=parent_id, parent_type=parent_type, relationship=relationship
+            parent_id=parent_id,
+            parent_type=parent_type,
+            relationship=relationship,
         )
-        self.provenance.append(record)
+        return self.with_(provenance=(*self.provenance, record))
 
-    def add_processing(
+    def with_processing(
         self,
         operation: str,
         parameters: dict[str, JsonValue] | None = None,
         operator: str | None = None,
-    ) -> None:
-        """Add a processing record to the history.
-
-        Creates a new processing record and adds it to the processing history.
-        The timestamp is automatically set to the current time.
-
-        Parameters
-        ----------
-        operation : str
-            Name of the operation performed
-        parameters : dict[str, JsonValue] | None, optional
-            Parameters passed to the operation (default: None, which creates empty dict)
-        operator : str | None, optional
-            Who/what performed the operation (default: None)
-
-        Examples
-        --------
-        >>> tracker = MetadataTracker()
-        >>> tracker.add_processing("fill_template", {"strategy": "exhaustive"})
-        >>> len(tracker.processing_history)
-        1
-        >>> tracker.processing_history[0].operation
-        'fill_template'
-        >>> tracker.add_processing("filter", operator="FilterSystem-v2.0")
-        >>> tracker.processing_history[1].operator
-        'FilterSystem-v2.0'
-        """
-        if parameters is None:
-            parameters = {}
+    ) -> Self:
+        """Return a new tracker with one additional processing record."""
         record = ProcessingRecord(
-            operation=operation, parameters=parameters, operator=operator
+            operation=operation,
+            parameters=parameters or {},
+            operator=operator,
         )
-        self.processing_history.append(record)
+        return self.with_(processing_history=(*self.processing_history, record))
 
-    def get_provenance_chain(self) -> list[UUID]:
-        """Get the full provenance chain as a list of parent UUIDs.
+    def get_provenance_chain(self) -> tuple[UUID, ...]:
+        """Return the parent UUIDs of every provenance record in order."""
+        return tuple(record.parent_id for record in self.provenance)
 
-        Returns the parent UUIDs in the order they were added to the provenance list.
-
-        Returns
-        -------
-        list[UUID]
-            List of parent UUIDs in chronological order
-
-        Examples
-        --------
-        >>> from uuid import uuid4
-        >>> tracker = MetadataTracker()
-        >>> parent1 = uuid4()
-        >>> parent2 = uuid4()
-        >>> tracker.add_provenance(parent1, "Template", "filled_from")
-        >>> tracker.add_provenance(parent2, "LexicalItem", "derived_from")
-        >>> chain = tracker.get_provenance_chain()
-        >>> len(chain)
-        2
-        >>> chain[0] == parent1
-        True
-        """
-        return [record.parent_id for record in self.provenance]
-
-    def get_recent_processing(self, n: int = 5) -> list[ProcessingRecord]:
-        """Get the N most recent processing records.
-
-        Returns the most recent processing records, up to N records. If there
-        are fewer than N records, returns all available records.
-
-        Parameters
-        ----------
-        n : int, optional
-            Number of recent records to return (default: 5)
-
-        Returns
-        -------
-        list[ProcessingRecord]
-            List of up to N most recent processing records, newest first
-
-        Examples
-        --------
-        >>> tracker = MetadataTracker()
-        >>> tracker.add_processing("operation1")
-        >>> tracker.add_processing("operation2")
-        >>> tracker.add_processing("operation3")
-        >>> recent = tracker.get_recent_processing(n=2)
-        >>> len(recent)
-        2
-        >>> recent[0].operation
-        'operation3'
-        >>> recent[1].operation
-        'operation2'
-        """
-        return list(reversed(self.processing_history[-n:]))
+    def get_recent_processing(self, n: int = 5) -> tuple[ProcessingRecord, ...]:
+        """Return the *n* most recent processing records, newest first."""
+        return tuple(reversed(self.processing_history[-n:]))

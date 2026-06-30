@@ -280,8 +280,7 @@ class TestValidation:
         )
 
         # Add a non-existent item to the list
-        sample_experiment_list.add_item(uuid4())
-
+        sample_experiment_list = sample_experiment_list.with_item(uuid4())
         with pytest.raises(ValueError, match="not found in items"):
             generator.generate(
                 lists=[sample_experiment_list],
@@ -312,8 +311,7 @@ class TestValidation:
             item_metadata={},
         )
         sample_items[bad_item_id] = bad_item
-        sample_experiment_list.add_item(bad_item_id)
-
+        sample_experiment_list = sample_experiment_list.with_item(bad_item_id)
         with pytest.raises(ValueError, match="not found in templates"):
             generator.generate(
                 lists=[sample_experiment_list],
@@ -345,7 +343,7 @@ class TestMultipleLists:
             exp_list = ExperimentList(name=f"list_{i}", list_number=i)
             # Add first 3 items to each list (simple example)
             for item_id in item_ids[:3]:
-                exp_list.add_item(item_id)
+                exp_list = exp_list.with_item(item_id)
             lists.append(exp_list)
 
         generator.generate(

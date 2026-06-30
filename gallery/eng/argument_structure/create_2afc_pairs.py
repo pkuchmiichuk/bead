@@ -31,6 +31,8 @@ from bead.cli.display import (
     print_warning,
 )
 from bead.items.forced_choice import create_forced_choice_items_from_groups
+
+from protocol import ACCEPTABILITY_ANCHOR_NAME
 from bead.items.item import Item
 from bead.items.scoring import LanguageModelScorer
 from bead.lists.stratification import assign_quantiles_by_uuid
@@ -228,7 +230,13 @@ def create_forced_choice_pairs(
 
     print_success(f"Created {len(different_verb_items):,} different-verb pairs")
 
-    return same_verb_items + different_verb_items
+    # Thread the protocol anchor name onto every pair so downstream
+    # JATOS-result → AnnotationRecord conversion can match responses
+    # back to the canonical 2AFC acceptability anchor.
+    all_pairs = same_verb_items + different_verb_items
+    for fc_item in all_pairs:
+        fc_item.item_metadata["anchor"] = ACCEPTABILITY_ANCHOR_NAME
+    return all_pairs
 
 
 def assign_quantiles_to_pairs(

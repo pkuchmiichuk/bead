@@ -49,6 +49,18 @@ console = Console()
     default=False,
     help="Suppress all output except errors",
 )
+@click.option(
+    "--set",
+    "set_overrides",
+    multiple=True,
+    metavar="KEY=VALUE",
+    help=(
+        "Override one config key (dotted path). May be repeated. "
+        "Values are parsed as YAML so numbers, booleans, lists, "
+        "and quoted strings keep their type. Example: "
+        "--set paths.data_dir=/tmp --set protocol.lm_temperature=0.5"
+    ),
+)
 @click.pass_context
 def cli(
     ctx: click.Context,
@@ -56,6 +68,7 @@ def cli(
     profile: str,
     verbose: bool,
     quiet: bool,
+    set_overrides: tuple[str, ...],
 ) -> None:
     r"""CLI for linguistic judgment experiments.
 
@@ -90,6 +103,7 @@ def cli(
     ctx.obj["profile"] = profile
     ctx.obj["verbose"] = verbose
     ctx.obj["quiet"] = quiet
+    ctx.obj["set_overrides"] = set_overrides
 
 
 @cli.command()
@@ -418,6 +432,7 @@ cli = LazyGroup(
         "items": ("bead.cli.items", "items"),
         "lists": ("bead.cli.lists", "lists"),
         "models": ("bead.cli.models", "models"),
+        "protocol": ("bead.cli.protocol", "protocol"),
         "resources": ("bead.cli.resources", "resources"),
         "shell": ("bead.cli.shell", "shell"),
         "simulate": ("bead.cli.simulate", "simulate"),

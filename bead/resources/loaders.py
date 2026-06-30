@@ -142,7 +142,7 @@ def from_csv(
             features=features if features else {},
             source=None,
         )
-        lexicon.add(item)
+        lexicon = lexicon.with_item(item)
 
     return lexicon
 

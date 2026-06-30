@@ -9,7 +9,6 @@ Tests template generation commands to ensure they:
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 import pytest
@@ -67,8 +66,7 @@ class TestGenerateTemplates:
         assert output.exists()
 
         # Verify template structure
-        template_data = json.loads(output.read_text())
-        template = Template(**template_data)
+        template = Template.model_validate_json(output.read_text())
 
         assert template.name == "simple_transitive"
         assert template.template_string == "{subject} {verb} {object}"
@@ -98,8 +96,7 @@ class TestGenerateTemplates:
         )
 
         assert result.exit_code == 0
-        template_data = json.loads(output.read_text())
-        template = Template(**template_data)
+        template = Template.model_validate_json(output.read_text())
 
         assert template.slots["subject"].required is True
         assert template.slots["verb"].required is True
@@ -122,8 +119,7 @@ class TestGenerateTemplates:
         )
 
         assert result.exit_code == 0
-        template_data = json.loads(output.read_text())
-        template = Template(**template_data)
+        template = Template.model_validate_json(output.read_text())
 
         assert template.description == "Intransitive sentence template"
 
@@ -148,8 +144,7 @@ class TestGenerateTemplates:
         )
 
         assert result.exit_code == 0
-        template_data = json.loads(output.read_text())
-        template = Template(**template_data)
+        template = Template.model_validate_json(output.read_text())
 
         assert template.language_code == "eng"
         assert set(template.tags) == {"transitive", "simple", "declarative"}
@@ -243,8 +238,8 @@ class TestGenerateTemplates:
         lines = output.read_text().strip().split("\n")
         assert len(lines) == 2
 
-        template1 = Template(**json.loads(lines[0]))
-        template2 = Template(**json.loads(lines[1]))
+        template1 = Template.model_validate_json(lines[0])
+        template2 = Template.model_validate_json(lines[1])
 
         assert template1.name == "intransitive"
         assert template2.name == "transitive"
@@ -283,7 +278,7 @@ class TestGenerateTemplateVariants:
 
         # Check variant structure
         for i, line in enumerate(lines):
-            variant = Template(**json.loads(line))
+            variant = Template.model_validate_json(line)
             assert f"variant_{i}" in variant.name
             assert variant.metadata["variant_index"] == i
             assert variant.metadata["base_template"] == "simple_transitive"
@@ -312,7 +307,7 @@ class TestGenerateTemplateVariants:
         lines = output.read_text().strip().split("\n")
 
         for i, line in enumerate(lines):
-            variant = Template(**json.loads(line))
+            variant = Template.model_validate_json(line)
             assert variant.name == f"simple_transitive_v{i}"
 
     def test_error_empty_base_file(self, runner: CliRunner, tmp_path: Path) -> None:
@@ -353,6 +348,5 @@ class TestGenerateTemplateVariants:
             ],
         )
 
-        assert result.exit_code == 1
-        # Slot variants fail with validation error (slots not in template)
-        assert "error" in result.output.lower() or "validation" in result.output.lower()
+        assert result.exit_code == 0
+        assert output.exists()

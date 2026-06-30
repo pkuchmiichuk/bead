@@ -23,18 +23,28 @@ def sample_lexicon() -> Lexicon:
     lexicon = Lexicon(name="test_lexicon")
 
     # Add nouns
-    lexicon.add(LexicalItem(lemma="cat", language_code="en", features={"pos": "NOUN"}))
-    lexicon.add(LexicalItem(lemma="dog", language_code="en", features={"pos": "NOUN"}))
+    lexicon = lexicon.with_item(
+        LexicalItem(lemma="cat", language_code="en", features={"pos": "NOUN"})
+    )
+    lexicon = lexicon.with_item(
+        LexicalItem(lemma="dog", language_code="en", features={"pos": "NOUN"})
+    )
 
     # Add verbs
-    lexicon.add(
+    lexicon = lexicon.with_item(
         LexicalItem(lemma="broke", language_code="en", features={"pos": "VERB"})
     )
-    lexicon.add(LexicalItem(lemma="ate", language_code="en", features={"pos": "VERB"}))
+    lexicon = lexicon.with_item(
+        LexicalItem(lemma="ate", language_code="en", features={"pos": "VERB"})
+    )
 
     # Add adjectives
-    lexicon.add(LexicalItem(lemma="quick", language_code="en", features={"pos": "ADJ"}))
-    lexicon.add(LexicalItem(lemma="lazy", language_code="en", features={"pos": "ADJ"}))
+    lexicon = lexicon.with_item(
+        LexicalItem(lemma="quick", language_code="en", features={"pos": "ADJ"})
+    )
+    lexicon = lexicon.with_item(
+        LexicalItem(lemma="lazy", language_code="en", features={"pos": "ADJ"})
+    )
 
     return lexicon
 
@@ -166,10 +176,10 @@ def test_filler_stratified_strategy(sample_lexicon: Lexicon) -> None:
 def test_filler_language_filtering(sample_lexicon: Lexicon) -> None:
     """Test language code filtering."""
     # Add Spanish items
-    sample_lexicon.add(
+    sample_lexicon = sample_lexicon.with_item(
         LexicalItem(lemma="gato", language_code="es", features={"pos": "NOUN"})
     )
-    sample_lexicon.add(
+    sample_lexicon = sample_lexicon.with_item(
         LexicalItem(lemma="perro", language_code="es", features={"pos": "NOUN"})
     )
 
@@ -240,7 +250,8 @@ def test_filler_extensional_constraint(sample_lexicon: Lexicon) -> None:
     # Get IDs of cat and dog
     cat_id = None
     dog_id = None
-    for item_id, item in sample_lexicon.items.items():
+    for item in sample_lexicon.items:
+        item_id = item.id
         if item.lemma == "cat":
             cat_id = str(item_id)
         elif item.lemma == "dog":

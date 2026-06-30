@@ -97,7 +97,7 @@ class RandomAnnotator(SimulatedAnnotator):
         # get scale bounds from task_spec
         scale_bounds = template.task_spec.scale_bounds
         if scale_bounds is not None:
-            min_val, max_val = scale_bounds
+            min_val, max_val = scale_bounds.min, scale_bounds.max
         else:
             min_val, max_val = 1, 7
         return int(self.rng.randint(min_val, max_val + 1))

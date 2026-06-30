@@ -147,13 +147,17 @@ class ItemConstructor:
 
         # Only yield item if all constraints satisfied
         if all(constraint_satisfaction.values()):
-            # Create item
+            from bead.items.item import ConstraintSatisfaction  # noqa: PLC0415
+
             item = Item(
                 item_template_id=item_template.id,
-                filled_template_refs=list(filled_templates.keys()),
+                filled_template_refs=tuple(filled_templates.keys()),
                 rendered_elements=rendered_elements,
-                model_outputs=model_outputs,
-                constraint_satisfaction=constraint_satisfaction,
+                model_outputs=tuple(model_outputs),
+                constraint_satisfaction=tuple(
+                    ConstraintSatisfaction(constraint_id=cid, satisfied=ok)
+                    for cid, ok in constraint_satisfaction.items()
+                ),
             )
             yield item
 
@@ -338,7 +342,7 @@ class ItemConstructor:
     def _extract_call_args(
         self,
         func_name: str,
-        args: list[ASTNode],
+        args: list[ASTNode] | tuple[ASTNode, ...],
         rendered_elements: dict[str, str],
     ) -> dict[str, str | int | float | bool | None] | None:
         """Extract arguments from a model function call.

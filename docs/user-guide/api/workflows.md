@@ -18,6 +18,7 @@ The complete pipeline has 6 stages:
 Create lexicons from CSV files:
 
 ```python
+from bead.items.item_template import ScaleBounds, ScalePointLabel  # noqa
 from pathlib import Path
 
 from bead.resources.lexicon import Lexicon
@@ -126,8 +127,11 @@ metadata = {item.id: {"metadata": dict(item.item_metadata)} for item in items}
 
 # Define constraints
 list_constraints = [
-    UniquenessConstraint(property_expression="item.metadata.group_key"),
+    UniquenessConstraint(
+        constraint_type="uniqueness", property_expression="item.metadata.group_key"
+    ),
     DiversityConstraint(
+        constraint_type="diversity",
         property_expression="item.metadata.template_id",
         min_unique_values=5,
     ),
@@ -135,6 +139,7 @@ list_constraints = [
 
 batch_constraints = [
     BatchCoverageConstraint(
+        constraint_type="coverage",
         property_expression="item.metadata.template_id",
         target_values=[0, 1, 2, 3, 4, 5, 6, 7, 8],
         min_coverage=1.0,
@@ -159,6 +164,7 @@ print(f"Created {len(lists)} lists")
 Generate jsPsych experiment:
 
 ```python
+from bead.items.item_template import ScaleBounds
 from pathlib import Path
 
 from bead.data.serialization import read_jsonlines
@@ -168,6 +174,7 @@ from bead.deployment.distribution import (
 )
 from bead.deployment.jatos.exporter import JATOSExporter
 from bead.deployment.jspsych.config import ExperimentConfig
+from bead.deployment.jspsych.config import InstructionsConfig
 from bead.deployment.jspsych.generator import JsPsychExperimentGenerator
 from bead.items.item import Item
 from bead.items.item_template import ItemTemplate, PresentationSpec, TaskSpec
@@ -187,22 +194,23 @@ template = ItemTemplate(
     task_type="ordinal_scale",
     task_spec=TaskSpec(
         prompt="How natural does this sentence sound?",
-        scale_bounds=(1, 7),
+        scale_bounds=ScaleBounds(min=1, max=7),
     ),
     presentation_spec=PresentationSpec(mode="static"),
 )
 
 # Link items to template
 items_dict = {item.id: item for item in items}
-for item in items_dict.values():
-    item.item_template_id = template.id
+items_dict = {
+    item.id: item.with_(item_template_id=template.id) for item in items_dict.values()
+}
 
 # Create experiment config
 config = ExperimentConfig(
     experiment_type="likert_rating",
     title="Sentence Acceptability Study",
     description="Rate sentence acceptability",
-    instructions="Rate how natural each sentence sounds",
+    instructions=InstructionsConfig.from_text("Rate how natural each sentence sounds"),
     randomize_trial_order=True,
     show_progress_bar=True,
     distribution_strategy=ListDistributionStrategy(
@@ -334,7 +342,7 @@ from bead.deployment.distribution import (
     DistributionStrategyType,
     ListDistributionStrategy,
 )
-from bead.deployment.jspsych.config import ExperimentConfig
+from bead.deployment.jspsych.config import ExperimentConfig, InstructionsConfig
 from bead.deployment.jspsych.generator import JsPsychExperimentGenerator
 from bead.items.item_template import ItemTemplate, PresentationSpec, TaskSpec
 
@@ -348,14 +356,15 @@ template = ItemTemplate(
 )
 
 items_dict = {item.id: item for item in items}
-for item in items_dict.values():
-    item.item_template_id = template.id
+items_dict = {
+    item.id: item.with_(item_template_id=template.id) for item in items_dict.values()
+}
 
 config = ExperimentConfig(
     experiment_type="forced_choice",
     title="Acceptability Study",
     description="Rate sentences",
-    instructions="Select the more natural sentence",
+    instructions=InstructionsConfig.from_text("Select the more natural sentence"),
     distribution_strategy=ListDistributionStrategy(
         strategy_type=DistributionStrategyType.BALANCED
     ),

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import didactic.api as dx
 import pytest
 
 from bead.resources.adapters.cache import AdapterCache
@@ -53,7 +54,9 @@ def test_unimorph_adapter_fetch_items_multilingual(
 def test_unimorph_adapter_requires_language_code() -> None:
     """Test that UniMorph adapter requires language_code."""
     adapter = UniMorphAdapter()
-    with pytest.raises(ValueError, match="requires language_code"):
+    with pytest.raises(
+        (ValueError, dx.ValidationError), match="requires language_code"
+    ):
         adapter.fetch_items(query="walk", language_code=None)
 
 

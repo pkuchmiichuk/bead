@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from uuid import uuid4
 
+import didactic.api as dx
 import pytest
 
 from bead.items.item import Item
@@ -302,7 +303,7 @@ class TestForcedChoiceScorer:
             rendered_elements={"text": "no options here"},
         )
 
-        with pytest.raises(ValueError, match="has no options"):
+        with pytest.raises((ValueError, dx.ValidationError), match="has no options"):
             fc_scorer.score(item)
 
     def test_default_comparison_function(self) -> None:

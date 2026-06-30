@@ -75,6 +75,9 @@ Before using either approach, familiarize yourself with these concepts:
 - [Pipeline Architecture](concepts.md): 6-stage experimental pipeline
 - [Configuration System](configuration.md): YAML-based project configuration
 - [Stand-off Annotation](concepts.md#stand-off-annotation): UUID-based data provenance
+- [Annotation Protocols](protocols.md): anchors as types, contexts as
+  dependent indices, realization strategies as computational content,
+  and drift guards as type-checkers
 
 ## Quick Start
 

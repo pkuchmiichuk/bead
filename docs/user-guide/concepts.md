@@ -27,14 +27,11 @@ item_uuids = [uuid1, uuid2, uuid3]
 item_metadata = {
     uuid1: {"verb": "put", "frame": "transitive"},
     uuid2: {"verb": "place", "frame": "transitive"},
-    uuid3: {"verb": "drop", "frame": "transitive"}
+    uuid3: {"verb": "drop", "frame": "transitive"},
 }
 
 # Partitioner receives both
-partitioner.partition_with_batch_constraints(
-    items=item_uuids,
-    metadata=item_metadata
-)
+partitioner.partition_with_batch_constraints(items=item_uuids, metadata=item_metadata)
 ```
 
 ## BeadBaseModel
@@ -145,6 +142,34 @@ Bead distinguishes between **task types** (UI presentation) and **judgment types
 - Semantic relation classification (categorical task)
 
 The same judgment type may use different task types depending on experimental goals. Acceptability can use ordinal scales (rate sentence naturalness) or forced choice (which sentence is more natural).
+
+## Annotation Protocols
+
+Above the task / judgment distinction sits a separate type-theoretic
+layer for *what* a question measures and *how* it is phrased. The
+[`bead.protocol`](protocols.md) package factors annotation design
+into four roles:
+
+- A `SemanticAnchor` is the *type* of a question: a declarative
+  specification of the property being measured, the response space,
+  and the structural constraints any phrasing must preserve.
+- A `ProtocolContext` is the dependent *index*: everything known
+  about the current annotation target, including responses already
+  recorded for earlier questions.
+- A `RealizationStrategy` is the *computational content* of the
+  dependent function `Pi(ctx). Question(ctx)`. Three strategies are
+  shipped: a fixed template, a context-conditional template selector,
+  and an LM paraphraser.
+- A `DriftGuard` is the *type-checker* over realized prompts; it
+  composes structural, embedding, and perplexity validators.
+
+`QuestionFamily` packages an anchor with a realization strategy and a
+drift guard; `AnnotationProtocol` sequences families into the
+iterated dependent product
+`Sigma(a_1 : Q_1(ctx)). Sigma(a_2 : Q_2(ctx, a_1)). ...`, threading
+each response into the context so later questions can condition on
+earlier answers. See the [protocols user guide](protocols.md) for
+the full walkthrough.
 
 ## Configuration-First Design
 

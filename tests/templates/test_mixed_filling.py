@@ -36,7 +36,7 @@ def simple_lexicon() -> Lexicon:
         LexicalItem(lemma="big", language_code="eng", features={"pos": "ADJ"}),
         LexicalItem(lemma="small", language_code="eng", features={"pos": "ADJ"}),
     ]
-    return Lexicon(name="test", items={str(item.id): item for item in items})
+    return Lexicon(name="test", items=tuple(items))
 
 
 @pytest.fixture
@@ -333,14 +333,18 @@ def test_config_validation():
     assert config.slot_strategies["noun"].strategy == "exhaustive"
     assert config.slot_strategies["adjective"].beam_size == 5
 
-    # Invalid: mixed without slot_strategies
-    with pytest.raises(ValueError, match="slot_strategies must be specified"):
-        TemplateConfig(filling_strategy="mixed", slot_strategies=None)
+    from bead.config.template import validate_template_config  # noqa: PLC0415
 
-    # Invalid: MLM slot without mlm_model_name
+    invalid_no_strategies = TemplateConfig(
+        filling_strategy="mixed", slot_strategies=None
+    )
+    with pytest.raises(ValueError, match="slot_strategies must be specified"):
+        validate_template_config(invalid_no_strategies)
+
+    invalid_no_mlm_name = TemplateConfig(
+        filling_strategy="mixed",
+        slot_strategies={"adjective": SlotStrategyConfig(strategy="mlm")},
+        mlm_model_name=None,
+    )
     with pytest.raises(ValueError, match="mlm_model_name must be specified"):
-        TemplateConfig(
-            filling_strategy="mixed",
-            slot_strategies={"adjective": SlotStrategyConfig(strategy="mlm")},
-            mlm_model_name=None,
-        )
+        validate_template_config(invalid_no_mlm_name)

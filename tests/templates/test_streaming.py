@@ -18,16 +18,24 @@ def sample_lexicon() -> Lexicon:
     lexicon = Lexicon(name="test_lexicon")
 
     # Add nouns
-    lexicon.add(LexicalItem(lemma="cat", language_code="en", features={"pos": "NOUN"}))
-    lexicon.add(LexicalItem(lemma="dog", language_code="en", features={"pos": "NOUN"}))
-    lexicon.add(LexicalItem(lemma="bird", language_code="en", features={"pos": "NOUN"}))
+    lexicon = lexicon.with_item(
+        LexicalItem(lemma="cat", language_code="en", features={"pos": "NOUN"})
+    )
+    lexicon = lexicon.with_item(
+        LexicalItem(lemma="dog", language_code="en", features={"pos": "NOUN"})
+    )
+    lexicon = lexicon.with_item(
+        LexicalItem(lemma="bird", language_code="en", features={"pos": "NOUN"})
+    )
 
     # Add verbs
-    lexicon.add(
+    lexicon = lexicon.with_item(
         LexicalItem(lemma="broke", language_code="en", features={"pos": "VERB"})
     )
-    lexicon.add(LexicalItem(lemma="ate", language_code="en", features={"pos": "VERB"}))
-    lexicon.add(
+    lexicon = lexicon.with_item(
+        LexicalItem(lemma="ate", language_code="en", features={"pos": "VERB"})
+    )
+    lexicon = lexicon.with_item(
         LexicalItem(lemma="found", language_code="en", features={"pos": "VERB"})
     )
 
@@ -114,10 +122,10 @@ def test_streaming_early_termination(
 def test_streaming_language_filtering(sample_lexicon: Lexicon) -> None:
     """Test language code filtering in streaming."""
     # Add Spanish items
-    sample_lexicon.add(
+    sample_lexicon = sample_lexicon.with_item(
         LexicalItem(lemma="gato", language_code="es", features={"pos": "NOUN"})
     )
-    sample_lexicon.add(
+    sample_lexicon = sample_lexicon.with_item(
         LexicalItem(lemma="perro", language_code="es", features={"pos": "NOUN"})
     )
 
@@ -222,10 +230,10 @@ def test_streaming_rendered_text(
 def test_streaming_complex_template(sample_lexicon: Lexicon) -> None:
     """Test streaming with complex multi-slot template."""
     # Add adjectives for more complexity
-    sample_lexicon.add(
+    sample_lexicon = sample_lexicon.with_item(
         LexicalItem(lemma="quick", language_code="en", features={"pos": "ADJ"})
     )
-    sample_lexicon.add(
+    sample_lexicon = sample_lexicon.with_item(
         LexicalItem(lemma="lazy", language_code="en", features={"pos": "ADJ"})
     )
 

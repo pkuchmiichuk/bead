@@ -103,7 +103,7 @@ class SystematicNoiseModel(NoiseModel):
         """Apply endpoint bias to ordinal scales."""
         scale_bounds = template.task_spec.scale_bounds
         if scale_bounds is not None:
-            min_val, max_val = scale_bounds
+            min_val, max_val = scale_bounds.min, scale_bounds.max
         else:
             min_val, max_val = 1, 7
 
@@ -119,7 +119,7 @@ class SystematicNoiseModel(NoiseModel):
         """Apply midpoint bias to ordinal scales."""
         scale_bounds = template.task_spec.scale_bounds
         if scale_bounds is not None:
-            min_val, max_val = scale_bounds
+            min_val, max_val = scale_bounds.min, scale_bounds.max
         else:
             min_val, max_val = 1, 7
 

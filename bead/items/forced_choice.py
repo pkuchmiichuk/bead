@@ -78,7 +78,7 @@ def create_forced_choice_item(
 
     return Item(
         item_template_id=item_template_id,
-        options=list(options),
+        options=tuple(options),
         item_metadata=item_metadata,
     )
 
@@ -279,8 +279,8 @@ def create_forced_choice_items_cross_product(
             metadata = metadata_fn(list(combo1), list(combo2))
         else:
             metadata = {
-                "source_group1_ids": [str(item.id) for item in combo1],
-                "source_group2_ids": [str(item.id) for item in combo2],
+                "source_group1_ids": tuple(str(item.id) for item in combo1),
+                "source_group2_ids": tuple(str(item.id) for item in combo2),
             }
 
         # Create forced-choice item
@@ -375,7 +375,7 @@ def create_filtered_forced_choice_items(
             # Create item
             metadata: dict[str, MetadataValue] = {
                 "group_key": str(group_key),
-                "source_item_ids": [str(item.id) for item in combo],
+                "source_item_ids": tuple(str(item.id) for item in combo),
             }
 
             fc_item = create_forced_choice_item(

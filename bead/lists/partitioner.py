@@ -33,7 +33,11 @@ from bead.resources.constraints import ContextValue
 # Type aliases for clarity
 type ItemMetadata = dict[str, Any]  # Arbitrary item properties
 type MetadataDict = dict[UUID, ItemMetadata]  # Metadata indexed by UUID
-type BalanceMetrics = dict[str, MetadataValue]
+# BalanceMetrics is the structural value type that
+# ``ExperimentList.balance_metrics`` accepts. The alias is the same shape as
+# the field declaration so that ``with_(balance_metrics=...)`` type-checks
+# without dict-invariance noise.
+type BalanceMetrics = dict[str, "MetadataValue"]
 
 
 class ListPartitioner:
@@ -153,7 +157,7 @@ class ListPartitioner:
             ExperimentList(
                 name=f"list_{i}",
                 list_number=i,
-                list_constraints=constraints,
+                list_constraints=tuple(constraints),
             )
             for i in range(n_lists)
         ]
@@ -164,15 +168,16 @@ class ListPartitioner:
 
         for i, item_id in enumerate(items_shuffled):
             list_idx = i % n_lists
-            lists[list_idx].add_item(item_id)
+            lists[list_idx] = lists[list_idx].with_item(item_id)
 
-        # Compute balance metrics for each list
-        for exp_list in lists:
-            exp_list.balance_metrics = self._compute_balance_metrics(
-                exp_list, constraints, metadata
+        return [
+            exp_list.with_(
+                balance_metrics=self._compute_balance_metrics(
+                    exp_list, constraints, metadata
+                )
             )
-
-        return lists
+            for exp_list in lists
+        ]
 
     def _partition_balanced(
         self,
@@ -206,7 +211,7 @@ class ListPartitioner:
             ExperimentList(
                 name=f"list_{i}",
                 list_number=i,
-                list_constraints=constraints,
+                list_constraints=tuple(constraints),
             )
             for i in range(n_lists)
         ]
@@ -217,16 +222,17 @@ class ListPartitioner:
 
         # For each item, assign to list that best maintains balance
         for item_id in items_shuffled:
-            best_list = self._find_best_list(item_id, lists, constraints, metadata)
-            best_list.add_item(item_id)
+            best_idx = self._find_best_list_index(item_id, lists, constraints, metadata)
+            lists[best_idx] = lists[best_idx].with_item(item_id)
 
-        # Compute balance metrics for each list
-        for exp_list in lists:
-            exp_list.balance_metrics = self._compute_balance_metrics(
-                exp_list, constraints, metadata
+        return [
+            exp_list.with_(
+                balance_metrics=self._compute_balance_metrics(
+                    exp_list, constraints, metadata
+                )
             )
-
-        return lists
+            for exp_list in lists
+        ]
 
     def _partition_stratified(
         self,
@@ -292,62 +298,37 @@ class ListPartitioner:
             exp_list = ExperimentList(
                 name=f"list_{i}",
                 list_number=i,
-                list_constraints=constraints,
+                list_constraints=tuple(constraints),
+                item_refs=tuple(item_ids),
             )
-            for item_id in item_ids:
-                exp_list.add_item(item_id)
-
-            exp_list.balance_metrics = self._compute_balance_metrics(
-                exp_list, constraints, metadata
+            exp_list = exp_list.with_(
+                balance_metrics=self._compute_balance_metrics(
+                    exp_list, constraints, metadata
+                )
             )
             lists.append(exp_list)
 
         return lists
 
-    def _find_best_list(
+    def _find_best_list_index(
         self,
         item_id: UUID,
         lists: list[ExperimentList],
         constraints: list[ListConstraint],
         metadata: MetadataDict,
-    ) -> ExperimentList:
-        """Find the list that best maintains balance after adding item.
+    ) -> int:
+        """Return the index of the list that best maintains balance after the add.
 
-        Parameters
-        ----------
-        item_id : UUID
-            Item to add.
-        lists : list[ExperimentList]
-            Available lists.
-        constraints : list[ListConstraint]
-            Constraints to consider.
-        metadata : MetadataDict
-            Item metadata.
-
-        Returns
-        -------
-        ExperimentList
-            Best list for this item.
+        Scores each list by ``(violations_after_adding, current_size)`` and
+        picks the lowest.
         """
-        # Compute score for each list (violations + size as tiebreaker)
         scores: list[tuple[int, int]] = []
         for exp_list in lists:
-            # Temporarily add item
-            exp_list.add_item(item_id)
-
-            # Compute constraint violations
-            violations = self._count_violations(exp_list, constraints, metadata)
-
-            # Remove item
-            exp_list.remove_item(item_id)
-
-            # Use (violations, current_size) as score
-            # Prefer lists with fewer violations, then smaller lists
+            hypothetical = exp_list.with_item(item_id)
+            violations = self._count_violations(hypothetical, constraints, metadata)
             scores.append((violations, len(exp_list.item_refs)))
 
-        # Return list with lowest score
-        best_idx = int(np.argmin([s[0] * 1000 + s[1] for s in scores]))
-        return lists[best_idx]
+        return int(np.argmin([s[0] * 1000 + s[1] for s in scores]))
 
     def _count_violations(
         self,
@@ -389,9 +370,10 @@ class ListPartitioner:
                 if not self._check_size(exp_list, constraint):
                     is_violated = True
 
-            # Add constraint priority if violated
             if is_violated:
-                violations += constraint.priority
+                priority = constraint.priority
+                assert isinstance(priority, int)
+                violations += priority
 
         return violations
 
@@ -873,30 +855,38 @@ class ListPartitioner:
             item_a = list_a.item_refs[item_idx_a]
             item_b = list_b.item_refs[item_idx_b]
 
-            # Perform swap
-            list_a.item_refs[item_idx_a] = item_b
-            list_b.item_refs[item_idx_b] = item_a
-
-            # Check if batch constraint improved
-            new_score = self._compute_batch_constraint_score(
-                lists, constraint, metadata
+            swapped_a = list_a.with_(
+                item_refs=tuple(
+                    item_b if i == item_idx_a else ref
+                    for i, ref in enumerate(list_a.item_refs)
+                )
+            )
+            swapped_b = list_b.with_(
+                item_refs=tuple(
+                    item_a if i == item_idx_b else ref
+                    for i, ref in enumerate(list_b.item_refs)
+                )
             )
 
-            # Check if list constraints still satisfied
+            hypothetical = list(lists)
+            hypothetical[list_idx_a] = swapped_a
+            hypothetical[list_idx_b] = swapped_b
+
+            new_score = self._compute_batch_constraint_score(
+                hypothetical, constraint, metadata
+            )
+
             list_a_valid = (
-                self._count_violations(list_a, list_constraints, metadata) == 0
+                self._count_violations(swapped_a, list_constraints, metadata) == 0
             )
             list_b_valid = (
-                self._count_violations(list_b, list_constraints, metadata) == 0
+                self._count_violations(swapped_b, list_constraints, metadata) == 0
             )
 
-            # Accept if improved and list constraints still satisfied
             if new_score > current_score and list_a_valid and list_b_valid:
+                lists[list_idx_a] = swapped_a
+                lists[list_idx_b] = swapped_b
                 return True
-
-            # Revert swap
-            list_a.item_refs[item_idx_a] = item_a
-            list_b.item_refs[item_idx_b] = item_b
 
         return False
 
@@ -924,12 +914,12 @@ class ListPartitioner:
         """
         if isinstance(constraint, BatchCoverageConstraint):
             return self._compute_batch_coverage_score(lists, constraint, metadata)
-        elif isinstance(constraint, BatchBalanceConstraint):
+        if isinstance(constraint, BatchBalanceConstraint):
             return self._compute_batch_balance_score(lists, constraint, metadata)
-        elif isinstance(constraint, BatchDiversityConstraint):
+        if isinstance(constraint, BatchDiversityConstraint):
             return self._compute_batch_diversity_score(lists, constraint, metadata)
-        else:  # BatchMinOccurrenceConstraint
-            return self._compute_batch_min_occurrence_score(lists, constraint, metadata)
+        assert isinstance(constraint, BatchMinOccurrenceConstraint)
+        return self._compute_batch_min_occurrence_score(lists, constraint, metadata)
 
     def _compute_batch_coverage_score(
         self,

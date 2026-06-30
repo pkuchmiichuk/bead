@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 
+import didactic.api as dx
 import numpy as np
 import pytest
 from pytest_mock import MockerFixture
@@ -98,7 +99,9 @@ class TestOpenAIAdapterInitialization:
 
         cache = ModelOutputCache(backend="memory")
 
-        with pytest.raises(ValueError, match="OpenAI API key must be provided"):
+        with pytest.raises(
+            (ValueError, dx.ValidationError), match="OpenAI API key must be provided"
+        ):
             OpenAIAdapter(model_name="gpt-4", cache=cache)
 
 
@@ -171,7 +174,9 @@ class TestOpenAIComputeLogProbability:
         mock_openai.completions.create.return_value = mock_response
         mocker.patch("time.sleep")
 
-        with pytest.raises(ValueError, match="did not include logprobs"):
+        with pytest.raises(
+            (ValueError, dx.ValidationError), match="did not include logprobs"
+        ):
             openai_adapter.compute_log_probability("test text")
 
 

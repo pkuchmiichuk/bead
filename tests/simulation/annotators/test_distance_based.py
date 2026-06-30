@@ -6,7 +6,12 @@ from uuid import uuid4
 
 from bead.config.simulation import NoiseModelConfig, SimulatedAnnotatorConfig
 from bead.items.item import Item, ModelOutput
-from bead.items.item_template import ItemTemplate, PresentationSpec, TaskSpec
+from bead.items.item_template import (
+    ItemTemplate,
+    PresentationSpec,
+    ScaleBounds,
+    TaskSpec,
+)
 from bead.simulation.annotators.distance_based import DistanceBasedAnnotator
 
 
@@ -160,7 +165,7 @@ def test_annotate_ordinal_scale() -> None:
         name="test_ordinal",
         judgment_type="plausibility",
         task_type="ordinal_scale",
-        task_spec=TaskSpec(prompt="Rate:", scale_bounds=(1, 7)),
+        task_spec=TaskSpec(prompt="Rate:", scale_bounds=ScaleBounds(min=1, max=7)),
         presentation_spec=PresentationSpec(mode="static"),
     )
 

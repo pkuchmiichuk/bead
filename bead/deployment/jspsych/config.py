@@ -1,20 +1,15 @@
-"""Configuration models for jsPsych experiment generation.
-
-This module provides Pydantic models for configuring jsPsych experiment
-generation, including experiment types, UI settings, and display options.
-"""
+"""Configuration models for jsPsych experiment generation."""
 
 from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+import didactic.api as dx
 
 from bead.config.deployment import SlopitIntegrationConfig
 from bead.data.range import Range
 from bead.deployment.distribution import ListDistributionStrategy
 
-# type alias for experiment types
 type ExperimentType = Literal[
     "likert_rating",
     "slider_rating",
@@ -23,24 +18,11 @@ type ExperimentType = Literal[
     "span_labeling",
 ]
 
-# type alias for UI themes
 type UITheme = Literal["light", "dark", "auto"]
 
 
-# factory functions for default lists
-def _empty_demographics_fields() -> list[DemographicsFieldConfig]:
-    """Return empty demographics field list."""
-    return []
-
-
-def _empty_instruction_pages() -> list[InstructionPage]:
-    """Return empty instruction pages list."""
-    return []
-
-
-def _default_span_color_palette() -> list[str]:
-    """Return default span highlight color palette."""
-    return [
+def _default_span_color_palette() -> tuple[str, ...]:
+    return (
         "#BBDEFB",
         "#C8E6C9",
         "#FFE0B2",
@@ -49,12 +31,11 @@ def _default_span_color_palette() -> list[str]:
         "#B2EBF2",
         "#DCEDC8",
         "#FFD54F",
-    ]
+    )
 
 
-def _default_span_dark_palette() -> list[str]:
-    """Return default dark color palette for span subscript badges."""
-    return [
+def _default_span_dark_palette() -> tuple[str, ...]:
+    return (
         "#1565C0",
         "#2E7D32",
         "#E65100",
@@ -63,48 +44,46 @@ def _default_span_dark_palette() -> list[str]:
         "#00838F",
         "#558B2F",
         "#F9A825",
-    ]
+    )
 
 
-class SpanDisplayConfig(BaseModel):
-    """Visual configuration for span rendering in experiments.
+class SpanDisplayConfig(dx.Model):
+    """Visual configuration for span rendering.
 
     Attributes
     ----------
     highlight_style : Literal["background", "underline", "border"]
         How to visually indicate spans.
-    color_palette : list[str]
-        CSS color values for span highlighting (light backgrounds).
-    dark_color_palette : list[str]
-        CSS color values for subscript label badges (dark, index-aligned
-        with color_palette).
+    color_palette : tuple[str, ...]
+        CSS colors for span highlighting (light backgrounds).
+    dark_color_palette : tuple[str, ...]
+        CSS colors for subscript label badges (dark, index-aligned with
+        ``color_palette``).
     show_labels : bool
-        Whether to show span labels inline.
+        Show span labels inline.
     show_tooltips : bool
-        Whether to show tooltips on hover.
+        Show tooltips on hover.
     token_delimiter : str
-        Delimiter between tokens in display.
+        Delimiter between tokens in the display.
     label_position : Literal["inline", "below", "tooltip"]
-        Where to display span labels.
+        Where span labels are placed.
     """
 
-    model_config = ConfigDict(extra="forbid", frozen=True)
-
     highlight_style: Literal["background", "underline", "border"] = "background"
-    color_palette: list[str] = Field(default_factory=_default_span_color_palette)
-    dark_color_palette: list[str] = Field(default_factory=_default_span_dark_palette)
+    color_palette: tuple[str, ...] = dx.field(
+        default_factory=_default_span_color_palette
+    )
+    dark_color_palette: tuple[str, ...] = dx.field(
+        default_factory=_default_span_dark_palette
+    )
     show_labels: bool = True
     show_tooltips: bool = True
     token_delimiter: str = " "
     label_position: Literal["inline", "below", "tooltip"] = "inline"
 
 
-class DemographicsFieldConfig(BaseModel):
+class DemographicsFieldConfig(dx.Model):
     """Configuration for a single demographics form field.
-
-    Used to configure fields in a demographics form that appears before
-    the experiment instructions. Supports various input types including
-    text, number, dropdown, radio buttons, and checkboxes.
 
     Attributes
     ----------
@@ -113,157 +92,83 @@ class DemographicsFieldConfig(BaseModel):
     field_type : Literal["text", "number", "dropdown", "radio", "checkbox"]
         Type of form input.
     label : str
-        Display label for the field.
+        Display label.
     required : bool
-        Whether this field is required (default: False).
-    options : list[str] | None
-        Options for dropdown/radio fields (default: None).
-    range : Range[int] | Range[float] | None
-        Numeric range constraint for number fields (default: None).
+        Whether the field is required.
+    options : tuple[str, ...] | None
+        Options for dropdown / radio fields.
+    range : Range[float] | None
+        Numeric range constraint for number fields.
     placeholder : str | None
-        Placeholder text for text/number inputs (default: None).
+        Placeholder text.
     help_text : str | None
-        Help text displayed below the field (default: None).
-
-    Examples
-    --------
-    >>> age_field = DemographicsFieldConfig(
-    ...     name="age",
-    ...     field_type="number",
-    ...     label="Your Age",
-    ...     required=True,
-    ...     range=Range[int](min=18, max=100),
-    ... )
-    >>> education_field = DemographicsFieldConfig(
-    ...     name="education",
-    ...     field_type="dropdown",
-    ...     label="Highest Education Level",
-    ...     required=True,
-    ...     options=["High School", "Bachelor's", "Master's", "PhD"],
-    ... )
+        Help text displayed below the field.
     """
-
-    model_config = ConfigDict(extra="forbid", frozen=True)
 
     name: str
     field_type: Literal["text", "number", "dropdown", "radio", "checkbox"]
     label: str
     required: bool = False
-    options: list[str] | None = None
-    range: Range[int] | Range[float] | None = None
+    options: tuple[str, ...] | None = None
+    range: dx.Embed[Range[float]] | None = None
     placeholder: str | None = None
     help_text: str | None = None
 
 
-class DemographicsConfig(BaseModel):
-    """Configuration for participant demographics form.
-
-    Defines a demographics form that appears before experiment instructions.
-    When enabled, participants must complete this form before proceeding.
+class DemographicsConfig(dx.Model):
+    """Configuration for the participant demographics form.
 
     Attributes
     ----------
     enabled : bool
-        Whether to show the demographics form (default: False).
+        Show the demographics form.
     title : str
-        Title displayed at the top of the form (default: "Participant Information").
-    fields : list[DemographicsFieldConfig]
-        List of fields to include in the form.
+        Form title.
+    fields : tuple[DemographicsFieldConfig, ...]
+        Fields to include in the form.
     submit_button_text : str
-        Text for the submit button (default: "Continue").
-
-    Examples
-    --------
-    >>> config = DemographicsConfig(
-    ...     enabled=True,
-    ...     title="About You",
-    ...     fields=[
-    ...         DemographicsFieldConfig(
-    ...             name="age",
-    ...             field_type="number",
-    ...             label="Age",
-    ...             required=True,
-    ...         ),
-    ...     ],
-    ... )
-    >>> config.enabled
-    True
+        Submit button label.
     """
-
-    model_config = ConfigDict(extra="forbid")
 
     enabled: bool = False
     title: str = "Participant Information"
-    fields: list[DemographicsFieldConfig] = Field(
-        default_factory=_empty_demographics_fields
-    )
+    fields: tuple[dx.Embed[DemographicsFieldConfig], ...] = ()
     submit_button_text: str = "Continue"
 
 
-class InstructionPage(BaseModel):
-    """A single instruction page for multi-page instructions.
+class InstructionPage(dx.Model):
+    """A single instruction page.
 
     Attributes
     ----------
     content : str
-        HTML content for this page.
+        HTML content.
     title : str | None
-        Optional title for this page (displayed above content).
-
-    Examples
-    --------
-    >>> page = InstructionPage(
-    ...     title="Welcome",
-    ...     content="<p>Thank you for participating in this study.</p>",
-    ... )
+        Optional page title.
     """
-
-    model_config = ConfigDict(extra="forbid", frozen=True)
 
     content: str
     title: str | None = None
 
 
-class InstructionsConfig(BaseModel):
+class InstructionsConfig(dx.Model):
     """Configuration for multi-page experiment instructions.
-
-    Allows creating rich, multi-page instructions with navigation controls.
-    Participants can optionally navigate backwards through pages.
 
     Attributes
     ----------
-    pages : list[InstructionPage]
-        List of instruction pages to display.
+    pages : tuple[InstructionPage, ...]
+        Instruction pages.
     show_page_numbers : bool
-        Whether to show page numbers (default: True).
+        Show page numbers.
     allow_backwards : bool
-        Whether to allow navigating to previous pages (default: True).
+        Allow navigation to previous pages.
     button_label_next : str
-        Label for the next button (default: "Next").
+        Label for the next button.
     button_label_finish : str
-        Label for the final button (default: "Begin Experiment").
-
-    Examples
-    --------
-    >>> config = InstructionsConfig(
-    ...     pages=[
-    ...         InstructionPage(title="Welcome", content="<p>Welcome!</p>"),
-    ...         InstructionPage(title="Task", content="<p>Your task is...</p>"),
-    ...     ],
-    ...     allow_backwards=True,
-    ... )
-    >>> len(config.pages)
-    2
-
-    >>> # Create from plain text (single page)
-    >>> config = InstructionsConfig.from_text("Please rate each sentence.")
-    >>> len(config.pages)
-    1
+        Label for the final button.
     """
 
-    model_config = ConfigDict(extra="forbid")
-
-    pages: list[InstructionPage] = Field(default_factory=_empty_instruction_pages)
+    pages: tuple[dx.Embed[InstructionPage], ...] = ()
     show_page_numbers: bool = True
     allow_backwards: bool = True
     button_label_next: str = "Next"
@@ -271,213 +176,127 @@ class InstructionsConfig(BaseModel):
 
     @classmethod
     def from_text(cls, text: str) -> InstructionsConfig:
-        """Create single-page instructions from plain text.
-
-        Provides backward compatibility with simple string instructions.
-
-        Parameters
-        ----------
-        text : str
-            Plain text or HTML content for a single instruction page.
-
-        Returns
-        -------
-        InstructionsConfig
-            Instructions config with a single page.
-
-        Examples
-        --------
-        >>> config = InstructionsConfig.from_text("Rate each item from 1-7.")
-        >>> config.pages[0].content
-        'Rate each item from 1-7.'
-        """
-        return cls(pages=[InstructionPage(content=text)])
+        """Build a single-page instructions config from plain text or HTML."""
+        return cls(pages=(InstructionPage(content=text),))
 
 
-class ExperimentConfig(BaseModel):
+def _default_slopit_integration() -> SlopitIntegrationConfig:
+    return SlopitIntegrationConfig()
+
+
+class ExperimentConfig(dx.Model):
     """Configuration for jsPsych experiment generation.
-
-    Defines all configurable aspects of a jsPsych experiment, including experiment
-    type, UI settings, trial presentation options, and list distribution strategy.
 
     Attributes
     ----------
     experiment_type : ExperimentType
-        Type of experiment (likert_rating, slider_rating, binary_choice,
-        forced_choice, span_labeling).
+        Type of experiment.
     title : str
-        Experiment title displayed to participants
+        Experiment title.
     description : str
-        Brief description of the experiment
-    instructions : str | InstructionsConfig
-        Instructions shown to participants before the experiment. Can be a simple
-        string (single page) or InstructionsConfig for multi-page instructions.
-    demographics : DemographicsConfig | None
-        Optional demographics form shown before instructions (default: None).
-        When provided and enabled, participants must complete this form first.
+        Brief description.
+    instructions : InstructionsConfig
+        Instructions shown to participants. Use
+        ``InstructionsConfig.from_text("...")`` for a single-page
+        instruction set built from a plain string.
     distribution_strategy : ListDistributionStrategy
-        List distribution strategy for batch mode (required, no default).
-        Specifies how participants are assigned to experiment lists using JATOS
-        batch sessions. See bead.deployment.distribution for available strategies.
+        List distribution strategy for batch mode.
+    demographics : DemographicsConfig | None
+        Demographics form shown before instructions.
     randomize_trial_order : bool
-        Whether to randomize trial order (default: True)
+        Randomize trial order.
     show_progress_bar : bool
-        Whether to show a progress bar during the experiment (default: True)
+        Show a progress bar.
     ui_theme : UITheme
-        UI theme for the experiment (light, dark, auto; default: light)
+        UI theme.
     on_finish_url : str | None
-        URL to redirect to after experiment completion (default: None)
-        If prolific_completion_code is set, this will be auto-generated
+        URL to redirect to after completion.
     allow_backwards : bool
-        Whether participants can go back to previous trials (default: False)
+        Allow navigation to previous trials.
     show_click_target : bool
-        Whether to show click target for accuracy tracking (default: False)
+        Show click target for accuracy tracking.
     minimum_duration_ms : int
-        Minimum trial duration in milliseconds (default: 0)
+        Minimum trial duration in milliseconds (>= 0).
     use_jatos : bool
-        Whether to enable JATOS integration (default: True)
+        Enable JATOS integration.
     prolific_completion_code : str | None
-        Prolific completion code for automatic redirect URL generation (default: None)
-        When set, on_finish_url will be auto-generated as:
-        https://app.prolific.co/submissions/complete?cc=<code>
+        Prolific completion code; when set, ``on_finish_url`` is
+        auto-generated.
     slopit : SlopitIntegrationConfig
-        Slopit behavioral capture integration configuration (default: disabled).
-        When enabled, captures keystroke dynamics, focus patterns, and paste events
-        during experiment trials for AI-assisted response detection.
+        Slopit behavioral capture integration.
     span_display : SpanDisplayConfig | None
-        Span display configuration (default: None). Auto-enabled when items
-        contain span annotations. Controls highlight style, colors, and
-        label placement for span rendering.
-
-    Examples
-    --------
-    >>> from bead.deployment.distribution import (
-    ...     ListDistributionStrategy,
-    ...     DistributionStrategyType
-    ... )
-    >>> strategy = ListDistributionStrategy(
-    ...     strategy_type=DistributionStrategyType.BALANCED,
-    ...     max_participants=100
-    ... )
-    >>> config = ExperimentConfig(
-    ...     experiment_type="likert_rating",
-    ...     title="Sentence Acceptability Study",
-    ...     description="Rate the acceptability of sentences",
-    ...     instructions="Please rate each sentence on a scale from 1 to 7.",
-    ...     distribution_strategy=strategy
-    ... )
-    >>> config.randomize_trial_order
-    True
-    >>> config.ui_theme
-    'light'
+        Span display configuration; auto-enabled when items contain span
+        annotations.
     """
-
-    model_config = ConfigDict(
-        extra="forbid",
-        frozen=False,
-        validate_assignment=True,
-    )
 
     experiment_type: ExperimentType
     title: str
     description: str
-    instructions: str | InstructionsConfig
-    distribution_strategy: ListDistributionStrategy
-    demographics: DemographicsConfig | None = Field(
-        default=None,
-        description="Demographics form shown before instructions",
+    instructions: dx.Embed[InstructionsConfig]
+    distribution_strategy: dx.Embed[ListDistributionStrategy]
+    demographics: dx.Embed[DemographicsConfig] | None = None
+    randomize_trial_order: bool = True
+    show_progress_bar: bool = True
+    ui_theme: UITheme = "light"
+    on_finish_url: str | None = None
+    allow_backwards: bool = False
+    show_click_target: bool = False
+    minimum_duration_ms: int = 0
+    use_jatos: bool = True
+    prolific_completion_code: str | None = None
+    slopit: dx.Embed[SlopitIntegrationConfig] = dx.field(
+        default_factory=_default_slopit_integration
     )
-    randomize_trial_order: bool = Field(default=True)
-    show_progress_bar: bool = Field(default=True)
-    ui_theme: UITheme = Field(default="light")
-    on_finish_url: str | None = Field(default=None)
-    allow_backwards: bool = Field(default=False)
-    show_click_target: bool = Field(default=False)
-    minimum_duration_ms: int = Field(default=0, ge=0)
-    use_jatos: bool = Field(default=True)
-    prolific_completion_code: str | None = Field(default=None)
-    slopit: SlopitIntegrationConfig = Field(
-        default_factory=SlopitIntegrationConfig,
-        description="Slopit behavioral capture integration (opt-in, disabled)",
-    )
-    span_display: SpanDisplayConfig | None = Field(
-        default=None,
-        description="Span display config (auto-enabled when items have spans)",
-    )
+    span_display: dx.Embed[SpanDisplayConfig] | None = None
 
 
-class RatingScaleConfig(BaseModel):
-    """Configuration for rating scale trials.
+def _default_likert_scale() -> Range[int]:
+    return Range[int](min=1, max=7)
+
+
+class RatingScaleConfig(dx.Model):
+    """Configuration for rating-scale trials.
 
     Attributes
     ----------
-    scale
-        Numeric range for the rating scale with min and max values.
-        Default is Range(min=1, max=7) for a standard 7-point Likert scale.
-    min_label
-        Label for the minimum value (default: "Not at all").
-    max_label
-        Label for the maximum value (default: "Very much").
-    step
-        Step size between values (default: 1).
-    show_numeric_labels
-        Whether to show numeric labels on the scale (default: True).
-    required
-        Whether a response is required (default: True).
-
-    Examples
-    --------
-    >>> config = RatingScaleConfig()
-    >>> config.scale.min
-    1
-    >>> config.scale.max
-    7
-    >>> config.scale.contains(4)
-    True
-
-    >>> # Custom 5-point scale
-    >>> config = RatingScaleConfig(scale=Range[int](min=1, max=5))
-    >>> config.scale.max
-    5
+    scale : Range[int]
+        Numeric range for the rating scale.
+    min_label : str
+        Label for the minimum value.
+    max_label : str
+        Label for the maximum value.
+    step : int
+        Step size between values (>= 1).
+    show_numeric_labels : bool
+        Show numeric labels on the scale.
+    required : bool
+        Whether a response is required.
     """
 
-    model_config = ConfigDict(
-        extra="forbid",
-        frozen=False,
-        validate_assignment=True,
-    )
-
-    scale: Range[int] = Field(
-        default_factory=lambda: Range[int](min=1, max=7),
-        description="Numeric range for the rating scale",
-    )
-    min_label: str = Field(default="Not at all")
-    max_label: str = Field(default="Very much")
-    step: int = Field(default=1, ge=1)
-    show_numeric_labels: bool = Field(default=True)
-    required: bool = Field(default=True)
+    scale: dx.Embed[Range[int]] = dx.field(default_factory=_default_likert_scale)
+    min_label: str = "Not at all"
+    max_label: str = "Very much"
+    step: int = 1
+    show_numeric_labels: bool = True
+    required: bool = True
 
 
-class ChoiceConfig(BaseModel):
+class ChoiceConfig(dx.Model):
     """Configuration for choice trials.
 
     Attributes
     ----------
     button_html : str | None
-        Custom HTML for choice buttons (default: None)
+        Custom HTML for choice buttons.
     required : bool
-        Whether a response is required (default: True)
+        Whether a response is required.
     randomize_choice_order : bool
-        Whether to randomize the order of choices (default: False)
+        Randomize the order of choices.
+    layout : Literal["horizontal", "vertical"]
+        Button layout.
     """
 
-    model_config = ConfigDict(
-        extra="forbid",
-        frozen=False,
-        validate_assignment=True,
-    )
-
-    button_html: str | None = Field(default=None)
-    required: bool = Field(default=True)
-    randomize_choice_order: bool = Field(default=False)
-    layout: Literal["horizontal", "vertical"] = Field(default="horizontal")
+    button_html: str | None = None
+    required: bool = True
+    randomize_choice_order: bool = False
+    layout: Literal["horizontal", "vertical"] = "horizontal"

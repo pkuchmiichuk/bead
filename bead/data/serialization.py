@@ -1,249 +1,145 @@
-"""JSONLines serialization utilities for bead package.
+"""JSONLines serialization utilities for didactic Models.
 
-This module provides functions for reading, writing, streaming, and appending
-Pydantic models to/from JSONLines format files. JSONLines is a convenient format
-for storing multiple JSON objects, with one object per line.
+Functions for reading, writing, streaming, and appending didactic Models to
+and from JSONLines format files.
 """
 
 from __future__ import annotations
 
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator, Sequence
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import IO
 
-from pydantic import BaseModel, ValidationError
-
-if TYPE_CHECKING:
-    from collections.abc import Sequence
+import didactic.api as dx
 
 
 class SerializationError(Exception):
-    """Exception raised when serialization to JSONLines fails.
-
-    This exception is raised when writing Pydantic objects to JSONLines
-    format encounters an error, such as file I/O issues or validation failures.
-    """
-
-    pass
+    """Raised when serialization to JSONLines fails."""
 
 
 class DeserializationError(Exception):
-    """Exception raised when deserialization from JSONLines fails.
+    """Raised when deserialization from JSONLines fails."""
 
-    This exception is raised when reading JSONLines format into Pydantic objects
-    encounters an error, such as file not found, invalid JSON, or validation failures.
+
+def _open_text(path: Path) -> IO[str]:
+    """Open *path* as a UTF-8 text stream (default JSONL line opener)."""
+    return path.open("r", encoding="utf-8")
+
+
+def iter_jsonl_lines(
+    path: Path,
+    *,
+    open_fn: Callable[[Path], IO[str]] = _open_text,
+) -> Iterator[tuple[int, str]]:
+    """Yield ``(line_number, stripped_line)`` for each non-empty line.
+
+    Single canonical line-iteration step shared by the JSONLines readers and
+    by streaming corpus sources (which pass a decompressing ``open_fn``).
+
+    Parameters
+    ----------
+    path : Path
+        File to read.
+    open_fn : Callable[[Path], IO[str]]
+        Opener returning a text stream; defaults to UTF-8 text. Pass a
+        decompressing opener (e.g. ``zstandard.open``) for compressed files.
+
+    Yields
+    ------
+    tuple[int, str]
+        1-based line number and the stripped line (blank lines skipped).
     """
+    with open_fn(path) as handle:
+        for line_num, line in enumerate(handle, start=1):
+            stripped = line.strip()
+            if stripped:
+                yield line_num, stripped
 
-    pass
 
-
-def write_jsonlines[T: BaseModel](
+def write_jsonlines[T: dx.Model](
     objects: Sequence[T],
     path: Path | str,
     validate: bool = True,
     append: bool = False,
 ) -> None:
-    """Write Pydantic objects to JSONLines file.
-
-    Serializes a sequence of Pydantic model instances to a JSONLines file,
-    with one JSON object per line. Each object is validated before writing
-    if validate=True.
+    """Write *objects* to *path* as JSONLines.
 
     Parameters
     ----------
     objects
-        Sequence of Pydantic model instances to serialize.
+        Models to serialize.
     path
-        Path to the output file.
+        Output file path.
     validate
-        Whether to validate objects before writing (default: True).
+        Unused; retained for API compatibility.
     append
-        Whether to append to existing file or overwrite (default: False).
+        Whether to append to an existing file.
 
     Raises
     ------
     SerializationError
-        If writing fails due to I/O error or validation failure
-
-    Examples
-    --------
-    >>> from pathlib import Path
-    >>> from bead.data.base import BeadBaseModel
-    >>> class TestModel(BeadBaseModel):
-    ...     name: str
-    >>> objects = [TestModel(name="test1"), TestModel(name="test2")]
-    >>> write_jsonlines(objects, Path("output.jsonl"))  # doctest: +SKIP
+        If writing fails.
     """
+    del validate
     path = Path(path)
     mode = "a" if append else "w"
-
     try:
         with path.open(mode, encoding="utf-8") as f:
             for obj in objects:
-                # model_dump_json() handles validation
-                json_str = obj.model_dump_json()
-                f.write(json_str + "\n")
-    except (OSError, ValidationError) as e:
+                f.write(obj.model_dump_json() + "\n")
+    except (OSError, dx.ValidationError) as e:
         raise SerializationError(f"Failed to write to {path}: {e}") from e
 
 
-def read_jsonlines[T: BaseModel](
+def read_jsonlines[T: dx.Model](
     path: Path | str,
     model_class: type[T],
     validate: bool = True,
     skip_errors: bool = False,
 ) -> list[T]:
-    """Read JSONLines file into list of Pydantic objects.
-
-    Deserializes a JSONLines file into a list of Pydantic model instances.
-    Each line should contain a valid JSON object. Empty lines are skipped.
-
-    Parameters
-    ----------
-    path
-        Path to the input file.
-    model_class
-        Pydantic model class to deserialize into.
-    validate
-        Whether to validate objects during parsing (default: True).
-    skip_errors
-        Whether to skip invalid lines or raise error (default: False).
-
-    Returns
-    -------
-    list[T]
-        List of deserialized Pydantic objects
-
-    Raises
-    ------
-    DeserializationError
-        If reading fails due to file not found, invalid JSON, or validation failure
-        (unless skip_errors=True)
-
-    Examples
-    --------
-    >>> from pathlib import Path
-    >>> from bead.data.base import BeadBaseModel
-    >>> class TestModel(BeadBaseModel):
-    ...     name: str
-    >>> objects = read_jsonlines(Path("input.jsonl"), TestModel)  # doctest: +SKIP
-    """
+    """Read JSONLines from *path* into a list of *model_class* instances."""
+    del validate
     path = Path(path)
     objects: list[T] = []
-
     try:
-        with path.open("r", encoding="utf-8") as f:
-            for line_num, line in enumerate(f, start=1):
-                line = line.strip()
-                if not line:  # skip empty lines
+        for line_num, line in iter_jsonl_lines(path):
+            try:
+                objects.append(model_class.model_validate_json(line))
+            except (dx.ValidationError, ValueError) as e:
+                if skip_errors:
                     continue
-
-                try:
-                    obj = model_class.model_validate_json(line)
-                    objects.append(obj)
-                except ValidationError as e:
-                    if skip_errors:
-                        continue
-                    raise DeserializationError(
-                        f"Failed to parse line {line_num} in {path}: {e}"
-                    ) from e
+                raise DeserializationError(
+                    f"Failed to parse line {line_num} in {path}: {e}"
+                ) from e
     except OSError as e:
         raise DeserializationError(f"Failed to read from {path}: {e}") from e
-
     return objects
 
 
-def stream_jsonlines[T: BaseModel](
+def stream_jsonlines[T: dx.Model](
     path: Path | str,
     model_class: type[T],
     validate: bool = True,
 ) -> Iterator[T]:
-    """Stream JSONLines file as iterator of Pydantic objects.
-
-    Memory-efficient iterator that yields Pydantic model instances one at a time
-    from a JSONLines file. Useful for processing large files without loading
-    everything into memory.
-
-    Parameters
-    ----------
-    path
-        Path to the input file.
-    model_class
-        Pydantic model class to deserialize into.
-    validate
-        Whether to validate objects during parsing (default: True).
-
-    Yields
-    ------
-    T
-        Pydantic model instances one at a time.
-
-    Raises
-    ------
-    DeserializationError
-        If reading fails due to file not found, invalid JSON, or validation failure
-
-    Examples
-    --------
-    >>> from pathlib import Path
-    >>> from bead.data.base import BeadBaseModel
-    >>> class TestModel(BeadBaseModel):
-    ...     name: str
-    >>> for obj in stream_jsonlines(Path("input.jsonl"), TestModel):  # doctest: +SKIP
-    ...     print(obj.name)
-    """
+    """Yield *model_class* instances from *path* one line at a time."""
+    del validate
     path = Path(path)
-
     try:
-        with path.open("r", encoding="utf-8") as f:
-            for line_num, line in enumerate(f, start=1):
-                line = line.strip()
-                if not line:  # skip empty lines
-                    continue
-
-                try:
-                    obj = model_class.model_validate_json(line)
-                    yield obj
-                except ValidationError as e:
-                    raise DeserializationError(
-                        f"Failed to parse line {line_num} in {path}: {e}"
-                    ) from e
+        for line_num, line in iter_jsonl_lines(path):
+            try:
+                yield model_class.model_validate_json(line)
+            except (dx.ValidationError, ValueError) as e:
+                raise DeserializationError(
+                    f"Failed to parse line {line_num} in {path}: {e}"
+                ) from e
     except OSError as e:
         raise DeserializationError(f"Failed to read from {path}: {e}") from e
 
 
-def append_jsonlines[T: BaseModel](
+def append_jsonlines[T: dx.Model](
     objects: Sequence[T],
     path: Path | str,
     validate: bool = True,
 ) -> None:
-    """Append Pydantic objects to existing JSONLines file.
-
-    Convenience wrapper around write_jsonlines with append=True. Adds objects
-    to the end of an existing JSONLines file, or creates a new file if it
-    doesn't exist.
-
-    Parameters
-    ----------
-    objects
-        Sequence of Pydantic model instances to serialize.
-    path
-        Path to the output file.
-    validate
-        Whether to validate objects before writing (default: True).
-
-    Raises
-    ------
-    SerializationError
-        If appending fails due to I/O error or validation failure
-
-    Examples
-    --------
-    >>> from pathlib import Path
-    >>> from bead.data.base import BeadBaseModel
-    >>> class TestModel(BeadBaseModel):
-    ...     name: str
-    >>> objects = [TestModel(name="test3"), TestModel(name="test4")]
-    >>> append_jsonlines(objects, Path("output.jsonl"))  # doctest: +SKIP
-    """
+    """Append *objects* to *path* as JSONLines."""
     write_jsonlines(objects, path, validate=validate, append=True)

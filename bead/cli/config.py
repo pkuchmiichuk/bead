@@ -10,7 +10,7 @@ from typing import Any
 
 import click
 import yaml
-from pydantic import ValidationError
+from didactic.api import ValidationError
 
 from bead.cli.utils import (
     format_output,

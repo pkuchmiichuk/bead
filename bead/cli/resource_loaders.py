@@ -9,7 +9,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import click
-from pydantic import ValidationError
+from didactic.api import ValidationError
 
 from bead.cli.display import create_progress, print_error, print_info, print_success
 from bead.resources.adapters.cache import AdapterCache
@@ -165,8 +165,7 @@ def import_verbnet(
         )
 
         for item in items:
-            lexicon.add(item)
-
+            lexicon = lexicon.with_item(item)
         # Save lexicon
         output_file.parent.mkdir(parents=True, exist_ok=True)
         lexicon.to_jsonl(str(output_file))
@@ -309,8 +308,7 @@ def import_unimorph(
         )
 
         for item in items:
-            lexicon.add(item)
-
+            lexicon = lexicon.with_item(item)
         # Save lexicon
         output_file.parent.mkdir(parents=True, exist_ok=True)
         lexicon.to_jsonl(str(output_file))
@@ -455,8 +453,7 @@ def import_propbank(
         )
 
         for item in items:
-            lexicon.add(item)
-
+            lexicon = lexicon.with_item(item)
         # Save lexicon
         output_file.parent.mkdir(parents=True, exist_ok=True)
         lexicon.to_jsonl(str(output_file))
@@ -598,8 +595,7 @@ def import_framenet(
         )
 
         for item in items:
-            lexicon.add(item)
-
+            lexicon = lexicon.with_item(item)
         # Save lexicon
         output_file.parent.mkdir(parents=True, exist_ok=True)
         lexicon.to_jsonl(str(output_file))

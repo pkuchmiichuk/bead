@@ -21,14 +21,14 @@ def sample_lexicon() -> Lexicon:
     lexicon = Lexicon(name="test_lexicon")
 
     # Add singular nouns
-    lexicon.add(
+    lexicon = lexicon.with_item(
         LexicalItem(
             lemma="cat",
             language_code="en",
             features={"pos": "NOUN", "number": "singular"},
         )
     )
-    lexicon.add(
+    lexicon = lexicon.with_item(
         LexicalItem(
             lemma="dog",
             language_code="en",
@@ -37,7 +37,7 @@ def sample_lexicon() -> Lexicon:
     )
 
     # Add plural nouns
-    lexicon.add(
+    lexicon = lexicon.with_item(
         LexicalItem(
             lemma="cats",
             language_code="en",
@@ -46,7 +46,7 @@ def sample_lexicon() -> Lexicon:
     )
 
     # Add singular verbs
-    lexicon.add(
+    lexicon = lexicon.with_item(
         LexicalItem(
             lemma="runs",
             language_code="en",
@@ -55,7 +55,7 @@ def sample_lexicon() -> Lexicon:
     )
 
     # Add plural verbs
-    lexicon.add(
+    lexicon = lexicon.with_item(
         LexicalItem(
             lemma="run",
             language_code="en",
@@ -221,10 +221,10 @@ def test_csp_filler_metadata_preservation(sample_lexicon: Lexicon) -> None:
 def test_csp_filler_language_filtering(sample_lexicon: Lexicon) -> None:
     """Test language code filtering."""
     # Add Spanish items
-    sample_lexicon.add(
+    sample_lexicon = sample_lexicon.with_item(
         LexicalItem(lemma="gato", language_code="es", features={"pos": "NOUN"})
     )
-    sample_lexicon.add(
+    sample_lexicon = sample_lexicon.with_item(
         LexicalItem(lemma="perro", language_code="es", features={"pos": "NOUN"})
     )
 

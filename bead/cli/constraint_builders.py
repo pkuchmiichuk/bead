@@ -188,7 +188,7 @@ def create_constraint(
             expr = f"self.{prop_name} in {context_var_name}"
             constraint = Constraint(
                 expression=expr,
-                context={context_var_name: value_set},
+                context={context_var_name: tuple(sorted(value_set))},
                 description=description
                 or f"Allowed {prop_name} values for {slot}: {len(value_set)} values",
             )

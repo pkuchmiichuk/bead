@@ -1,87 +1,53 @@
-"""Base Pydantic model for all bead objects.
+"""Root didactic model for all bead objects.
 
-This module provides BeadBaseModel, the foundational Pydantic v2 model that all
-bead data models should inherit from. It provides automatic ID generation,
-timestamp tracking, and versioning.
+Provides ``BeadBaseModel``, the root ``didactic.api.Model`` that every bead
+data model inherits from. Supplies UUIDv7 identity, UTC creation and
+modification timestamps, schema versioning, and a metadata dictionary.
+
+Models are frozen; updates produce new instances through ``with_`` or the
+convenience method ``touched`` (which refreshes ``modified_at``).
 """
 
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Self
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+import didactic.api as dx
 
 from bead.data.identifiers import generate_uuid
 from bead.data.timestamps import now_iso8601
 
-# Type alias for JSON-serializable values (recursive type)
 type JsonValue = (
-    str | int | float | bool | None | list[JsonValue] | dict[str, JsonValue]
+    str | int | float | bool | None | tuple["JsonValue", ...] | dict[str, "JsonValue"]
 )
 
 
-class BeadBaseModel(BaseModel):
-    """Base Pydantic model for all bead objects.
-
-    This model provides foundational fields and configuration that all bead
-    data models inherit. It includes automatic ID generation using UUIDv7,
-    timestamp tracking for creation and modification, versioning, and metadata.
+class BeadBaseModel(dx.Model):
+    """Root didactic model for all bead objects.
 
     Attributes
     ----------
     id : UUID
-        Unique identifier (UUIDv7) automatically generated on creation
+        UUIDv7 generated at construction time.
     created_at : datetime
-        UTC timestamp when object was created
+        UTC timestamp of construction.
     modified_at : datetime
-        UTC timestamp when object was last modified
+        UTC timestamp of the last ``touched`` call (defaults to
+        ``created_at``).
     version : str
-        Version string for schema versioning (default: "1.0.0")
+        Schema version string.
     metadata : dict[str, JsonValue]
-        Optional metadata dictionary for arbitrary key-value pairs
-
-    Examples
-    --------
-    >>> class MyModel(BeadBaseModel):
-    ...     name: str
-    ...     value: int
-    >>> obj = MyModel(name="test", value=42)
-    >>> obj.id  # doctest: +SKIP
-    UUID('...')
-    >>> obj.version
-    '1.0.0'
-    >>> obj.update_modified_time()
-    >>> obj.modified_at > obj.created_at
-    True
+        Free-form key-value annotations.
     """
 
-    model_config = ConfigDict(
-        extra="forbid",  # Disallow extra fields not defined in model
-        frozen=False,  # Allow modification after creation
-        validate_assignment=True,  # Validate when assigning to fields
-    )
+    id: UUID = dx.field(default_factory=generate_uuid)
+    created_at: datetime = dx.field(default_factory=now_iso8601)
+    modified_at: datetime = dx.field(default_factory=now_iso8601)
+    version: str = "1.0.0"
+    metadata: dict[str, JsonValue] = dx.field(default_factory=dict)
 
-    id: UUID = Field(default_factory=generate_uuid)
-    created_at: datetime = Field(default_factory=now_iso8601)
-    modified_at: datetime = Field(default_factory=now_iso8601)
-    version: str = Field(default="1.0.0")
-    metadata: dict[str, JsonValue] = Field(default_factory=dict)
-
-    def update_modified_time(self) -> None:
-        """Update the modified_at timestamp to current UTC time.
-
-        This method should be called whenever the object is modified to
-        maintain accurate modification tracking.
-
-        Examples
-        --------
-        >>> obj = BeadBaseModel()
-        >>> original_time = obj.modified_at
-        >>> import time
-        >>> time.sleep(0.01)  # Small delay to ensure different timestamp
-        >>> obj.update_modified_time()
-        >>> obj.modified_at > original_time
-        True
-        """
-        self.modified_at = now_iso8601()
+    def touched(self) -> Self:
+        """Return a copy with ``modified_at`` set to the current UTC time."""
+        return self.with_(modified_at=now_iso8601())

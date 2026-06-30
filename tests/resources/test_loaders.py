@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import didactic.api as dx
 import pytest
 
 from bead.resources.loaders import from_csv, from_tsv
@@ -157,7 +158,7 @@ test,NOUN"""
         csv_file = tmp_path / "test.csv"
         csv_file.write_text(csv_content)
 
-        with pytest.raises(ValueError, match="lemma"):
+        with pytest.raises((ValueError, dx.ValidationError), match="lemma"):
             from_csv(
                 path=csv_file,
                 name="test",

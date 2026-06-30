@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from pydantic import ValidationError
+from didactic.api import ValidationError
 
 from bead.config.active_learning import ActiveLearningConfig
 from bead.config.config import BeadConfig
@@ -70,7 +70,7 @@ class TestResourceConfig:
         assert config.lexicon_path is None
         assert config.templates_path is None
         assert config.constraints_path is None
-        assert config.external_adapters == []
+        assert config.external_adapters == ()
         assert config.cache_external is True
 
     def test_creation_with_custom_paths(self) -> None:
@@ -87,7 +87,7 @@ class TestResourceConfig:
     def test_external_adapters_list(self) -> None:
         """Test external adapters list handling."""
         config = ResourceConfig(external_adapters=["adapter1", "adapter2"])
-        assert config.external_adapters == ["adapter1", "adapter2"]
+        assert config.external_adapters == ("adapter1", "adapter2")
 
     def test_cache_settings(self) -> None:
         """Test cache settings."""
@@ -117,10 +117,7 @@ class TestTemplateConfig:
         """Test filling strategy validation with invalid value."""
         with pytest.raises(ValidationError) as exc_info:
             TemplateConfig(filling_strategy="invalid")  # type: ignore[arg-type]
-        assert (
-            "Input should be 'exhaustive', 'random', 'stratified', 'mlm' or 'mixed'"
-            in str(exc_info.value)
-        )
+        assert "is not in Literal" in str(exc_info.value)
 
     def test_batch_size_validation_positive(self) -> None:
         """Test batch size must be positive."""
@@ -184,9 +181,7 @@ class TestModelConfig:
         """Test provider validation with invalid value."""
         with pytest.raises(ValidationError) as exc_info:
             ModelConfig(provider="invalid")  # type: ignore[arg-type]
-        assert "Input should be 'huggingface', 'openai' or 'anthropic'" in str(
-            exc_info.value
-        )
+        assert "is not in Literal" in str(exc_info.value)
 
     def test_valid_device(self) -> None:
         """Test device validation with valid values."""
@@ -198,7 +193,7 @@ class TestModelConfig:
         """Test device validation with invalid value."""
         with pytest.raises(ValidationError) as exc_info:
             ModelConfig(device="invalid")  # type: ignore[arg-type]
-        assert "Input should be 'cpu', 'cuda' or 'mps'" in str(exc_info.value)
+        assert "is not in Literal" in str(exc_info.value)
 
     def test_batch_size_validation(self) -> None:
         """Test batch size must be positive."""
@@ -288,7 +283,7 @@ class TestListConfig:
         assert config.partitioning_strategy == "balanced"
         assert config.num_lists == 1
         assert config.items_per_list is None
-        assert config.balance_by == []
+        assert config.balance_by == ()
         assert config.ensure_uniqueness is True
         assert config.random_seed is None
 
@@ -300,7 +295,10 @@ class TestListConfig:
     def test_balance_by_list_handling(self) -> None:
         """Test balance_by list handling."""
         config = ListConfig(balance_by=["field1", "field2"])
-        assert config.balance_by == ["field1", "field2"]
+        assert config.balance_by == (
+            "field1",
+            "field2",
+        )
 
     def test_num_lists_and_items_per_list(self) -> None:
         """Test num_lists and items_per_list."""
@@ -511,7 +509,7 @@ class TestLoggingConfig:
         with pytest.raises(ValidationError) as exc_info:
             LoggingConfig(level="INVALID")  # type: ignore[arg-type]
         error_msg = str(exc_info.value)
-        assert "Input should be" in error_msg
+        assert "is not in Literal" in error_msg
         levels = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
         assert any(level in error_msg for level in levels)
 
@@ -597,8 +595,7 @@ class TestBeadConfig:
     def test_model_deserialization(self) -> None:
         """Test model deserialization."""
         config = BeadConfig()
-        d = config.model_dump()
-        config2 = BeadConfig(**d)
+        config2 = BeadConfig.model_validate_json(config.model_dump_json())
         assert config2.profile == config.profile
         assert config2.paths.data_dir == config.paths.data_dir
 

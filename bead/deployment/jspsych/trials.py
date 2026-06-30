@@ -8,7 +8,6 @@ forced choice, binary choice, and span labeling trials. Composite tasks
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass
 
 from bead.data.base import JsonValue
@@ -24,6 +23,8 @@ from bead.deployment.jspsych.config import (
 from bead.items.item import Item
 from bead.items.item_template import ItemTemplate
 from bead.items.spans import Span
+from bead.labels import parse_label_refs
+from bead.transforms.base import TransformContext, TransformRegistry
 
 
 def _serialize_item_metadata(
@@ -80,7 +81,7 @@ def _serialize_item_metadata(
         ],
         # constraint satisfaction
         "constraint_satisfaction": {
-            str(k): v for k, v in item.constraint_satisfaction.items()
+            str(cs.constraint_id): cs.satisfied for cs in item.constraint_satisfaction
         },
         # item-specific metadata
         "item_metadata": dict(item.item_metadata),
@@ -110,9 +111,19 @@ def _serialize_item_metadata(
         # task specification
         "task_spec": {
             "prompt": template.task_spec.prompt,
-            "scale_bounds": template.task_spec.scale_bounds,
-            "scale_labels": template.task_spec.scale_labels,
-            "options": template.task_spec.options,
+            "scale_bounds": (
+                [
+                    template.task_spec.scale_bounds.min,
+                    template.task_spec.scale_bounds.max,
+                ]
+                if template.task_spec.scale_bounds is not None
+                else None
+            ),
+            "scale_labels": {
+                str(label.point): label.label
+                for label in template.task_spec.scale_labels
+            },
+            "options": list(template.task_spec.options or ()),
             "min_selections": template.task_spec.min_selections,
             "max_selections": template.task_spec.max_selections,
             "text_validation_pattern": template.task_spec.text_validation_pattern,
@@ -1079,42 +1090,6 @@ def _generate_span_stimulus_html(
 
 # prompt span reference resolution
 
-_SPAN_REF_PATTERN = re.compile(r"\[\[([^\]:]+?)(?::([^\]]+?))?\]\]")
-
-
-@dataclass(frozen=True)
-class _SpanReference:
-    """A parsed ``[[label]]`` or ``[[label:text]]`` reference."""
-
-    label: str
-    display_text: str | None
-    match_start: int
-    match_end: int
-
-
-def _parse_prompt_references(prompt: str) -> list[_SpanReference]:
-    """Parse ``[[label]]`` and ``[[label:text]]`` references from a prompt.
-
-    Parameters
-    ----------
-    prompt : str
-        Prompt string potentially containing span references.
-
-    Returns
-    -------
-    list[_SpanReference]
-        Parsed references in order of appearance.
-    """
-    return [
-        _SpanReference(
-            label=m.group(1).strip(),
-            display_text=m.group(2).strip() if m.group(2) else None,
-            match_start=m.start(),
-            match_end=m.end(),
-        )
-        for m in _SPAN_REF_PATTERN.finditer(prompt)
-    ]
-
 
 def _auto_fill_span_text(label: str, item: Item) -> str:
     """Reconstruct display text from a span's tokens.
@@ -1176,17 +1151,26 @@ def _resolve_prompt_references(
     prompt: str,
     item: Item,
     color_map: SpanColorMap,
+    transform_registry: TransformRegistry | None = None,
 ) -> str:
     """Replace ``[[label]]`` references in a prompt with highlighted HTML.
+
+    When a reference includes transform names (e.g. ``[[label|gerund]]``),
+    the display text is passed through the corresponding transforms
+    looked up in *transform_registry*.
 
     Parameters
     ----------
     prompt : str
-        Prompt template with ``[[label]]`` or ``[[label:text]]`` refs.
+        Prompt template with ``[[label]]``, ``[[label:text]]``, or
+        ``[[label|transform]]`` references.
     item : Item
         Item with spans and tokenized_elements.
     color_map : SpanColorMap
         Pre-computed color assignments from ``_assign_span_colors()``.
+    transform_registry : TransformRegistry | None
+        Optional registry for resolving ``|transform`` names.  When
+        ``None``, any transforms in references are silently ignored.
 
     Returns
     -------
@@ -1197,8 +1181,10 @@ def _resolve_prompt_references(
     ------
     ValueError
         If a reference points to a nonexistent label.
+    KeyError
+        If a transform name is not found in the registry.
     """
-    refs = _parse_prompt_references(prompt)
+    refs = parse_label_refs(prompt)
     if not refs:
         return prompt
 
@@ -1218,6 +1204,13 @@ def _resolve_prompt_references(
             if ref.display_text is not None
             else _auto_fill_span_text(ref.label, item)
         )
+
+        # apply transforms if requested and a registry is available
+        if ref.transforms and transform_registry is not None:
+            context = _build_transform_context(ref.label, item)
+            pipeline = transform_registry.resolve_pipeline(list(ref.transforms))
+            display = pipeline(display, context)
+
         light = color_map.light_by_label.get(ref.label, "#BBDEFB")
         dark = color_map.dark_by_label.get(ref.label, "#1565C0")
         html = (
@@ -1226,9 +1219,59 @@ def _resolve_prompt_references(
             f'<span class="bead-q-chip" style="background:{dark}">'
             f"{ref.label}</span></span>"
         )
-        result = result[: ref.match_start] + html + result[ref.match_end :]
+        result = result[: ref.start_offset] + html + result[ref.end_offset :]
 
     return result
+
+
+def _build_transform_context(label: str, item: Item) -> TransformContext:
+    """Build a TransformContext from an item's span metadata.
+
+    Extracts head index, tokens, lemma, and POS from the first span
+    matching *label* so that morphological transforms have the
+    information they need.
+
+    Parameters
+    ----------
+    label : str
+        Span label to look up.
+    item : Item
+        Item with spans and tokenized_elements.
+
+    Returns
+    -------
+    TransformContext
+        Context populated with available span metadata.
+    """
+    target_span: Span | None = None
+    for span in item.spans:
+        if span.label and span.label.label == label:
+            target_span = span
+            break
+
+    if target_span is None:
+        return TransformContext()
+
+    # extract tokens from the span
+    tokens: list[str] = []
+    for segment in target_span.segments:
+        element_tokens = item.tokenized_elements.get(segment.element_name, [])
+        for idx in sorted(segment.indices):
+            if idx < len(element_tokens):
+                tokens.append(element_tokens[idx])
+
+    # extract metadata from span_metadata if available
+    metadata = dict(target_span.span_metadata) if target_span.span_metadata else {}
+    lemma = metadata.get("lemma") if isinstance(metadata.get("lemma"), str) else None
+    pos = metadata.get("pos") if isinstance(metadata.get("pos"), str) else None
+
+    return TransformContext(
+        lemma=lemma,
+        pos=pos,
+        head_index=target_span.head_index,
+        tokens=tokens,
+        metadata=metadata,
+    )
 
 
 def _create_span_labeling_trial(

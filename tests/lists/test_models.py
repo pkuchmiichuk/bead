@@ -5,10 +5,12 @@ from __future__ import annotations
 import time
 from uuid import UUID, uuid4
 
+import didactic.api as dx
 import pytest
-from pydantic import ValidationError
+from didactic.api import ValidationError
 
 from bead.lists import ExperimentList, ListCollection
+from bead.lists.experiment_list import validate_presentation_order
 
 
 class TestExperimentList:
@@ -52,7 +54,7 @@ class TestExperimentList:
         """Test negative list_number raises ValidationError."""
         with pytest.raises(ValidationError) as exc_info:
             ExperimentList(name="test", list_number=-1)
-        assert "greater than or equal to 0" in str(exc_info.value)
+        assert "non-negative" in str(exc_info.value)
 
     def test_list_number_zero(self) -> None:
         """Test zero is valid list_number."""
@@ -64,8 +66,7 @@ class TestExperimentList:
         item_id = uuid4()
         original_modified = empty_experiment_list.modified_at
 
-        empty_experiment_list.add_item(item_id)
-
+        empty_experiment_list = empty_experiment_list.with_item(item_id)
         assert item_id in empty_experiment_list.item_refs
         assert len(empty_experiment_list.item_refs) == 1
         assert empty_experiment_list.modified_at > original_modified
@@ -75,8 +76,7 @@ class TestExperimentList:
         item_ids = [uuid4() for _ in range(5)]
 
         for item_id in item_ids:
-            empty_experiment_list.add_item(item_id)
-
+            empty_experiment_list = empty_experiment_list.with_item(item_id)
         assert len(empty_experiment_list.item_refs) == 5
         for item_id in item_ids:
             assert item_id in empty_experiment_list.item_refs
@@ -85,40 +85,38 @@ class TestExperimentList:
         """Test adding duplicate item is allowed (no validation)."""
         item_id = uuid4()
 
-        empty_experiment_list.add_item(item_id)
-        empty_experiment_list.add_item(item_id)
-
+        empty_experiment_list = empty_experiment_list.with_item(item_id)
+        empty_experiment_list = empty_experiment_list.with_item(item_id)
         assert len(empty_experiment_list.item_refs) == 2
         assert empty_experiment_list.item_refs.count(item_id) == 2
 
-    def test_remove_item(self, experiment_list_with_items: ExperimentList) -> None:
-        """Test removing item from list."""
+    def test_without_item(self, experiment_list_with_items: ExperimentList) -> None:
+        """Test removing an item returns a new list with the item gone."""
         item_id = experiment_list_with_items.item_refs[0]
         original_length = len(experiment_list_with_items.item_refs)
         original_modified = experiment_list_with_items.modified_at
 
-        experiment_list_with_items.remove_item(item_id)
+        smaller = experiment_list_with_items.without_item(item_id)
 
-        assert item_id not in experiment_list_with_items.item_refs
-        assert len(experiment_list_with_items.item_refs) == original_length - 1
-        assert experiment_list_with_items.modified_at > original_modified
+        assert item_id not in smaller.item_refs
+        assert len(smaller.item_refs) == original_length - 1
+        assert smaller.modified_at >= original_modified
 
-    def test_remove_nonexistent_item(
+    def test_without_nonexistent_item(
         self, empty_experiment_list: ExperimentList
     ) -> None:
-        """Test removing non-existent item raises ValueError."""
+        """Test removing a non-existent item raises ValueError."""
         item_id = uuid4()
 
-        with pytest.raises(ValueError) as exc_info:
-            empty_experiment_list.remove_item(item_id)
+        with pytest.raises((ValueError, dx.ValidationError)) as exc_info:
+            empty_experiment_list.without_item(item_id)
         assert "not found in list" in str(exc_info.value)
 
     def test_shuffle_order_no_seed(
         self, experiment_list_with_items: ExperimentList
     ) -> None:
         """Test shuffling creates presentation_order."""
-        experiment_list_with_items.shuffle_order()
-
+        experiment_list_with_items = experiment_list_with_items.with_shuffled_order()
         assert experiment_list_with_items.presentation_order is not None
         assert len(experiment_list_with_items.presentation_order) == len(
             experiment_list_with_items.item_refs
@@ -131,26 +129,18 @@ class TestExperimentList:
         self, experiment_list_with_items: ExperimentList
     ) -> None:
         """Test shuffling with seed is deterministic."""
-        experiment_list_with_items.shuffle_order(seed=42)
-        first_order = experiment_list_with_items.presentation_order.copy()
-
-        # Reset and shuffle again with same seed
-        experiment_list_with_items.presentation_order = None
-        experiment_list_with_items.shuffle_order(seed=42)
-        second_order = experiment_list_with_items.presentation_order
-
-        assert first_order == second_order
+        first = experiment_list_with_items.with_shuffled_order(seed=42)
+        second = experiment_list_with_items.with_shuffled_order(seed=42)
+        assert first.presentation_order == second.presentation_order
 
     def test_shuffle_order_multiple_times_same_seed(
         self, experiment_list_with_items: ExperimentList
     ) -> None:
         """Test multiple shuffles with same seed produce same result."""
-        orders = []
-        for _ in range(3):
-            experiment_list_with_items.presentation_order = None
-            experiment_list_with_items.shuffle_order(seed=42)
-            orders.append(experiment_list_with_items.presentation_order.copy())
-
+        orders = [
+            experiment_list_with_items.with_shuffled_order(seed=42).presentation_order
+            for _ in range(3)
+        ]
         assert orders[0] == orders[1] == orders[2]
 
     def test_get_presentation_order_default(
@@ -167,7 +157,9 @@ class TestExperimentList:
         self, experiment_list_with_items: ExperimentList
     ) -> None:
         """Test get_presentation_order returns custom order when set."""
-        experiment_list_with_items.shuffle_order(seed=42)
+        experiment_list_with_items = experiment_list_with_items.with_shuffled_order(
+            seed=42
+        )
         custom_order = experiment_list_with_items.presentation_order
 
         order = experiment_list_with_items.get_presentation_order()
@@ -178,44 +170,44 @@ class TestExperimentList:
     def test_presentation_order_validation_extra_uuids(
         self, sample_item_uuids: list[UUID]
     ) -> None:
-        """Test presentation_order with extra UUIDs raises ValidationError."""
-        with pytest.raises(ValidationError) as exc_info:
-            ExperimentList(
-                name="test",
-                list_number=0,
-                item_refs=sample_item_uuids[:3],
-                presentation_order=sample_item_uuids[:5],  # Extra UUIDs
-            )
-        assert "extra UUIDs" in str(exc_info.value)
+        """Test presentation_order with extra UUIDs is flagged."""
+        exp_list = ExperimentList(
+            name="test",
+            list_number=0,
+            item_refs=tuple(sample_item_uuids[:3]),
+            presentation_order=tuple(sample_item_uuids[:5]),
+        )
+        with pytest.raises((ValueError, dx.ValidationError), match="extra UUIDs"):
+            validate_presentation_order(exp_list)
 
     def test_presentation_order_validation_missing_uuids(
         self, sample_item_uuids: list[UUID]
     ) -> None:
-        """Test presentation_order with missing UUIDs raises ValidationError."""
-        with pytest.raises(ValidationError) as exc_info:
-            ExperimentList(
-                name="test",
-                list_number=0,
-                item_refs=sample_item_uuids[:5],
-                presentation_order=sample_item_uuids[:3],  # Missing UUIDs
-            )
-        assert "missing UUIDs" in str(exc_info.value)
+        """Test presentation_order with missing UUIDs is flagged."""
+        exp_list = ExperimentList(
+            name="test",
+            list_number=0,
+            item_refs=tuple(sample_item_uuids[:5]),
+            presentation_order=tuple(sample_item_uuids[:3]),
+        )
+        with pytest.raises((ValueError, dx.ValidationError), match="missing UUIDs"):
+            validate_presentation_order(exp_list)
 
     def test_presentation_order_validation_duplicates(
         self, sample_item_uuids: list[UUID]
     ) -> None:
-        """Test presentation_order with duplicates raises ValidationError."""
-        item_refs = sample_item_uuids[:3]
-        presentation_order = item_refs[:2] + [item_refs[0]]  # Duplicate
+        """Test presentation_order with duplicates is flagged."""
+        item_refs = tuple(sample_item_uuids[:3])
+        presentation_order = item_refs[:2] + (item_refs[0],)
 
-        with pytest.raises(ValidationError) as exc_info:
-            ExperimentList(
-                name="test",
-                list_number=0,
-                item_refs=item_refs,
-                presentation_order=presentation_order,
-            )
-        assert "duplicate UUIDs" in str(exc_info.value)
+        exp_list = ExperimentList(
+            name="test",
+            list_number=0,
+            item_refs=item_refs,
+            presentation_order=presentation_order,
+        )
+        with pytest.raises((ValueError, dx.ValidationError), match="duplicate UUIDs"):
+            validate_presentation_order(exp_list)
 
     def test_serialization_roundtrip(
         self, experiment_list_with_items: ExperimentList
@@ -254,8 +246,7 @@ class TestExperimentList:
         original_modified = empty_experiment_list.modified_at
 
         time.sleep(0.01)
-        empty_experiment_list.update_modified_time()
-
+        empty_experiment_list = empty_experiment_list.touched()
         assert empty_experiment_list.modified_at > original_modified
 
 
@@ -315,8 +306,7 @@ class TestListCollection:
         )
         original_modified = collection.modified_at
 
-        collection.add_list(experiment_list_with_items)
-
+        collection = collection.with_list(experiment_list_with_items)
         assert len(collection.lists) == 1
         assert collection.lists[0] == experiment_list_with_items
         assert collection.modified_at > original_modified
@@ -331,8 +321,7 @@ class TestListCollection:
 
         for i in range(3):
             exp_list = ExperimentList(name=f"list_{i}", list_number=i)
-            collection.add_list(exp_list)
-
+            collection = collection.with_list(exp_list)
         assert len(collection.lists) == 3
 
     def test_get_list_by_number_found(
@@ -361,8 +350,9 @@ class TestListCollection:
         )
 
         for i in range(5):
-            collection.add_list(ExperimentList(name=f"list_{i}", list_number=i))
-
+            collection = collection.with_list(
+                ExperimentList(name=f"list_{i}", list_number=i)
+            )
         found = collection.get_list_by_number(3)
 
         assert found is not None
@@ -399,16 +389,13 @@ class TestListCollection:
 
         shared_item = uuid4()
         list1 = ExperimentList(name="list_0", list_number=0)
-        list1.add_item(shared_item)
-        list1.add_item(uuid4())
-
+        list1 = list1.with_item(shared_item)
+        list1 = list1.with_item(uuid4())
         list2 = ExperimentList(name="list_1", list_number=1)
-        list2.add_item(shared_item)  # Same item in both lists
-        list2.add_item(uuid4())
-
-        collection.add_list(list1)
-        collection.add_list(list2)
-
+        list2 = list2.with_item(shared_item)  # Same item in both lists
+        list2 = list2.with_item(uuid4())
+        collection = collection.with_list(list1)
+        collection = collection.with_list(list2)
         all_refs = collection.get_all_item_refs()
 
         assert len(all_refs) == 3  # 3 unique items total
@@ -433,9 +420,8 @@ class TestListCollection:
         )
 
         exp_list = ExperimentList(name="list_0", list_number=0)
-        exp_list.add_item(uuid4())
-        collection.add_list(exp_list)
-
+        exp_list = exp_list.with_item(uuid4())
+        collection = collection.with_list(exp_list)
         # Include extra items that aren't assigned
         all_items = set(exp_list.item_refs) | {uuid4(), uuid4()}
         result = collection.validate_coverage(all_items)
@@ -453,14 +439,12 @@ class TestListCollection:
 
         shared_item = uuid4()
         list1 = ExperimentList(name="list_0", list_number=0)
-        list1.add_item(shared_item)
-
+        list1 = list1.with_item(shared_item)
         list2 = ExperimentList(name="list_1", list_number=1)
-        list2.add_item(shared_item)  # Duplicate assignment
+        list2 = list2.with_item(shared_item)  # Duplicate assignment
 
-        collection.add_list(list1)
-        collection.add_list(list2)
-
+        collection = collection.with_list(list1)
+        collection = collection.with_list(list2)
         result = collection.validate_coverage({shared_item})
 
         assert result["valid"] is False

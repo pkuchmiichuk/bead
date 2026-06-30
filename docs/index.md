@@ -17,11 +17,12 @@ bead implements a 6-stage pipeline for linguistic experiment design:
 
 - **Stand-off annotation** with UUID-based references for provenance tracking
 - **9 task types**: forced-choice, ordinal scale, binary, categorical, multi-select, magnitude, free text, cloze, span labeling
+- **Annotation protocols**: type-theoretic stack of anchors, contexts, realization strategies, and drift guards, composed into conditional protocols ([overview](user-guide/protocols.md))
 - **GLMM support**: Generalized Linear Mixed Models with random effects
 - **Batch deployment**: server-side list distribution via JATOS batch sessions
 - **Language-agnostic**: works with any language supported by UniMorph
 - **Configuration-first**: single YAML file orchestrates entire pipeline
-- **Type-safe**: full Python 3.13 type hints with Pydantic v2 validation
+- **Type-safe**: full Python 3.14 type hints with didactic validation
 
 ## Quick Links
 
@@ -47,7 +48,7 @@ uv sync --all-extras
 
 ## Requirements
 
-- Python 3.13+
+- Python 3.14+
 - Operating Systems: macOS, Linux, Windows (WSL recommended)
 
 ## Citation
@@ -57,10 +58,9 @@ If you use bead in your research, please cite:
 ```
 @software{white_bead_2026,
   author = {White, Aaron Steven},
-  title = {Bead: A python framework for linguistic judgment experiments with active learning},
+  title = {bead: A framework for large-scale linguistic judgment experiments},
   year = {2026},
-  url = {https://github.com/FACTSlab/bead},
-  version = {0.2.0}
+  url = {https://github.com/FACTSlab/bead}
 }
 ```
 

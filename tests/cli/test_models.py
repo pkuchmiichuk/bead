@@ -132,10 +132,12 @@ def sample_participant_ids(tmp_path: Path) -> Path:
 class TestTrainModelCommand:
     """Tests for train-model command."""
 
-    @patch("bead.cli.models._import_class")
+    @patch("bead.cli.models.config_class_for_task_type")
+    @patch("bead.cli.models.model_class_for_task_type")
     def test_train_forced_choice_fixed_mode(
         self,
-        mock_import: MagicMock,
+        mock_model_factory: MagicMock,
+        mock_config_factory: MagicMock,
         runner: CliRunner,
         tmp_path: Path,
         sample_forced_choice_items: Path,
@@ -158,7 +160,8 @@ class TestTrainModelCommand:
         }
         mock_config_class.return_value = mock_config_instance
 
-        mock_import.side_effect = [mock_model_class, mock_config_class]
+        mock_model_factory.return_value = mock_model_class
+        mock_config_factory.return_value = mock_config_class
 
         output_dir = tmp_path / "model"
 
@@ -190,10 +193,12 @@ class TestTrainModelCommand:
         # Verify model was saved
         assert (output_dir / "model.pt").exists() or mock_model_instance.save.called
 
-    @patch("bead.cli.models._import_class")
+    @patch("bead.cli.models.config_class_for_task_type")
+    @patch("bead.cli.models.model_class_for_task_type")
     def test_train_ordinal_scale_random_intercepts(
         self,
-        mock_import: MagicMock,
+        mock_model_factory: MagicMock,
+        mock_config_factory: MagicMock,
         runner: CliRunner,
         tmp_path: Path,
         sample_ordinal_scale_items: Path,
@@ -215,7 +220,8 @@ class TestTrainModelCommand:
         }
         mock_config_class.return_value = mock_config_instance
 
-        mock_import.side_effect = [mock_model_class, mock_config_class]
+        mock_model_factory.return_value = mock_model_class
+        mock_config_factory.return_value = mock_config_class
 
         output_dir = tmp_path / "model"
 
@@ -242,10 +248,12 @@ class TestTrainModelCommand:
         assert result.exit_code == 0, f"Command failed: {result.output}"
         assert "Training ordinal_scale model" in result.output
 
-    @patch("bead.cli.models._import_class")
+    @patch("bead.cli.models.config_class_for_task_type")
+    @patch("bead.cli.models.model_class_for_task_type")
     def test_train_with_lora(
         self,
-        mock_import: MagicMock,
+        mock_model_factory: MagicMock,
+        mock_config_factory: MagicMock,
         runner: CliRunner,
         tmp_path: Path,
         sample_forced_choice_items: Path,
@@ -267,7 +275,8 @@ class TestTrainModelCommand:
         }
         mock_config_class.return_value = mock_config_instance
 
-        mock_import.side_effect = [mock_model_class, mock_config_class]
+        mock_model_factory.return_value = mock_model_class
+        mock_config_factory.return_value = mock_config_class
 
         output_dir = tmp_path / "model"
 
@@ -294,10 +303,12 @@ class TestTrainModelCommand:
 
         assert result.exit_code == 0, f"Command failed: {result.output}"
 
-    @patch("bead.cli.models._import_class")
+    @patch("bead.cli.models.config_class_for_task_type")
+    @patch("bead.cli.models.model_class_for_task_type")
     def test_train_with_validation_data(
         self,
-        mock_import: MagicMock,
+        mock_model_factory: MagicMock,
+        mock_config_factory: MagicMock,
         runner: CliRunner,
         tmp_path: Path,
         sample_forced_choice_items: Path,
@@ -317,7 +328,8 @@ class TestTrainModelCommand:
         }
         mock_config_class.return_value = mock_config_instance
 
-        mock_import.side_effect = [mock_model_class, mock_config_class]
+        mock_model_factory.return_value = mock_model_class
+        mock_config_factory.return_value = mock_config_class
 
         output_dir = tmp_path / "model"
 
@@ -403,10 +415,12 @@ class TestTrainModelCommand:
 class TestPredictCommand:
     """Tests for predict command."""
 
-    @patch("bead.cli.models._import_class")
+    @patch("bead.cli.models.config_class_for_task_type")
+    @patch("bead.cli.models.model_class_for_task_type")
     def test_predict_basic(
         self,
-        mock_import: MagicMock,
+        mock_model_factory: MagicMock,
+        mock_config_factory: MagicMock,
         runner: CliRunner,
         tmp_path: Path,
         sample_forced_choice_items: Path,
@@ -445,7 +459,8 @@ class TestPredictCommand:
 
         # Mock config class (not needed for predict, but imported)
         mock_config_class = MagicMock()
-        mock_import.side_effect = [mock_model_class, mock_config_class]
+        mock_model_factory.return_value = mock_model_class
+        mock_config_factory.return_value = mock_config_class
 
         output_file = tmp_path / "predictions.jsonl"
 
@@ -470,10 +485,12 @@ class TestPredictCommand:
         # Verify predictions file was created
         assert output_file.exists()
 
-    @patch("bead.cli.models._import_class")
+    @patch("bead.cli.models.config_class_for_task_type")
+    @patch("bead.cli.models.model_class_for_task_type")
     def test_predict_missing_config(
         self,
-        mock_import: MagicMock,
+        mock_model_factory: MagicMock,
+        mock_config_factory: MagicMock,
         runner: CliRunner,
         tmp_path: Path,
         sample_forced_choice_items: Path,
@@ -508,10 +525,12 @@ class TestPredictCommand:
 class TestPredictProbaCommand:
     """Tests for predict-proba command."""
 
-    @patch("bead.cli.models._import_class")
+    @patch("bead.cli.models.config_class_for_task_type")
+    @patch("bead.cli.models.model_class_for_task_type")
     def test_predict_proba_basic(
         self,
-        mock_import: MagicMock,
+        mock_model_factory: MagicMock,
+        mock_config_factory: MagicMock,
         runner: CliRunner,
         tmp_path: Path,
         sample_forced_choice_items: Path,
@@ -543,7 +562,8 @@ class TestPredictProbaCommand:
         mock_model_class.return_value = mock_model_instance
 
         mock_config_class = MagicMock()
-        mock_import.side_effect = [mock_model_class, mock_config_class]
+        mock_model_factory.return_value = mock_model_class
+        mock_config_factory.return_value = mock_config_class
 
         output_file = tmp_path / "probabilities.json"
 
@@ -614,10 +634,12 @@ class TestAllTaskTypes:
             "cloze",
         ],
     )
-    @patch("bead.cli.models._import_class")
+    @patch("bead.cli.models.config_class_for_task_type")
+    @patch("bead.cli.models.model_class_for_task_type")
     def test_train_all_task_types(
         self,
-        mock_import: MagicMock,
+        mock_model_factory: MagicMock,
+        mock_config_factory: MagicMock,
         task_type: str,
         runner: CliRunner,
         tmp_path: Path,
@@ -638,7 +660,8 @@ class TestAllTaskTypes:
         }
         mock_config_class.return_value = mock_config_instance
 
-        mock_import.side_effect = [mock_model_class, mock_config_class]
+        mock_model_factory.return_value = mock_model_class
+        mock_config_factory.return_value = mock_config_class
 
         output_dir = tmp_path / f"model_{task_type}"
 
@@ -671,10 +694,12 @@ class TestAllMixedEffectsModes:
         "mode",
         ["fixed", "random_intercepts", "random_slopes"],
     )
-    @patch("bead.cli.models._import_class")
+    @patch("bead.cli.models.config_class_for_task_type")
+    @patch("bead.cli.models.model_class_for_task_type")
     def test_train_all_modes(
         self,
-        mock_import: MagicMock,
+        mock_model_factory: MagicMock,
+        mock_config_factory: MagicMock,
         mode: str,
         runner: CliRunner,
         tmp_path: Path,
@@ -696,7 +721,8 @@ class TestAllMixedEffectsModes:
         }
         mock_config_class.return_value = mock_config_instance
 
-        mock_import.side_effect = [mock_model_class, mock_config_class]
+        mock_model_factory.return_value = mock_model_class
+        mock_config_factory.return_value = mock_config_class
 
         output_dir = tmp_path / f"model_{mode}"
 

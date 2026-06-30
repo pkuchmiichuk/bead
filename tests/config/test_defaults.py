@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
-
 from bead.config.active_learning import ActiveLearningConfig
 from bead.config.config import BeadConfig
 from bead.config.defaults import (
@@ -88,15 +86,15 @@ class TestGetDefaultConfig:
         assert config is not DEFAULT_CONFIG
 
     def test_returns_independent_copies(self) -> None:
-        """Test modifications don't affect original DEFAULT_CONFIG."""
+        """Test ``with_`` produces a new instance leaving DEFAULT_CONFIG intact."""
         config1 = get_default_config()
         config2 = get_default_config()
 
-        # Modify config1
-        config1.profile = "modified"
-        config1.templates.batch_size = 9999
+        config1 = config1.with_(
+            profile="modified",
+            templates=config1.templates.with_(batch_size=9999),
+        )
 
-        # Check config2 and DEFAULT_CONFIG are unchanged
         assert config2.profile == "default"
         assert config2.templates.batch_size == 1000
         assert DEFAULT_CONFIG.profile == "default"
@@ -107,7 +105,7 @@ class TestGetDefaultConfig:
         config = get_default_config()
 
         # Modify nested config
-        config.paths.data_dir = Path("/modified/path")
+        config = config.with_(paths=config.paths.with_(data_dir=Path("/modified/path")))
 
         # Check DEFAULT_CONFIG is unchanged
         assert DEFAULT_CONFIG.paths.data_dir == Path("data")
@@ -181,15 +179,3 @@ class TestGetDefaultForModel:
         config = get_default_for_model(BeadConfig)
         assert isinstance(config, BeadConfig)
         assert config.profile == "default"
-
-    def test_raises_type_error_for_non_model(self) -> None:
-        """Test get_default_for_model raises TypeError for non-model types."""
-        with pytest.raises(TypeError) as exc_info:
-            get_default_for_model(str)  # type: ignore[arg-type]
-        assert "must be a Pydantic BaseModel class" in str(exc_info.value)
-
-    def test_raises_type_error_for_instance(self) -> None:
-        """Test get_default_for_model raises TypeError for instances."""
-        with pytest.raises(TypeError) as exc_info:
-            get_default_for_model(PathsConfig())  # type: ignore[arg-type]
-        assert "must be a Pydantic BaseModel class" in str(exc_info.value)

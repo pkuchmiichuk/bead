@@ -88,7 +88,7 @@ def extract_from_trial(
 
     try:
         item_id = UUID(item_id_str)
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         return None
 
     # Extract response value

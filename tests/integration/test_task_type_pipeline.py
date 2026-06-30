@@ -18,7 +18,7 @@ from bead.deployment.distribution import (
     ListDistributionStrategy,
 )
 from bead.deployment.jatos.exporter import JATOSExporter
-from bead.deployment.jspsych.config import ExperimentConfig
+from bead.deployment.jspsych.config import ExperimentConfig, InstructionsConfig
 from bead.deployment.jspsych.generator import JsPsychExperimentGenerator
 from bead.items.binary import create_binary_item
 from bead.items.categorical import create_nli_item
@@ -26,7 +26,12 @@ from bead.items.cloze import create_simple_cloze_item
 from bead.items.forced_choice import create_forced_choice_item
 from bead.items.free_text import create_free_text_item
 from bead.items.item import Item
-from bead.items.item_template import ItemTemplate, PresentationSpec, TaskSpec
+from bead.items.item_template import (
+    ItemTemplate,
+    PresentationSpec,
+    ScaleBounds,
+    TaskSpec,
+)
 from bead.items.magnitude import create_magnitude_item
 from bead.items.multi_select import create_multi_select_item
 from bead.items.ordinal_scale import create_likert_7_item
@@ -79,7 +84,7 @@ class TestForcedChoiceIntegration:
             experiment_type="forced_choice",
             title="Forced Choice Test",
             description="Test forced choice deployment",
-            instructions="Choose the best option",
+            instructions=InstructionsConfig.from_text("Choose the best option"),
             randomize_trial_order=False,
             distribution_strategy=ListDistributionStrategy(
                 strategy_type=DistributionStrategyType.BALANCED
@@ -101,9 +106,10 @@ class TestForcedChoiceIntegration:
         )
         templates_dict = {dummy_template.id: dummy_template}
 
-        # Update items to reference the template
-        for item in items_list:
-            item.item_template_id = dummy_template.id
+        items_list = [
+            item.with_(item_template_id=dummy_template.id) for item in items_list
+        ]
+        items_dict = {item.id: item for item in items_list}
 
         output_dir = generator.generate(lists, items_dict, templates_dict)
 
@@ -166,7 +172,7 @@ class TestMultiSelectIntegration:
             experiment_type="forced_choice",
             title="Multi-Select Test",
             description="Test",
-            instructions="Select options",
+            instructions=InstructionsConfig.from_text("Select options"),
             distribution_strategy=ListDistributionStrategy(
                 strategy_type=DistributionStrategyType.BALANCED
             ),
@@ -186,8 +192,10 @@ class TestMultiSelectIntegration:
         )
         templates_dict = {dummy_template.id: dummy_template}
 
-        for item in items_list:
-            item.item_template_id = dummy_template.id
+        items_list = [
+            item.with_(item_template_id=dummy_template.id) for item in items_list
+        ]
+        items_dict = {item.id: item for item in items_list}
 
         output_dir = generator.generate(lists, items_dict, templates_dict)
         assert (output_dir / "index.html").exists()
@@ -221,7 +229,7 @@ class TestBinaryIntegration:
             experiment_type="binary_choice",
             title="Binary Test",
             description="Test",
-            instructions="Answer yes/no",
+            instructions=InstructionsConfig.from_text("Answer yes/no"),
             distribution_strategy=ListDistributionStrategy(
                 strategy_type=DistributionStrategyType.BALANCED
             ),
@@ -241,8 +249,10 @@ class TestBinaryIntegration:
         )
         templates_dict = {dummy_template.id: dummy_template}
 
-        for item in items_list:
-            item.item_template_id = dummy_template.id
+        items_list = [
+            item.with_(item_template_id=dummy_template.id) for item in items_list
+        ]
+        items_dict = {item.id: item for item in items_list}
 
         output_dir = generator.generate(lists, items_dict, templates_dict)
         assert (output_dir / "index.html").exists()
@@ -262,7 +272,7 @@ class TestCategoricalIntegration:
         assert len(items_list) == 2
         assert "categories" in items_list[0].item_metadata
         categories = items_list[0].item_metadata["categories"]
-        assert isinstance(categories, list)
+        assert isinstance(categories, list | tuple)
         assert len(categories) == 3
 
         # Stage 4: Partition
@@ -279,7 +289,7 @@ class TestCategoricalIntegration:
             experiment_type="likert_rating",
             title="NLI Test",
             description="Test",
-            instructions="Select relationship",
+            instructions=InstructionsConfig.from_text("Select relationship"),
             distribution_strategy=ListDistributionStrategy(
                 strategy_type=DistributionStrategyType.BALANCED
             ),
@@ -299,8 +309,10 @@ class TestCategoricalIntegration:
         )
         templates_dict = {dummy_template.id: dummy_template}
 
-        for item in items_list:
-            item.item_template_id = dummy_template.id
+        items_list = [
+            item.with_(item_template_id=dummy_template.id) for item in items_list
+        ]
+        items_dict = {item.id: item for item in items_list}
 
         output_dir = generator.generate(lists, items_dict, templates_dict)
         assert (output_dir / "index.html").exists()
@@ -332,7 +344,7 @@ class TestOrdinalScaleIntegration:
             experiment_type="likert_rating",
             title="Likert Test",
             description="Test",
-            instructions="Rate sentences",
+            instructions=InstructionsConfig.from_text("Rate sentences"),
             distribution_strategy=ListDistributionStrategy(
                 strategy_type=DistributionStrategyType.BALANCED
             ),
@@ -347,13 +359,15 @@ class TestOrdinalScaleIntegration:
             name="test",
             judgment_type="acceptability",
             task_type="ordinal_scale",
-            task_spec=TaskSpec(prompt="Rate", scale_bounds=(1, 7)),
+            task_spec=TaskSpec(prompt="Rate", scale_bounds=ScaleBounds(min=1, max=7)),
             presentation_spec=PresentationSpec(mode="static"),
         )
         templates_dict = {dummy_template.id: dummy_template}
 
-        for item in items_list:
-            item.item_template_id = dummy_template.id
+        items_list = [
+            item.with_(item_template_id=dummy_template.id) for item in items_list
+        ]
+        items_dict = {item.id: item for item in items_list}
 
         output_dir = generator.generate(lists, items_dict, templates_dict)
         assert (output_dir / "index.html").exists()
@@ -388,7 +402,7 @@ class TestMagnitudeIntegration:
             experiment_type="slider_rating",
             title="Magnitude Test",
             description="Test",
-            instructions="Enter numeric value",
+            instructions=InstructionsConfig.from_text("Enter numeric value"),
             distribution_strategy=ListDistributionStrategy(
                 strategy_type=DistributionStrategyType.BALANCED
             ),
@@ -408,8 +422,10 @@ class TestMagnitudeIntegration:
         )
         templates_dict = {dummy_template.id: dummy_template}
 
-        for item in items_list:
-            item.item_template_id = dummy_template.id
+        items_list = [
+            item.with_(item_template_id=dummy_template.id) for item in items_list
+        ]
+        items_dict = {item.id: item for item in items_list}
 
         output_dir = generator.generate(lists, items_dict, templates_dict)
         assert (output_dir / "index.html").exists()
@@ -443,7 +459,7 @@ class TestFreeTextIntegration:
             experiment_type="likert_rating",
             title="Free Text Test",
             description="Test",
-            instructions="Enter text",
+            instructions=InstructionsConfig.from_text("Enter text"),
             distribution_strategy=ListDistributionStrategy(
                 strategy_type=DistributionStrategyType.BALANCED
             ),
@@ -463,8 +479,10 @@ class TestFreeTextIntegration:
         )
         templates_dict = {dummy_template.id: dummy_template}
 
-        for item in items_list:
-            item.item_template_id = dummy_template.id
+        items_list = [
+            item.with_(item_template_id=dummy_template.id) for item in items_list
+        ]
+        items_dict = {item.id: item for item in items_list}
 
         output_dir = generator.generate(lists, items_dict, templates_dict)
         assert (output_dir / "index.html").exists()
@@ -504,7 +522,7 @@ class TestClozeIntegration:
             experiment_type="likert_rating",
             title="Cloze Test",
             description="Test",
-            instructions="Fill in the blank",
+            instructions=InstructionsConfig.from_text("Fill in the blank"),
             distribution_strategy=ListDistributionStrategy(
                 strategy_type=DistributionStrategyType.BALANCED
             ),
@@ -524,8 +542,10 @@ class TestClozeIntegration:
         )
         templates_dict = {dummy_template.id: dummy_template}
 
-        for item in items_list:
-            item.item_template_id = dummy_template.id
+        items_list = [
+            item.with_(item_template_id=dummy_template.id) for item in items_list
+        ]
+        items_dict = {item.id: item for item in items_list}
 
         output_dir = generator.generate(lists, items_dict, templates_dict)
         assert (output_dir / "index.html").exists()

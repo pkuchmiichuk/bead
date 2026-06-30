@@ -8,7 +8,12 @@ import pytest
 
 from bead.config.simulation import SimulatedAnnotatorConfig
 from bead.items.item import Item
-from bead.items.item_template import ItemTemplate, PresentationSpec, TaskSpec
+from bead.items.item_template import (
+    ItemTemplate,
+    PresentationSpec,
+    ScaleBounds,
+    TaskSpec,
+)
 from bead.simulation.annotators.oracle import OracleAnnotator
 
 
@@ -73,7 +78,7 @@ def test_annotate_ordinal_with_ground_truth() -> None:
         name="test_ordinal",
         judgment_type="plausibility",
         task_type="ordinal_scale",
-        task_spec=TaskSpec(prompt="Rate 1-7:", scale_bounds=(1, 7)),
+        task_spec=TaskSpec(prompt="Rate 1-7:", scale_bounds=ScaleBounds(min=1, max=7)),
         presentation_spec=PresentationSpec(mode="static"),
     )
 
@@ -149,7 +154,7 @@ def test_annotate_multi_select_with_ground_truth() -> None:
     )
 
     annotation = annotator.annotate(item, template)
-    assert annotation == ["opt_a", "opt_c"]
+    assert tuple(annotation) == ("opt_a", "opt_c")
 
 
 def test_annotate_free_text_with_ground_truth() -> None:
@@ -250,7 +255,7 @@ def test_annotate_invalid_ground_truth_ordinal() -> None:
         name="test_ordinal",
         judgment_type="plausibility",
         task_type="ordinal_scale",
-        task_spec=TaskSpec(prompt="Rate 1-7:", scale_bounds=(1, 7)),
+        task_spec=TaskSpec(prompt="Rate 1-7:", scale_bounds=ScaleBounds(min=1, max=7)),
         presentation_spec=PresentationSpec(mode="static"),
     )
 

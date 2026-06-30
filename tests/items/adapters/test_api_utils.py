@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import didactic.api as dx
 import pytest
 from pytest_mock import MockerFixture
 
@@ -60,7 +61,7 @@ class TestRetryWithBackoff:
         def test_func() -> None:
             mock_func()
 
-        with pytest.raises(ValueError, match="persistent error"):
+        with pytest.raises((ValueError, dx.ValidationError), match="persistent error"):
             test_func()
 
         # Should try 3 times (initial + 2 retries)

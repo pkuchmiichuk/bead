@@ -36,7 +36,7 @@ class ASTBuilder(Transformer):  # type: ignore[type-arg]
         token = items[0]
         # Remove quotes
         value = str(token.value)[1:-1]
-        return ast.Literal(value=value)
+        return ast.Literal(kind="literal", value=value)
 
     def number_literal(self, items: list[Token]) -> ast.Literal:
         """Transform number literal."""
@@ -46,33 +46,33 @@ class ASTBuilder(Transformer):  # type: ignore[type-arg]
         value: int | float = (
             int(value_str) if "." not in value_str else float(value_str)
         )
-        return ast.Literal(value=value)
+        return ast.Literal(kind="literal", value=value)
 
     def true_literal(self, items: list[Token]) -> ast.Literal:
         """Transform true literal."""
-        return ast.Literal(value=True)
+        return ast.Literal(kind="literal", value=True)
 
     def false_literal(self, items: list[Token]) -> ast.Literal:
         """Transform false literal."""
-        return ast.Literal(value=False)
+        return ast.Literal(kind="literal", value=False)
 
     def variable(self, items: list[Token]) -> ast.Variable:
         """Transform variable reference."""
         name = str(items[0].value)
-        return ast.Variable(name=name)
+        return ast.Variable(kind="variable", name=name)
 
     def binary_op(self, items: list[Token | ast.ASTNode]) -> ast.BinaryOp:
         """Transform binary operation."""
-        # Items: [left, operator_token, right]
         left = items[0]
-        # Get operator from token
         operator_token = items[1]
+        right = items[2]
+        if not isinstance(left, ast.ASTNode) or not isinstance(right, ast.ASTNode):
+            raise ValueError("binary_op operands must be AST nodes")
         if isinstance(operator_token, Token):
             operator = str(operator_token.value)
         else:
             operator = str(operator_token)
-        right = items[2]
-        return ast.BinaryOp(operator=operator, left=left, right=right)
+        return ast.BinaryOp(kind="binary_op", operator=operator, left=left, right=right)
 
     def binary_op_not_in(self, items: list[Token | ast.ASTNode]) -> ast.BinaryOp:
         """Transform 'not in' binary operation."""
@@ -81,34 +81,41 @@ class ASTBuilder(Transformer):  # type: ignore[type-arg]
         nodes = [item for item in items if not isinstance(item, Token)]
         left = nodes[0]
         right = nodes[1]
-        return ast.BinaryOp(operator="not in", left=left, right=right)
+        return ast.BinaryOp(kind="binary_op", operator="not in", left=left, right=right)
 
     def unary_op(self, items: list[Token | ast.ASTNode]) -> ast.UnaryOp:
         """Transform unary operation."""
-        # Items: [operator_token, operand]
         operator_token = items[0]
+        operand = items[1]
+        if not isinstance(operand, ast.ASTNode):
+            raise ValueError("unary_op operand must be an AST node")
         if isinstance(operator_token, Token):
             operator = str(operator_token.value)
         else:
             operator = str(operator_token)
-        operand = items[1]
-        return ast.UnaryOp(operator=operator, operand=operand)
+        return ast.UnaryOp(kind="unary_op", operator=operator, operand=operand)
 
     def attribute_access(self, items: list[Token | ast.ASTNode]) -> ast.AttributeAccess:
         """Transform attribute access."""
-        # Items: [object, dot_token, name_token]
         obj = items[0]
-        # Last token is the attribute name
-        attribute = str(items[-1].value)
-        return ast.AttributeAccess(object=obj, attribute=attribute)
+        if not isinstance(obj, ast.ASTNode):
+            raise ValueError("attribute_access object must be an AST node")
+        last = items[-1]
+        attribute = str(last.value if isinstance(last, Token) else last)
+        return ast.AttributeAccess(
+            kind="attribute_access", object=obj, attribute=attribute
+        )
 
     def subscript(self, items: list[Token | ast.ASTNode]) -> ast.Subscript:
         """Transform subscript access."""
-        # Items: [object, lbracket_token, index_expr, rbracket_token]
         obj = items[0]
-        # The index expression is items[1] (non-Token items)
-        index_expr = [item for item in items[1:] if not isinstance(item, Token)][0]
-        return ast.Subscript(object=obj, index=index_expr)
+        if not isinstance(obj, ast.ASTNode):
+            raise ValueError("subscript object must be an AST node")
+        non_token_items = [item for item in items[1:] if isinstance(item, ast.ASTNode)]
+        if not non_token_items:
+            raise ValueError("subscript requires an index expression")
+        index_expr = non_token_items[0]
+        return ast.Subscript(kind="subscript", object=obj, index=index_expr)
 
     def function_call(
         self, items: list[Token | ast.ASTNode | list[ast.ASTNode] | None]
@@ -130,7 +137,9 @@ class ASTBuilder(Transformer):  # type: ignore[type-arg]
                     arguments.append(arg)
             elif isinstance(item, ast.ASTNode):
                 arguments.append(item)
-        return ast.FunctionCall(function=function, arguments=arguments)
+        return ast.FunctionCall(
+            kind="function_call", function=function, arguments=tuple(arguments)
+        )
 
     def list_literal(
         self, items: list[Token | ast.ASTNode | list[ast.ASTNode] | None]
@@ -145,7 +154,7 @@ class ASTBuilder(Transformer):  # type: ignore[type-arg]
                     elements.append(elem)
             elif isinstance(item, ast.ASTNode):
                 elements.append(item)
-        return ast.ListLiteral(elements=elements)
+        return ast.ListLiteral(kind="list_literal", elements=tuple(elements))
 
     def arguments(self, items: list[Token | ast.ASTNode]) -> list[ast.ASTNode]:
         """Transform function arguments, returning flat list."""

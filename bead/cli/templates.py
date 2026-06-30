@@ -11,7 +11,7 @@ import json
 from pathlib import Path
 
 import click
-from pydantic import ValidationError
+from didactic.api import ValidationError
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
@@ -167,13 +167,15 @@ def fill(
             ctx.exit(1)
 
         print_info(f"Loading {len(lexicon_files)} lexicon(s)")
-        merged_lexicon = Lexicon(name="merged", items={})
+        merged_lexicon = Lexicon(name="merged", items=())
 
         for lex_file in lexicon_files:
             lex = Lexicon.from_jsonl(str(lex_file), lex_file.stem)
             print_info(f"  Loaded {len(lex)} items from {lex_file.name}")
             # Merge items
-            merged_lexicon.items.update(lex.items)
+            merged_lexicon = merged_lexicon.with_(
+                items=(*merged_lexicon.items, *lex.items)
+            )
 
         print_info(f"Total merged lexicon: {len(merged_lexicon)} items")
         lexicon = merged_lexicon
@@ -197,8 +199,7 @@ def fill(
                         continue
 
                     try:
-                        constraint_data = json.loads(line)
-                        constraint = Constraint(**constraint_data)
+                        constraint = Constraint.model_validate_json(line)
                         loaded_constraints.append(constraint)
                     except json.JSONDecodeError as e:
                         print_error(f"Invalid JSON on line {line_num}: {e}")
@@ -210,8 +211,12 @@ def fill(
             print_info(f"Loaded {len(loaded_constraints)} constraints")
 
             # Apply constraints to all templates
-            for template in template_collection:
-                template.constraints.extend(loaded_constraints)
+            template_collection = template_collection.with_(
+                templates=tuple(
+                    t.with_(constraints=(*t.constraints, *loaded_constraints))
+                    for t in template_collection
+                )
+            )
 
             print_info(f"Applied constraints to {len(template_collection)} templates")
 
@@ -366,8 +371,7 @@ def list_filled(
                 if filter_ast and evaluator:
                     for line in lines:
                         try:
-                            filled_data = json.loads(line)
-                            filled_template = FilledTemplate(**filled_data)
+                            filled_template = FilledTemplate.model_validate_json(line)
                             # Create evaluation context
                             context = {"self": filled_template}
                             # Evaluate filter
@@ -440,8 +444,7 @@ def validate_filled(ctx: click.Context, filled_file: Path) -> None:
                     continue
 
                 try:
-                    filled_data = json.loads(line)
-                    FilledTemplate(**filled_data)
+                    FilledTemplate.model_validate_json(line)
                     count += 1
                 except json.JSONDecodeError as e:
                     errors.append(f"Line {line_num}: Invalid JSON - {e}")
@@ -496,8 +499,7 @@ def show_stats(ctx: click.Context, filled_file: Path) -> None:
                     continue
 
                 try:
-                    filled_data = json.loads(line)
-                    filled = FilledTemplate(**filled_data)
+                    filled = FilledTemplate.model_validate_json(line)
 
                     total_count += 1
                     templates_seen.add(filled.template_name)
@@ -603,11 +605,13 @@ def estimate(
             ctx.exit(1)
 
         print_info(f"Loading {len(lexicon_files)} lexicon(s)")
-        merged_lexicon = Lexicon(name="merged", items={})
+        merged_lexicon = Lexicon(name="merged", items=())
 
         for lex_file in lexicon_files:
             lex = Lexicon.from_jsonl(str(lex_file), lex_file.stem)
-            merged_lexicon.items.update(lex.items)
+            merged_lexicon = merged_lexicon.with_(
+                items=(*merged_lexicon.items, *lex.items)
+            )
 
         print_info(f"Total merged lexicon: {len(merged_lexicon)} items")
         lexicon = merged_lexicon
@@ -753,8 +757,7 @@ def filter_filled(
                     total_count += 1
 
                     try:
-                        filled_data = json.loads(line)
-                        filled = FilledTemplate(**filled_data)
+                        filled = FilledTemplate.model_validate_json(line)
 
                         # Apply filters
                         if min_length and len(filled.rendered_text) < min_length:
@@ -844,8 +847,7 @@ def merge_filled(
                             continue
 
                         try:
-                            filled_data = json.loads(line)
-                            filled = FilledTemplate(**filled_data)
+                            filled = FilledTemplate.model_validate_json(line)
 
                             if deduplicate:
                                 if str(filled.id) in seen_ids:
@@ -905,8 +907,7 @@ def export_csv(
                     continue
 
                 try:
-                    filled_data = json.loads(line)
-                    filled = FilledTemplate(**filled_data)
+                    filled = FilledTemplate.model_validate_json(line)
                     filled_templates.append(filled)
                 except Exception:
                     continue
@@ -999,9 +1000,8 @@ def export_json(
                     continue
 
                 try:
-                    filled_data = json.loads(line)
-                    FilledTemplate(**filled_data)  # Validate
-                    filled_templates.append(filled_data)
+                    filled = FilledTemplate.model_validate_json(line)
+                    filled_templates.append(json.loads(filled.model_dump_json()))
                 except Exception:
                     continue
 
@@ -1099,12 +1099,14 @@ def sample_combinations(
             ctx.exit(1)
 
         print_info(f"Loading {len(lexicon_files)} lexicon(s)")
-        merged_lexicon = Lexicon(name="merged", items={})
+        merged_lexicon = Lexicon(name="merged", items=())
 
         for lex_file in lexicon_files:
             lex = Lexicon.from_jsonl(str(lex_file), lex_file.stem)
             print_info(f"  Loaded {len(lex)} items from {lex_file.name}")
-            merged_lexicon.items.update(lex.items)
+            merged_lexicon = merged_lexicon.with_(
+                items=(*merged_lexicon.items, *lex.items)
+            )
 
         print_info(f"Total merged lexicon: {len(merged_lexicon)} items")
         lexicon = merged_lexicon

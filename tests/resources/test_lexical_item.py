@@ -5,7 +5,7 @@ from __future__ import annotations
 from uuid import UUID
 
 import pytest
-from pydantic import ValidationError
+from didactic.api import ValidationError
 
 from bead.resources import LexicalItem
 
@@ -90,10 +90,10 @@ class TestLexicalItemValidation:
 class TestLexicalItemMutability:
     """Test lexical item mutability."""
 
-    def test_features_are_mutable(self) -> None:
-        """Test that features dict is mutable."""
+    def test_features_can_be_extended_via_with_(self) -> None:
+        """Test that features can be replaced via ``with_(...)``."""
         item = LexicalItem(lemma="test", language_code="eng")
-        item.features["new_feature"] = "value"
+        item = item.with_(features={**item.features, "new_feature": "value"})
         assert item.features["new_feature"] == "value"
 
 
@@ -157,11 +157,11 @@ class TestLexicalItemSerialization:
             language_code="eng",
             features={"pos": "VERB", "tense": "present"},
         )
-        copy = item.model_copy()
+        copy = item.with_()
         assert copy.lemma == item.lemma
         assert copy.language_code == item.language_code
         assert copy.features["pos"] == item.features["pos"]
-        assert copy.id == item.id  # Copies preserve ID
+        assert copy.id == item.id
 
 
 class TestLexicalItemAttributeTypes:
@@ -196,7 +196,7 @@ class TestLexicalItemAttributeTypes:
         item = LexicalItem(
             lemma="test", language_code="eng", features={"synonyms": ["run", "jog"]}
         )
-        assert item.features["synonyms"] == ["run", "jog"]
+        assert item.features["synonyms"] == ("run", "jog")
 
 
 class TestLexicalItemLanguageCode:

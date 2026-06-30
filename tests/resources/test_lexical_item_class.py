@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from uuid import UUID, uuid4
 
+import didactic.api as dx
 import pytest
 
 from bead.resources.classification import LexicalItemClass
@@ -26,8 +27,8 @@ class TestLexicalItemClassCreation:
         assert cls.property_name == "causative"
         assert cls.property_value is True
         assert len(cls) == 0
-        assert cls.items == {}
-        assert cls.tags == []
+        assert cls.items == ()
+        assert cls.tags == ()
 
     def test_create_with_tags(self) -> None:
         """Test creating a class with tags."""
@@ -52,12 +53,16 @@ class TestLexicalItemClassCreation:
 
     def test_validate_empty_name(self) -> None:
         """Test that empty name raises ValueError."""
-        with pytest.raises(ValueError, match="name must be non-empty"):
+        with pytest.raises(
+            (ValueError, dx.ValidationError), match="name must be non-empty"
+        ):
             LexicalItemClass(name="", property_name="test")
 
     def test_validate_empty_property_name(self) -> None:
         """Test that empty property_name raises ValueError."""
-        with pytest.raises(ValueError, match="property_name must be non-empty"):
+        with pytest.raises(
+            (ValueError, dx.ValidationError), match="property_name must be non-empty"
+        ):
             LexicalItemClass(name="test", property_name="")
 
     def test_has_id_and_timestamps(self) -> None:
@@ -96,8 +101,10 @@ class TestLexicalItemClassLanguageMethods:
     def test_languages_with_none_language_code(self) -> None:
         """Test that items without language_code are excluded from languages()."""
         cls = LexicalItemClass(name="test", property_name="causative")
-        cls.add(LexicalItem(lemma="walk", language_code="en"))
-        cls.add(LexicalItem(lemma="run", language_code="eng"))  # No language_code
+        cls = cls.with_item(LexicalItem(lemma="walk", language_code="en"))
+        cls = cls.with_item(
+            LexicalItem(lemma="run", language_code="eng")
+        )  # No language_code
         # Language codes are normalized to ISO 639-3 (3-letter codes)
         assert cls.languages() == {"eng"}
 
@@ -137,7 +144,7 @@ class TestLexicalItemClassLanguageMethods:
     ) -> None:
         """Test filtering by nonexistent language code."""
         zu_items = monolingual_causative_class.get_items_by_language("zu")
-        assert zu_items == []
+        assert zu_items == ()
 
     def test_is_monolingual_empty(self) -> None:
         """Test is_monolingual() on empty class."""
@@ -180,7 +187,7 @@ class TestLexicalItemClassLanguageMethods:
     ) -> None:
         """Test class with three languages."""
         for item in zulu_causative_verbs.values():
-            multilingual_causative_class.add(item)
+            multilingual_causative_class = multilingual_causative_class.with_item(item)
         # Language codes are normalized to ISO 639-3 (3-letter codes)
         assert multilingual_causative_class.languages() == {"eng", "kor", "zul"}
         assert multilingual_causative_class.is_multilingual() is True
@@ -193,7 +200,7 @@ class TestLexicalItemClassCRUDOperations:
         """Test adding an item to the class."""
         cls = LexicalItemClass(name="test", property_name="causative")
         item = LexicalItem(lemma="break", language_code="en")
-        cls.add(item)
+        cls = cls.with_item(item)
         assert len(cls) == 1
         assert item.id in cls
 
@@ -202,23 +209,25 @@ class TestLexicalItemClassCRUDOperations:
         cls = LexicalItemClass(name="test", property_name="causative")
         original_modified = cls.modified_at
         item = LexicalItem(lemma="break", language_code="eng")
-        cls.add(item)
+        cls = cls.with_item(item)
         assert cls.modified_at > original_modified
 
     def test_add_duplicate_item_raises_error(self) -> None:
         """Test that adding duplicate item raises ValueError."""
         cls = LexicalItemClass(name="test", property_name="causative")
         item = LexicalItem(lemma="break", language_code="eng")
-        cls.add(item)
-        with pytest.raises(ValueError, match="already exists in class"):
-            cls.add(item)
+        cls = cls.with_item(item)
+        with pytest.raises(
+            (ValueError, dx.ValidationError), match="already exists in class"
+        ):
+            cls = cls.with_item(item)
 
     def test_remove_item(self) -> None:
         """Test removing an item from the class."""
         cls = LexicalItemClass(name="test", property_name="causative")
         item = LexicalItem(lemma="break", language_code="eng")
-        cls.add(item)
-        removed = cls.remove(item.id)
+        cls = cls.with_item(item)
+        cls, removed = cls.without_item(item.id)
         assert removed.lemma == "break"
         assert len(cls) == 0
         assert item.id not in cls
@@ -227,30 +236,30 @@ class TestLexicalItemClassCRUDOperations:
         """Test that removing an item updates modified_at."""
         cls = LexicalItemClass(name="test", property_name="causative")
         item = LexicalItem(lemma="break", language_code="eng")
-        cls.add(item)
+        cls = cls.with_item(item)
         original_modified = cls.modified_at
-        cls.remove(item.id)
+        cls, _ = cls.without_item(item.id)
         assert cls.modified_at > original_modified
 
     def test_remove_nonexistent_item_raises_error(self) -> None:
         """Test that removing nonexistent item raises KeyError."""
         cls = LexicalItemClass(name="test", property_name="causative")
         with pytest.raises(KeyError, match="not found in class"):
-            cls.remove(uuid4())
+            cls.without_item(uuid4())
 
     def test_get_item(self) -> None:
         """Test getting an item by ID."""
         cls = LexicalItemClass(name="test", property_name="causative")
         item = LexicalItem(lemma="break", language_code="eng")
-        cls.add(item)
-        retrieved = cls.get(item.id)
+        cls = cls.with_item(item)
+        retrieved = cls.by_id(item.id)
         assert retrieved is not None
         assert retrieved.lemma == "break"
 
     def test_get_nonexistent_item_returns_none(self) -> None:
         """Test that getting nonexistent item returns None."""
         cls = LexicalItemClass(name="test", property_name="causative")
-        assert cls.get(uuid4()) is None
+        assert cls.by_id(uuid4()) is None
 
     def test_len_empty(self) -> None:
         """Test __len__ on empty class."""
@@ -267,7 +276,7 @@ class TestLexicalItemClassCRUDOperations:
         """Test __contains__ for existing item."""
         cls = LexicalItemClass(name="test", property_name="causative")
         item = LexicalItem(lemma="break", language_code="eng")
-        cls.add(item)
+        cls = cls.with_item(item)
         assert item.id in cls
 
     def test_contains_false(self) -> None:
@@ -304,8 +313,7 @@ class TestLexicalItemClassSerialization:
             tags=["verbs"],
         )
         item = LexicalItem(lemma="break", language_code="en")
-        cls.add(item)
-
+        cls = cls.with_item(item)
         # Test model_dump
         data = cls.model_dump()
         assert data["name"] == "causative_verbs"
@@ -320,8 +328,7 @@ class TestLexicalItemClassSerialization:
             property_name="causative",
         )
         item = LexicalItem(lemma="break", language_code="en")
-        cls.add(item)
-
+        cls = cls.with_item(item)
         # Test model_dump_json
         json_str = cls.model_dump_json()
         assert isinstance(json_str, str)
@@ -339,9 +346,8 @@ class TestLexicalItemClassSerialization:
         )
         item1 = LexicalItem(lemma="break", language_code="en")
         item2 = LexicalItem(lemma="open", language_code="en")
-        cls.add(item1)
-        cls.add(item2)
-
+        cls = cls.with_item(item1)
+        cls = cls.with_item(item2)
         # Serialize
         data = cls.model_dump()
 
@@ -378,10 +384,9 @@ class TestLexicalItemClassEdgeCases:
         item2 = LexicalItem(lemma="run", language_code="eng")
         item3 = LexicalItem(lemma="walk", language_code="ko")  # Different language
 
-        cls.add(item1)
-        cls.add(item2)
-        cls.add(item3)
-
+        cls = cls.with_item(item1)
+        cls = cls.with_item(item2)
+        cls = cls.with_item(item3)
         assert len(cls) == 3
         # Language codes are normalized to ISO 639-3 (3-letter codes)
         assert cls.languages() == {"eng", "kor"}
@@ -438,18 +443,18 @@ class TestLexicalItemClassEdgeCases:
 
         # Add all
         for item in items:
-            cls.add(item)
+            cls = cls.with_item(item)
         assert len(cls) == 3
 
         # Remove one
-        cls.remove(items[0].id)
+        cls, _ = cls.without_item(items[0].id)
         assert len(cls) == 2
 
         # Add it back
-        cls.add(items[0])
+        cls = cls.with_item(items[0])
         assert len(cls) == 3
 
         # Remove all
         for item in items:
-            cls.remove(item.id)
+            cls, _ = cls.without_item(item.id)
         assert len(cls) == 0

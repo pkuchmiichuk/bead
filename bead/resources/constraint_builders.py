@@ -143,8 +143,7 @@ class AgreementConstraintBuilder(ConstraintBuilder):
         # build context with equivalence class sets
         context: dict[str, Any] = {}
         for canonical, variants in self.agreement_rules.items():  # type: ignore
-            equiv_set = set(variants)
-            context[f"equiv_{canonical}"] = equiv_set
+            context[f"equiv_{canonical}"] = tuple(sorted(set(variants)))
 
         # build expression: check if all slots' values are in same equivalence class
         equiv_checks: list[str] = []
@@ -312,14 +311,14 @@ class SetMembershipConstraintBuilder(ConstraintBuilder):
 
         if allowed_values is not None:
             expression = f"{slot_name}.{property_path} in allowed_values"
-            context = {"allowed_values": allowed_values}
+            context = {"allowed_values": tuple(sorted(allowed_values))}
             if description is None:
                 prop_path = f"{slot_name}.{property_path}"
                 description = f"Restrict {prop_path} to allowed values"
         else:
             assert forbidden_values is not None
             expression = f"{slot_name}.{property_path} not in forbidden_values"
-            context = {"forbidden_values": forbidden_values}
+            context = {"forbidden_values": tuple(sorted(forbidden_values))}
             if description is None:
                 prop_path = f"{slot_name}.{property_path}"
                 description = f"Exclude {prop_path} from forbidden values"

@@ -149,7 +149,7 @@ class StreamingFiller:
         slot_items: dict[str, list[LexicalItem]] = {}
         for slot_name, slot in template.slots.items():
             candidates: list[LexicalItem] = []
-            for item in self.lexicon.items.values():
+            for item in self.lexicon.items:
                 # filter by language code if specified
                 if normalized_lang:
                     # normalize item language code for comparison

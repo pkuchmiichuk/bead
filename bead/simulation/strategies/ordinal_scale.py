@@ -70,7 +70,8 @@ class OrdinalScaleStrategy(SimulationStrategy):
             msg = "task_spec.scale_bounds must be defined for ordinal_scale"
             raise ValueError(msg)
 
-        min_val, max_val = item_template.task_spec.scale_bounds
+        bounds = item_template.task_spec.scale_bounds
+        min_val, max_val = bounds.min, bounds.max
         if min_val >= max_val:
             msg = f"scale_bounds min ({min_val}) must be less than max ({max_val})"
             raise ValueError(msg)
@@ -105,7 +106,7 @@ class OrdinalScaleStrategy(SimulationStrategy):
             msg = "task_spec.scale_bounds must be defined"
             raise ValueError(msg)
 
-        min_val, max_val = scale_bounds
+        min_val, max_val = scale_bounds.min, scale_bounds.max
         scale_range = max_val - min_val
 
         # extract model output (expecting single score)

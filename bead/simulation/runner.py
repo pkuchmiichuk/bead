@@ -59,8 +59,9 @@ class SimulationRunner:
             base_config = config.annotator_configs[0]
             for i in range(len(self.annotators), config.n_annotators):
                 # create new config with different seed
-                new_config = base_config.model_copy()
-                new_config.random_state = (base_config.random_state or 0) + i
+                new_config = base_config.with_(
+                    random_state=(base_config.random_state or 0) + i
+                )
                 self.annotators.append(SimulatedAnnotator.from_config(new_config))
 
     def run(

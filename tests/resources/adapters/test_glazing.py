@@ -151,7 +151,7 @@ def test_glazing_adapter_include_frames_verbnet(
     # Check that frames are included
     item = items[0]
     assert "frames" in item.features
-    assert isinstance(item.features["frames"], list)
+    assert isinstance(item.features["frames"], (list, tuple))
     assert len(item.features["frames"]) > 0
 
     # Check frame structure
@@ -172,7 +172,7 @@ def test_glazing_adapter_include_frames_propbank() -> None:
         item = items[0]
         # Should have detailed role information
         if "roles" in item.features:
-            assert isinstance(item.features["roles"], list)
+            assert isinstance(item.features["roles"], (list, tuple))
             if len(item.features["roles"]) > 0:
                 role = item.features["roles"][0]
                 assert "arg" in role
@@ -192,7 +192,7 @@ def test_glazing_adapter_include_frames_framenet() -> None:
     assert "frame_definition" in item.features
     assert "frame_elements" in item.features
     # Frame elements should be a list
-    assert isinstance(item.features["frame_elements"], list)
+    assert isinstance(item.features["frame_elements"], (list, tuple))
 
 
 @requires_glazing_data

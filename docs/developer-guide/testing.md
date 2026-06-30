@@ -47,6 +47,7 @@ Test names should describe what they test, not implementation details:
 def test_create_with_all_fields(self) -> None:
     """Test creating a lexical item with all fields."""
 
+
 # BAD: Describes implementation
 def test_init_sets_attributes(self) -> None:
     """Test __init__ method sets attributes."""
@@ -145,6 +146,7 @@ def tests_dir() -> Path:
     """Get tests directory path."""
     return Path(__file__).parent
 
+
 @pytest.fixture
 def sample_data_dir(tmp_path: Path) -> Path:
     """Create temporary directory for test data."""
@@ -170,6 +172,7 @@ def sample_lexical_item() -> LexicalItem:
         source="manual",
     )
 
+
 @pytest.fixture
 def sample_template(sample_slot: Slot) -> Template:
     """Provide a sample template."""
@@ -186,6 +189,7 @@ def sample_template(sample_slot: Slot) -> Template:
         tags=["transitive", "simple"],
     )
 
+
 @pytest.fixture
 def sample_lexicon() -> Lexicon:
     """Provide a sample lexicon with multiple items."""
@@ -199,9 +203,7 @@ def sample_lexicon() -> Lexicon:
     )
     lexicon.add(
         LexicalItem(
-            lemma="run",
-            language_code="eng",
-            features={"pos": "VERB", "frequency": 800}
+            lemma="run", language_code="eng", features={"pos": "VERB", "frequency": 800}
         )
     )
     return lexicon
@@ -213,6 +215,7 @@ def sample_lexicon() -> Lexicon:
 def sample_uuid() -> UUID:
     """Create a sample UUID for testing."""
     return UUID("12345678-1234-5678-1234-567812345678")
+
 
 @pytest.fixture
 def task_spec_forced_choice() -> TaskSpec:
@@ -255,6 +258,7 @@ def sample_slot(sample_intensional_constraint: Constraint) -> Slot:
         required=True,
     )
 
+
 @pytest.fixture
 def sample_template(sample_slot: Slot) -> Template:
     """Provide a sample template."""
@@ -295,7 +299,7 @@ uv run pytest tests/ --cov=bead --cov-report=term-missing
 Output shows coverage per file with uncovered line numbers:
 
 ```
----------- coverage: platform darwin, python 3.13.0 -----------
+---------- coverage: platform darwin, python 3.14.0 -----------
 Name                                   Stmts   Miss  Cover   Missing
 --------------------------------------------------------------------
 bead/__init__.py                           3      0   100%
@@ -406,8 +410,7 @@ def test_item_creation_with_model_scores(monkeypatch):
         return 0.85  # Mock score
 
     monkeypatch.setattr(
-        "bead.items.adapters.huggingface.compute_perplexity",
-        mock_compute_score
+        "bead.items.adapters.huggingface.compute_perplexity", mock_compute_score
     )
 
     item = create_forced_choice_item_with_scores("Option A", "Option B")
@@ -425,7 +428,11 @@ def test_openai_adapter(monkeypatch):
     class MockResponse:
         def __init__(self):
             self.choices = [
-                type('obj', (object,), {'message': type('obj', (object,), {'content': 'mocked'})()})()
+                type(
+                    "obj",
+                    (object,),
+                    {"message": type("obj", (object,), {"content": "mocked"})()},
+                )()
             ]
 
     def mock_create(*args, **kwargs):
@@ -502,7 +509,7 @@ def test_item_stores_uuid_references():
 
     item = Item(
         filled_template_refs=[template_uuid1, template_uuid2],
-        judgment_type="forced_choice"
+        judgment_type="forced_choice",
     )
 
     # Stores UUIDs
@@ -518,15 +525,13 @@ Test constraint evaluation logic:
 ```python
 def test_uniqueness_constraint():
     """Test UniquenessConstraint evaluates correctly."""
-    constraint = UniquenessConstraint(
-        property_expression="item['verb_lemma']"
-    )
+    constraint = UniquenessConstraint(property_expression="item['verb_lemma']")
 
     # Items with unique verb lemmas
     items_unique = [
         {"verb_lemma": "walk"},
         {"verb_lemma": "run"},
-        {"verb_lemma": "jump"}
+        {"verb_lemma": "jump"},
     ]
     assert constraint.evaluate(items_unique) is True
 
@@ -534,7 +539,7 @@ def test_uniqueness_constraint():
     items_duplicate = [
         {"verb_lemma": "walk"},
         {"verb_lemma": "run"},
-        {"verb_lemma": "walk"}  # Duplicate
+        {"verb_lemma": "walk"},  # Duplicate
     ]
     assert constraint.evaluate(items_duplicate) is False
 ```
@@ -546,14 +551,14 @@ Test CLI commands in isolation:
 ```python
 from click.testing import CliRunner
 
+
 def test_config_create_command():
     """Test 'bead config create' command."""
     runner = CliRunner()
 
     with runner.isolated_filesystem():
         result = runner.invoke(
-            cli,
-            ["config", "create", "--name", "test_project", "--language", "eng"]
+            cli, ["config", "create", "--name", "test_project", "--language", "eng"]
         )
 
         assert result.exit_code == 0
@@ -596,7 +601,7 @@ def test_partition_with_invalid_n_lists():
         partitioner.partition(
             items=[uuid4() for _ in range(10)],
             n_lists=0,  # Invalid: must be > 0
-            metadata={}
+            metadata={},
         )
 
     assert "n_lists must be positive" in str(exc_info.value)
@@ -608,6 +613,7 @@ If testing async functions (future feature):
 
 ```python
 import pytest
+
 
 @pytest.mark.asyncio
 async def test_async_model_call():
@@ -621,11 +627,14 @@ async def test_async_model_call():
 Test multiple inputs with parametrize:
 
 ```python
-@pytest.mark.parametrize("lemma,expected_pos", [
-    ("walk", "VERB"),
-    ("dog", "NOUN"),
-    ("quickly", "ADV"),
-])
+@pytest.mark.parametrize(
+    "lemma,expected_pos",
+    [
+        ("walk", "VERB"),
+        ("dog", "NOUN"),
+        ("quickly", "ADV"),
+    ],
+)
 def test_infer_pos(lemma, expected_pos):
     """Test POS inference for different lemmas."""
     pos = infer_pos(lemma)
@@ -727,6 +736,7 @@ def test_expensive_operation():
     result = compute_large_matrix()
     assert result is not None
 
+
 @pytest.mark.requires_api
 def test_openai_integration():
     """Test OpenAI integration (requires API key)."""
@@ -751,7 +761,7 @@ Tests run automatically in CI on every push and pull request.
 
 The CI workflow (if configured) runs:
 
-1. Install Python 3.13
+1. Install Python 3.14
 2. Install dependencies: `uv sync --all-extras`
 3. Run linters: `uv run ruff check bead/`
 4. Run type checker: `uv run pyright bead/`

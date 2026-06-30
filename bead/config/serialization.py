@@ -38,20 +38,17 @@ def config_to_dict(
     >>> 'profile' in config_dict
     True
     """
-    # get dictionary with all values, excluding unset fields
-    config_dict: dict[str, Any] = config.model_dump(
-        mode="json", exclude_unset=not include_defaults
-    )
+    import json  # noqa: PLC0415
+
+    config_dict: dict[str, Any] = json.loads(config.model_dump_json())
 
     if not include_defaults:
-        # get default config to compare against
         default_config = get_default_config()
-        default_dict: dict[str, Any] = default_config.model_dump(mode="json")
-        # remove values that match defaults
-        config_dict = _remove_defaults(config_dict, default_dict)  # type: ignore[arg-type]
+        default_dict: dict[str, Any] = json.loads(default_config.model_dump_json())
+        config_dict = _remove_defaults(config_dict, default_dict)
 
     # convert Path objects to strings
-    config_dict = _convert_paths_to_strings(config_dict)  # type: ignore[arg-type]
+    config_dict = _convert_paths_to_strings(config_dict)
 
     return config_dict
 
@@ -80,7 +77,7 @@ def _remove_defaults(
             result[key] = value
         elif isinstance(value, dict) and isinstance(default_dict[key], dict):
             # recursively remove defaults from nested dicts
-            nested_result = _remove_defaults(value, default_dict[key])  # type: ignore[arg-type]
+            nested_result = _remove_defaults(value, default_dict[key])
             if nested_result:  # only include if not empty after removing defaults
                 result[key] = nested_result
         elif value != default_dict[key]:
@@ -105,13 +102,12 @@ def _convert_paths_to_strings(data: dict[str, Any]) -> dict[str, Any]:
     result: dict[str, Any] = {}
     for key, value in data.items():
         if isinstance(value, dict):
-            result[key] = _convert_paths_to_strings(value)  # type: ignore[arg-type]
+            result[key] = _convert_paths_to_strings(value)
         elif isinstance(value, Path):
             result[key] = str(value)
         elif isinstance(value, list):
             converted_list: list[Any] = [
-                str(item) if isinstance(item, Path) else item
-                for item in value  # type: ignore[misc]
+                str(item) if isinstance(item, Path) else item for item in value
             ]
             result[key] = converted_list
         else:

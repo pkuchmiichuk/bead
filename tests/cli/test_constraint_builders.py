@@ -9,7 +9,6 @@ Tests constraint creation commands to ensure they:
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 import pytest
@@ -63,8 +62,7 @@ class TestExtensionalConstraints:
         assert output.exists()
 
         # Verify constraint structure
-        constraint_data = json.loads(output.read_text())
-        constraint = Constraint(**constraint_data)
+        constraint = Constraint.model_validate_json(output.read_text())
 
         assert "self.lemma in allowed_values" in constraint.expression
         # Sets are serialized as lists in JSON
@@ -95,8 +93,7 @@ class TestExtensionalConstraints:
         )
 
         assert result.exit_code == 0
-        constraint_data = json.loads(output.read_text())
-        constraint = Constraint(**constraint_data)
+        constraint = Constraint.model_validate_json(output.read_text())
 
         # Sets are serialized as lists in JSON
         assert set(constraint.context["allowed_values"]) == {"cat", "dog", "bird"}
@@ -120,8 +117,7 @@ class TestExtensionalConstraints:
         )
 
         assert result.exit_code == 0
-        constraint_data = json.loads(output.read_text())
-        constraint = Constraint(**constraint_data)
+        constraint = Constraint.model_validate_json(output.read_text())
 
         assert "self.pos in allowed_values" in constraint.expression
 
@@ -187,8 +183,7 @@ class TestIntensionalConstraints:
         assert result.exit_code == 0, f"Command failed: {result.output}"
         assert output.exists()
 
-        constraint_data = json.loads(output.read_text())
-        constraint = Constraint(**constraint_data)
+        constraint = Constraint.model_validate_json(output.read_text())
 
         assert (
             constraint.expression
@@ -276,8 +271,7 @@ class TestRelationalConstraints:
         assert result.exit_code == 0, f"Command failed: {result.output}"
         assert output.exists()
 
-        constraint_data = json.loads(output.read_text())
-        constraint = Constraint(**constraint_data)
+        constraint = Constraint.model_validate_json(output.read_text())
 
         assert (
             constraint.expression == "subject.features.number == verb.features.number"
@@ -377,8 +371,8 @@ class TestOutputFile:
         lines = output.read_text().strip().split("\n")
         assert len(lines) == 2
 
-        constraint1 = Constraint(**json.loads(lines[0]))
-        constraint2 = Constraint(**json.loads(lines[1]))
+        constraint1 = Constraint.model_validate_json(lines[0])
+        constraint2 = Constraint.model_validate_json(lines[1])
 
         assert "allowed_values" in constraint1.context
         assert "self.pos == 'NOUN'" in constraint2.expression

@@ -20,7 +20,7 @@ from typing import cast
 from uuid import UUID
 
 import click
-from pydantic import ValidationError
+from didactic.api import ValidationError
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
@@ -74,8 +74,7 @@ def _load_item_templates(template_file: Path) -> list[ItemTemplate]:
                 continue
 
             try:
-                template_data = json.loads(line)
-                template = ItemTemplate(**template_data)
+                template = ItemTemplate.model_validate_json(line)
                 templates.append(template)
             except json.JSONDecodeError as e:
                 raise ValueError(f"Line {line_num}: Invalid JSON - {e}") from e
@@ -114,8 +113,7 @@ def _load_filled_templates(filled_file: Path) -> dict[UUID, FilledTemplate]:
                 continue
 
             try:
-                filled_data = json.loads(line)
-                filled = FilledTemplate(**filled_data)
+                filled = FilledTemplate.model_validate_json(line)
                 filled_templates[filled.id] = filled
             except json.JSONDecodeError as e:
                 raise ValueError(f"Line {line_num}: Invalid JSON - {e}") from e
@@ -156,8 +154,7 @@ def _load_constraints(constraints_file: Path) -> dict[UUID, Constraint]:
                 continue
 
             try:
-                constraint_data = json.loads(line)
-                constraint = Constraint(**constraint_data)  # type: ignore[misc]
+                constraint = Constraint.model_validate_json(line)  # type: ignore[misc]
                 constraints[constraint.id] = constraint  # type: ignore[misc]
             except json.JSONDecodeError as e:
                 raise ValueError(f"Line {line_num}: Invalid JSON - {e}") from e
@@ -232,10 +229,7 @@ def _display_construction_stats(
     # Constraint satisfaction
     if items and items[0].constraint_satisfaction:
         satisfied_count = sum(
-            1
-            for item in items
-            for satisfied in item.constraint_satisfaction.values()
-            if satisfied
+            1 for item in items for cs in item.constraint_satisfaction if cs.satisfied
         )
         total_constraints = sum(len(item.constraint_satisfaction) for item in items)
         if total_constraints > 0:
@@ -586,8 +580,7 @@ def validate(ctx: click.Context, items_file: Path) -> None:
                     continue
 
                 try:
-                    item_data = json.loads(line)
-                    Item(**item_data)
+                    Item.model_validate_json(line)
                     count += 1
                 except json.JSONDecodeError as e:
                     errors.append(f"Line {line_num}: Invalid JSON - {e}")
@@ -640,8 +633,7 @@ def show_stats(ctx: click.Context, items_file: Path) -> None:
                     continue
 
                 try:
-                    item_data = json.loads(line)
-                    item = Item(**item_data)
+                    item = Item.model_validate_json(line)
 
                     total_count += 1
                     templates_seen.add(str(item.item_template_id))
@@ -779,8 +771,7 @@ def validate_for_task_type(
                     continue
 
                 try:
-                    item_data = json.loads(line)
-                    item = Item(**item_data)
+                    item = Item.model_validate_json(line)
 
                     if validate_item_for_task_type(item, task_type_lit):
                         valid_count += 1

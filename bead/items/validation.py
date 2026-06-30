@@ -58,7 +58,7 @@ def validate_item(item: Item, item_template: ItemTemplate) -> list[str]:
 
     # Check all constraints are evaluated
     expected_constraints = set(item_template.constraints)
-    actual_constraints = set(item.constraint_satisfaction.keys())
+    actual_constraints = {cs.constraint_id for cs in item.constraint_satisfaction}
 
     missing_constraints = expected_constraints - actual_constraints
     if missing_constraints:
@@ -166,13 +166,12 @@ def validate_constraint_satisfaction(
     """
     errors: list[str] = []
 
-    # Check all template constraints are evaluated
+    by_id = {cs.constraint_id: cs for cs in item.constraint_satisfaction}
     for constraint_id in item_template.constraints:
-        if constraint_id not in item.constraint_satisfaction:
+        if constraint_id not in by_id:
             errors.append(f"Constraint {constraint_id} not evaluated")
         else:
-            # Check value is boolean
-            value = item.constraint_satisfaction[constraint_id]
+            value = by_id[constraint_id].satisfied
             if type(value) is not bool:
                 errors.append(
                     f"Constraint {constraint_id} satisfaction should be bool, "
@@ -243,7 +242,7 @@ def item_passes_all_constraints(item: Item) -> bool:
     >>> if item_passes_all_constraints(item):
     ...     print("Item is valid")
     """
-    return all(item.constraint_satisfaction.values())
+    return all(cs.satisfied for cs in item.constraint_satisfaction)
 
 
 def _check_options(item: Item) -> tuple[bool, int]:
@@ -482,7 +481,9 @@ def validate_item_for_task_type(item: Item, task_type: TaskType) -> bool:
     Examples
     --------
     >>> from bead.items.ordinal_scale import create_ordinal_scale_item
-    >>> item = create_ordinal_scale_item("How natural?", scale_bounds=(1, 7))
+    >>> item = create_ordinal_scale_item(
+    ...     "How natural?", scale_bounds=ScaleBounds(min=1, max=7)
+    ... )
     >>> validate_item_for_task_type(item, "ordinal_scale")
     True
 
@@ -609,9 +610,9 @@ def validate_item_for_task_type(item: Item, task_type: TaskType) -> bool:
 
     if task_type == "categorical":
         categories = item.item_metadata.get("categories")
-        if not isinstance(categories, list) or len(categories) == 0:
+        if not isinstance(categories, list | tuple) or len(categories) == 0:
             raise ValueError(
-                "categorical items must have non-empty list in "
+                "categorical items must have non-empty list/tuple in "
                 f"item_metadata['categories'], but got "
                 f"{type(categories).__name__}"
             )

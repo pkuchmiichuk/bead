@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import pytest
-from pydantic import ValidationError
+from didactic.api import ValidationError
 
 from bead.resources import (
     Constraint,
@@ -12,6 +12,7 @@ from bead.resources import (
     TemplateSequence,
     TemplateTree,
 )
+from bead.resources.template import slots_match_template
 
 
 class TestSlot:
@@ -38,7 +39,7 @@ class TestSlot:
         slot = Slot(name="verb")
         assert slot.name == "verb"
         assert slot.description is None
-        assert slot.constraints == []
+        assert slot.constraints == ()
         assert slot.required is True
         assert slot.default_value is None
 
@@ -127,7 +128,7 @@ class TestTemplate:
         assert template.slots == {"word": slot}
         assert template.description is None
         assert template.language_code is None
-        assert template.tags == []
+        assert template.tags == ()
         assert template.metadata == {}
 
     def test_create_with_multiple_slots(self) -> None:
@@ -209,24 +210,26 @@ class TestTemplate:
     def test_validation_slots_in_template_exist_in_dict(self) -> None:
         """Test validation: all slots in template_string exist in slots dict."""
         slot = Slot(name="word")
-        with pytest.raises(ValidationError) as exc_info:
-            Template(
-                name="test",
-                template_string="{word} {missing}",
-                slots={"word": slot},
-            )
+        template = Template(
+            name="test",
+            template_string="{word} {missing}",
+            slots={"word": slot},
+        )
+        with pytest.raises(ValueError) as exc_info:
+            slots_match_template(template)
         assert "not in slots dict" in str(exc_info.value)
 
     def test_validation_slots_in_dict_referenced_in_template(self) -> None:
         """Test validation: all slots in dict referenced in template_string."""
         slot1 = Slot(name="word")
         slot2 = Slot(name="extra")
-        with pytest.raises(ValidationError) as exc_info:
-            Template(
-                name="test",
-                template_string="{word}",
-                slots={"word": slot1, "extra": slot2},
-            )
+        template = Template(
+            name="test",
+            template_string="{word}",
+            slots={"word": slot1, "extra": slot2},
+        )
+        with pytest.raises(ValueError) as exc_info:
+            slots_match_template(template)
         assert "not referenced in template" in str(exc_info.value)
 
     def test_validation_slot_names_valid_identifiers(self) -> None:
@@ -243,14 +246,13 @@ class TestTemplate:
     def test_validation_slot_key_matches_name(self) -> None:
         """Test validation: slot key matches slot name."""
         slot = Slot(name="word")
-        with pytest.raises(ValidationError) as exc_info:
-            Template(
-                name="test",
-                template_string="{word}",
-                slots={"different_key": slot},
-            )
-        # This fails because template references 'word'
-        # but slots dict only has 'different_key'
+        template = Template(
+            name="test",
+            template_string="{word}",
+            slots={"different_key": slot},
+        )
+        with pytest.raises(ValueError) as exc_info:
+            slots_match_template(template)
         assert "not in slots dict" in str(exc_info.value)
 
     def test_template_with_nested_constraints(self) -> None:
@@ -476,8 +478,7 @@ class TestTemplateTree:
             root=template,
             children=[],
         )
-        data = tree.model_dump()
-        tree_reloaded = TemplateTree.model_validate(data)
+        tree_reloaded = TemplateTree.model_validate_json(tree.model_dump_json())
         assert tree_reloaded.name == "tree"
         assert tree_reloaded.root.name == "t1"
 

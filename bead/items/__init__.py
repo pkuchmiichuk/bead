@@ -2,7 +2,13 @@
 
 from __future__ import annotations
 
-from bead.items.item import Item, ItemCollection, ModelOutput, UnfilledSlot
+from bead.items.item import (
+    ConstraintSatisfaction,
+    Item,
+    ItemCollection,
+    ModelOutput,
+    UnfilledSlot,
+)
 from bead.items.item_template import (
     ChunkingSpec,
     ChunkingUnit,
@@ -14,6 +20,8 @@ from bead.items.item_template import (
     ParseType,
     PresentationMode,
     PresentationSpec,
+    ScaleBounds,
+    ScalePointLabel,
     TaskSpec,
     TaskType,
     TimingParams,
@@ -41,10 +49,13 @@ __all__ = [
     "ParseType",
     "PresentationMode",
     "PresentationSpec",
+    "ScaleBounds",
+    "ScalePointLabel",
     "TaskSpec",
     "TaskType",
     "TimingParams",
     # Item types
+    "ConstraintSatisfaction",
     "Item",
     "ItemCollection",
     "ModelOutput",

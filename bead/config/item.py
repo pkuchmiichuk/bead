@@ -1,16 +1,20 @@
-"""Item configuration models for the bead package."""
+"""Item configuration."""
 
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
+import didactic.api as dx
 
 from bead.config.model import ModelConfig
 
 
-class ItemConfig(BaseModel):
+def _default_model_config() -> ModelConfig:
+    return ModelConfig()
+
+
+class ItemConfig(dx.Model):
     """Configuration for item generation.
 
-    Parameters
+    Attributes
     ----------
     model : ModelConfig
         Model configuration.
@@ -21,25 +25,11 @@ class ItemConfig(BaseModel):
     parallel_processing : bool
         Whether to use parallel processing.
     num_workers : int
-        Number of workers for parallel processing.
-
-    Examples
-    --------
-    >>> config = ItemConfig()
-    >>> config.apply_constraints
-    True
-    >>> config.num_workers
-    4
+        Number of workers for parallel processing (must be > 0).
     """
 
-    model: ModelConfig = Field(
-        default_factory=ModelConfig, description="Model configuration"
-    )
-    apply_constraints: bool = Field(
-        default=True, description="Apply model-based constraints"
-    )
-    track_metadata: bool = Field(default=True, description="Track item metadata")
-    parallel_processing: bool = Field(
-        default=False, description="Use parallel processing"
-    )
-    num_workers: int = Field(default=4, description="Number of workers", gt=0)
+    model: dx.Embed[ModelConfig] = dx.field(default_factory=_default_model_config)
+    apply_constraints: bool = True
+    track_metadata: bool = True
+    parallel_processing: bool = False
+    num_workers: int = 4

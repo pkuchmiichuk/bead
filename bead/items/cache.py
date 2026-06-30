@@ -480,7 +480,7 @@ class ModelOutputCache:
         self,
         model_name: str,
         operation: str,
-        result: float | dict[str, float] | list[float] | np.ndarray,
+        result: str | float | dict[str, float] | list[float] | np.ndarray,
         model_version: str | None = None,
         **inputs: str | int | float | bool | None,
     ) -> None:
@@ -491,9 +491,12 @@ class ModelOutputCache:
         model_name
             Model identifier.
         operation
-            Operation type (e.g., "log_probability", "nli", "embedding").
+            Operation type (e.g., "log_probability", "nli", "embedding",
+            "lm_completion").
         result
-            Result to cache (log probability, NLI scores, embedding, etc.).
+            Result to cache. Strings (LM completions), floats (log
+            probabilities), float dicts (NLI scores), float lists,
+            and numpy arrays (embeddings) are supported.
         model_version
             Optional model version string for tracking.
         **inputs

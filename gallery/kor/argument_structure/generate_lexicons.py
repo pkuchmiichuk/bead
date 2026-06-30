@@ -158,7 +158,7 @@ def main(verb_limit: int | None = None, save_csv: bool = True) -> None:
                     verbs.append(verb)
                     
 
-    lexicon.add_many(verbs)
+    lexicon = lexicon.with_items(verbs)
 
     print(f"Total base verbs found: {len(base_verb)}")
     print(f"Total verbs found: {len(verbs)}")
@@ -207,7 +207,7 @@ def main(verb_limit: int | None = None, save_csv: bool = True) -> None:
                         "pos": pos_map[case], "case": case, "final_consonant": fc,
                     },
                 )
-                lexicon.add(item)
+                lexicon = lexicon.with_item(item)
             remaining_map = {
                 "COM": "PART.COM", "GEN": "PART.GEN", "TERM": "PART.TERM",
                 "INIT": "PART.INIT", "SIM": "PART.SIM", "PRIV": "PART.PRIV",
@@ -220,7 +220,7 @@ def main(verb_limit: int | None = None, save_csv: bool = True) -> None:
                         "pos": remaining_map[case], "case": case, "final_consonant": fc,
                     },
                 )
-                lexicon.add(item)
+                lexicon = lexicon.with_item(item)
     lexicon.to_jsonl("./lexicons/case_markers.jsonl")
 
     print(f"Created {len(case_markers)} case markers.")
@@ -270,7 +270,7 @@ def main(verb_limit: int | None = None, save_csv: bool = True) -> None:
                     "final_consonant": row["final_consonant"],
                 },
             )
-            lexicon.add(item)
+            lexicon = lexicon.with_item(item)
 
     lexicon.to_jsonl("./lexicons/bleached_nouns.jsonl")
 
@@ -349,7 +349,7 @@ def main(verb_limit: int | None = None, save_csv: bool = True) -> None:
                     "pos": "V", "tense": "", "semantic_class": row["semantic_class"],
                 }
             )
-            lexicon.add(item)
+            lexicon = lexicon.with_item(item)
 
     lexicon.to_jsonl("./lexicons/bleached_verbs.jsonl")
 
@@ -374,7 +374,7 @@ def main(verb_limit: int | None = None, save_csv: bool = True) -> None:
 
     lexicon = Lexicon(name="comp_verbs")
     for lemma, adn_form, decl_form, sem_class in comp_verb_entries:
-        lexicon.add(LexicalItem(
+        lexicon = lexicon.with_item(LexicalItem(
             lemma=lemma,
             form=adn_form,
             language_code="kor",
@@ -382,7 +382,7 @@ def main(verb_limit: int | None = None, save_csv: bool = True) -> None:
                       "semantic_class": sem_class},
             source="bleached",
         ))
-        lexicon.add(LexicalItem(
+        lexicon = lexicon.with_item(LexicalItem(
             lemma=lemma,
             form=decl_form,
             language_code="kor",
@@ -444,7 +444,7 @@ def main(verb_limit: int | None = None, save_csv: bool = True) -> None:
                 language_code="kor",
                 features={"pos": "ADJ", "semantic_class": row["semantic_class"]}
             )
-            lexicon.add(item)
+            lexicon = lexicon.with_item(item)
 
     lexicon.to_jsonl("./lexicons/bleached_adjectives.jsonl")
 
@@ -477,7 +477,7 @@ def main(verb_limit: int | None = None, save_csv: bool = True) -> None:
                 language_code="kor",
                 features={"pos": row["pos"], "tense": row["tense"]}
             )
-            lexicon.add(item)
+            lexicon = lexicon.with_item(item)
 
     lexicon.to_jsonl("./lexicons/auxiliary_verbs.jsonl")
 
@@ -545,7 +545,7 @@ def main(verb_limit: int | None = None, save_csv: bool = True) -> None:
                     "compatible_cases": row["compatible_cases"],
                 }
             )
-            lexicon.add(item)
+            lexicon = lexicon.with_item(item)
 
     lexicon.to_jsonl("./lexicons/spatial_nouns.jsonl")
     print(f"Created {len(spatial_nouns)} spatial nouns.")
@@ -597,7 +597,7 @@ def main(verb_limit: int | None = None, save_csv: bool = True) -> None:
                     "eng_gloss": row["eng_gloss"],
                 }
             )
-            lexicon.add(item)
+            lexicon = lexicon.with_item(item)
 
     lexicon.to_jsonl("./lexicons/complex_postpositions.jsonl")
     print(f"Created {len(complex_postpositions)} complex postpositions.")

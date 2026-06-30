@@ -67,6 +67,18 @@ resources:
       name: "auxiliary_verbs"
       description: "Auxiliary verbs for complex predicates (past and present progressive forms for now)"
 
+    - path: "lexicons/spatial_nouns.jsonl"
+      name: "spatial_nouns"
+      description: "Spatial and temporal relational nouns (postpositional bound nouns, NPOST)"
+
+    - path: "lexicons/complex_postpositions.jsonl"
+      name: "complex_postpositions"
+      description: "Complex multi-morpheme postpositional expressions (DAT- and ACC-governed)"
+
+    - path: "lexicons/comp_verbs.jsonl"
+      name: "comp_verbs"
+      description: "Bleached verb forms for complement clause slots (7 V.ADN.PRS + 7 PRS declarative)"
+
   # Templates
   templates:
     - path: "templates/generic_frames.jsonl"
@@ -159,7 +171,49 @@ template:
 
     loc:
       strategy: "exhaustive"
-      description: "All locative case particles from lexicons"
+      description: "Source locative case particle (에서) from lexicons"
+
+    goal:
+      strategy: "exhaustive"
+      description: "Goal locative case particle (에) from lexicons"
+
+    com:
+      strategy: "exhaustive"
+      description: "Comitative case marker (와/과) — allomorphic, fc_agree required"
+
+    term:
+      strategy: "exhaustive"
+      description: "Terminative case marker (까지) — invariant"
+
+    init:
+      strategy: "exhaustive"
+      description: "Initiative case marker (부터) — invariant"
+
+    # ========================================================================
+    # SPATIAL NOUNS (의존명사) — EXHAUSTIVE
+    # Postpositional relational nouns (pos=NPOST); immediately followed by
+    # a locative case marker slot (goal/loc/inst) in spatial frames.
+    # ========================================================================
+    spatial_noun:
+      strategy: "exhaustive"
+      description: "All spatial/temporal relational nouns (위, 아래, 앞, etc.)"
+
+    # ========================================================================
+    # COMPLEX POSTPOSITIONS (다단어 후치사) — EXHAUSTIVE
+    # DAT-governed: particle 에 is built into the form (에 대해서, etc.)
+    # ACC-governed: preceded by a separate 을/를 slot (통해서, 위해서, etc.)
+    # ========================================================================
+    complex_postp_dat:
+      strategy: "exhaustive"
+      description: "All DAT-governed complex postpositions (에 대해서, 에 의해서, etc.)"
+
+    complex_postp_acc:
+      strategy: "exhaustive"
+      description: "All ACC-governed complex postpositions (통해서, 위해서, etc.)"
+
+    pobj_acc:
+      strategy: "exhaustive"
+      description: "Accusative case marker for complex postposition object (transitive ACC frames)"
 
     # ========================================================================
     # MAIN VERB - EXHAUSTIVE (no MLM)
@@ -170,10 +224,13 @@ template:
       strategy: "exhaustive"
       description: "ALL UniMorph verbs (exhaustive cross-product with all frames)"
 
-    comp_verb:
+    comp_verb_adn:
       strategy: "exhaustive"
-      description: "All V.PTCP verb forms for complement clauses"
-      # This template is skipped in test runs.
+      description: "All V.ADN.PRS bleached verb forms for -는 것을 (factive) and -는지 (indirect Q) complements (7 entries from comp_verbs.jsonl)"
+
+    comp_verb_decl:
+      strategy: "exhaustive"
+      description: "All PRS declarative bleached verb forms for -다고 (quotative) complements (7 entries from comp_verbs.jsonl)"
 
     # comp_verb_gerund:
     #   strategy: "mlm"
@@ -572,7 +629,7 @@ deployment:
 
     # Qualifications
     qualifications:
-      - "Native English speaker"
+      - "Native Korean speaker"
       - "Age 18+"
       - "Approval rate > 95%"
 
@@ -590,7 +647,7 @@ deployment:
 # Logging Configuration
 # ============================================================================
 logging:
-  level: "INFO"  # DEBUG, INFO, WARNING, ERROR
+  level: "WARNING"  # DEBUG, INFO, WARNING, ERROR
   format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 
   # Log files

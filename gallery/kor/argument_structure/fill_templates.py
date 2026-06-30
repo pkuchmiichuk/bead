@@ -198,7 +198,7 @@ def main() -> None:
     )
 
     # Apply dry-run mode: select specific templates
-    templates = list(template_collection.templates.values())
+    templates = list(template_collection.templates)
     if args.dry_run:
         logger.info("DRY RUN MODE: Selecting 1 simple + 1 progressive template with 3 noun slots")
 
@@ -239,17 +239,14 @@ def main() -> None:
             verb_limit = args.limit
 
         if verb_limit is not None:
-            verb_lemmas = []
-            limited_items = {}
-            for item_id, item in lexicon.items.items():
-                if item.lemma not in verb_lemmas:
-                    verb_lemmas.append(item.lemma)
-                    if len(verb_lemmas) >= verb_limit:
-                        break
-                if item.lemma in verb_lemmas[:verb_limit]:
-                    limited_items[item_id] = item
-
-            lexicon.items = limited_items
+            unique_lemmas: list[str] = []
+            for item in lexicon.items:
+                if item.lemma not in unique_lemmas:
+                    unique_lemmas.append(item.lemma)
+                if len(unique_lemmas) == verb_limit:
+                    break
+            allowed = set(unique_lemmas)
+            lexicon = lexicon.filter(lambda item, _a=allowed: item.lemma in _a)
             label = "DRY RUN" if args.dry_run else "LIMIT"
             logger.info(
                 f"{label}: Limited verbs to {verb_limit} lemmas ({len(lexicon.items)} forms)"

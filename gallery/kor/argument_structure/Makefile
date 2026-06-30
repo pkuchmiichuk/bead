@@ -142,9 +142,9 @@ fill-templates-full: ## Fill all 47 templates with all verbs — production run
 	@echo "$(GREEN)✓ All 2AFC pairs generated$(NC)"
 
 .PHONY: lists
-lists: ## Partition 2AFC pairs into 16 balanced experiment lists
+lists: ## Partition 2AFC pairs into 2 experiment lists (quick test run)
 	@echo "$(BLUE)[5/5] Generating experiment lists...$(NC)"
-	$(PYTHON) generate_lists.py
+	$(PYTHON) generate_lists.py --n-lists 2
 	@echo "$(GREEN)✓ Experiment lists generated$(NC)"
 
 .PHONY: deployment

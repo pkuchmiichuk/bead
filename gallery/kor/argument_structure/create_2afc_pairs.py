@@ -13,9 +13,8 @@ All parameters are configurable via config.yaml.
 from __future__ import annotations
 
 import argparse
-import json
 from pathlib import Path
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import yaml
 from rich.console import Console
@@ -43,8 +42,7 @@ def load_filled_templates(path: str, limit: int | None = None) -> list[FilledTem
         for i, line in enumerate(f):
             if limit and i >= limit:
                 break
-            data = json.loads(line)
-            filled_templates.append(FilledTemplate(**data))
+            filled_templates.append(FilledTemplate.model_validate_json(line))
     return filled_templates
 
 
@@ -69,7 +67,7 @@ def convert_filled_templates_to_items(
             text = text[0].upper() + text[1:] if len(text) > 1 else text.upper()
 
         item = Item(
-            item_template_id=ft.template_id,
+            item_template_id=UUID(ft.template_id),
             rendered_elements={"text": text},
             item_metadata={
                 "filled_template_id": str(ft.id),
@@ -132,10 +130,6 @@ def create_forced_choice_pairs(
     1. Same-verb pairs (same verb, different frames)
     2. Different-verb pairs (different verbs, same frame)
     """
-    # Add scores to item metadata
-    for item in items:
-        item.item_metadata["lm_score"] = lm_scores.get(str(item.id), float("-inf"))
-
     # Create lookup dict to avoid O(n) scans for each pair
     item_lookup = {str(item.id): item for item in items}
 
@@ -154,31 +148,28 @@ def create_forced_choice_pairs(
         )
 
     # Add pair_type and additional metadata
+    updated_same_verb_items = []
     for fc_item in same_verb_items:
         item1_id = fc_item.item_metadata.get("source_item_0_id")
         item2_id = fc_item.item_metadata.get("source_item_1_id")
 
-        # Use lookup dict instead of list comprehension
         source_items = [item_lookup.get(item1_id), item_lookup.get(item2_id)]
         if all(source_items) and len(source_items) == 2:
-            fc_item.item_metadata.update(
-                {
-                    "pair_type": "same_verb",
-                    "verb": source_items[0].item_metadata.get("verb_lemma"),
-                    "template1": source_items[0].item_metadata.get(
-                        "template_structure"
-                    ),
-                    "template2": source_items[1].item_metadata.get(
-                        "template_structure"
-                    ),
-                    "lm_score_a": lm_scores.get(str(source_items[0].id), float("-inf")),
-                    "lm_score_b": lm_scores.get(str(source_items[1].id), float("-inf")),
-                    "lm_score_diff": abs(
-                        lm_scores.get(str(source_items[0].id), 0)
-                        - lm_scores.get(str(source_items[1].id), 0)
-                    ),
-                }
-            )
+            fc_item = fc_item.with_(item_metadata={
+                **fc_item.item_metadata,
+                "pair_type": "same_verb",
+                "verb": source_items[0].item_metadata.get("verb_lemma"),
+                "template1": source_items[0].item_metadata.get("template_structure"),
+                "template2": source_items[1].item_metadata.get("template_structure"),
+                "lm_score_a": lm_scores.get(str(source_items[0].id), float("-inf")),
+                "lm_score_b": lm_scores.get(str(source_items[1].id), float("-inf")),
+                "lm_score_diff": abs(
+                    lm_scores.get(str(source_items[0].id), 0)
+                    - lm_scores.get(str(source_items[1].id), 0)
+                ),
+            })
+        updated_same_verb_items.append(fc_item)
+    same_verb_items = updated_same_verb_items
 
     console.print(f"[green]✓[/green] Created {len(same_verb_items):,} same-verb pairs")
 
@@ -193,30 +184,31 @@ def create_forced_choice_pairs(
         )
 
     # Add pair_type and additional metadata
+    updated_different_verb_items = []
     for fc_item in different_verb_items:
         item1_id = fc_item.item_metadata.get("source_item_0_id")
         item2_id = fc_item.item_metadata.get("source_item_1_id")
 
-        # Use lookup dict instead of list comprehension
         source_items = [item_lookup.get(item1_id), item_lookup.get(item2_id)]
         if all(source_items) and len(source_items) == 2:
-            fc_item.item_metadata.update(
-                {
-                    "pair_type": "different_verb",
-                    "template_id": str(source_items[0].item_template_id),
-                    "template_structure": source_items[0].item_metadata.get(
-                        "template_structure"
-                    ),
-                    "verb1": source_items[0].item_metadata.get("verb_lemma"),
-                    "verb2": source_items[1].item_metadata.get("verb_lemma"),
-                    "lm_score_a": lm_scores.get(str(source_items[0].id), float("-inf")),
-                    "lm_score_b": lm_scores.get(str(source_items[1].id), float("-inf")),
-                    "lm_score_diff": abs(
-                        lm_scores.get(str(source_items[0].id), 0)
-                        - lm_scores.get(str(source_items[1].id), 0)
-                    ),
-                }
-            )
+            fc_item = fc_item.with_(item_metadata={
+                **fc_item.item_metadata,
+                "pair_type": "different_verb",
+                "template_id": str(source_items[0].item_template_id),
+                "template_structure": source_items[0].item_metadata.get(
+                    "template_structure"
+                ),
+                "verb1": source_items[0].item_metadata.get("verb_lemma"),
+                "verb2": source_items[1].item_metadata.get("verb_lemma"),
+                "lm_score_a": lm_scores.get(str(source_items[0].id), float("-inf")),
+                "lm_score_b": lm_scores.get(str(source_items[1].id), float("-inf")),
+                "lm_score_diff": abs(
+                    lm_scores.get(str(source_items[0].id), 0)
+                    - lm_scores.get(str(source_items[1].id), 0)
+                ),
+            })
+        updated_different_verb_items.append(fc_item)
+    different_verb_items = updated_different_verb_items
 
     console.print(
         f"[green]✓[/green] Created {len(different_verb_items):,} different-verb pairs"
@@ -252,9 +244,14 @@ def assign_quantiles_to_pairs(
             stratify_by_key="pair_type",
         )
 
-        # Add quantile to each item's metadata
-        for item in pair_items:
-            item.item_metadata["quantile"] = quantile_assignments[item.id]
+        # Add quantile to each item's metadata (immutable update)
+        pair_items = [
+            item.with_(item_metadata={
+                **item.item_metadata,
+                "quantile": quantile_assignments[item.id],
+            })
+            for item in pair_items
+        ]
 
     console.print(f"[green]✓[/green] Assigned quantiles to {len(pair_items):,} pairs")
     return pair_items

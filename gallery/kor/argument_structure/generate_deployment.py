@@ -7,7 +7,6 @@ and generates a jsPsych experiment that can be exported to JATOS.
 
 from __future__ import annotations
 
-import json
 import sys
 from pathlib import Path
 from uuid import UUID
@@ -22,7 +21,7 @@ from bead.deployment.distribution import (
     ListDistributionStrategy,
 )
 from bead.deployment.jatos.exporter import JATOSExporter
-from bead.deployment.jspsych.config import ChoiceConfig, ExperimentConfig
+from bead.deployment.jspsych.config import ChoiceConfig, ExperimentConfig, InstructionsConfig
 from bead.deployment.jspsych.generator import JsPsychExperimentGenerator
 from bead.items.item import Item
 from bead.items.item_template import (
@@ -33,6 +32,21 @@ from bead.items.item_template import (
 from bead.lists import ExperimentList
 
 console = Console()
+
+_INSTRUCTIONS_PLUGIN_TAG = (
+    '<script src="https://unpkg.com/@jspsych/plugin-instructions@2.0.0"></script>'
+)
+
+
+def _inject_instructions_plugin(html_path: Path) -> None:
+    """Insert the jsPsych instructions plugin script tag if missing."""
+    html = html_path.read_text(encoding="utf-8")
+    if "plugin-instructions" not in html:
+        html = html.replace(
+            '<script src="https://unpkg.com/@jspsych/plugin-preload',
+            f'{_INSTRUCTIONS_PLUGIN_TAG}\n    <script src="https://unpkg.com/@jspsych/plugin-preload',
+        )
+        html_path.write_text(html, encoding="utf-8")
 
 
 def load_config(config_path: Path) -> dict:
@@ -47,8 +61,7 @@ def load_experiment_lists(lists_path: Path) -> list[ExperimentList]:
         lists = []
         with open(lists_path) as f:
             for line in f:
-                data = json.loads(line)
-                lists.append(ExperimentList(**data))
+                lists.append(ExperimentList.model_validate_json(line))
 
     console.print(f"[green]✓[/green] Loaded {len(lists)} experiment lists")
     return lists
@@ -60,8 +73,7 @@ def load_items_by_uuid(pairs_path: Path) -> dict[UUID, Item]:
         items_dict = {}
         with open(pairs_path) as f:
             for line in f:
-                data = json.loads(line)
-                item = Item(**data)
+                item = Item.model_validate_json(line)
                 items_dict[item.id] = item
 
     console.print(f"[green]✓[/green] Loaded {len(items_dict)} 2AFC pairs")
@@ -163,9 +175,11 @@ def main() -> None:
     templates_dict = {template.id: template}
     console.print("[green]✓[/green] Created minimal ItemTemplate for 2AFC items\n")
 
-    # Update all items to reference this template
-    for item in items_dict.values():
-        item.item_template_id = template.id
+    # Update all items to reference this template (immutable update)
+    items_dict = {
+        uid: item.with_(item_template_id=template.id)
+        for uid, item in items_dict.items()
+    }
 
     # Create ExperimentConfig for jsPsych (base configuration)
     console.rule("[5/6] Generating jsPsych Experiments")
@@ -187,9 +201,11 @@ def main() -> None:
         "description": experiment_config_dict.get(
             "description", "Rate which sentence sounds more natural"
         ),
-        "instructions": experiment_config_dict.get(
-            "instructions",
-            "You will see pairs of sentences. Please select the sentence that sounds more natural to you.",
+        "instructions": InstructionsConfig.from_text(
+            experiment_config_dict.get(
+                "instructions",
+                "You will see pairs of sentences. Please select the sentence that sounds more natural to you.",
+            )
         ),
         "randomize_trial_order": jspsych_config.get("randomize_order", True),
         "show_progress_bar": True,
@@ -239,6 +255,7 @@ def main() -> None:
                     items=items_dict,
                     templates=templates_dict,
                 )
+                _inject_instructions_plugin(list_output_dir / "index.html")
             except Exception as e:
                 console.print(f"[red]✗[/red] Error generating {version_name} list {i + 1}: {e}")
                 import traceback

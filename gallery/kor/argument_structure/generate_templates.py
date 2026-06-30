@@ -27,7 +27,11 @@ _NOUN_DESCRIPTIONS: dict[str, str] = {
 }
 
 _NOUN   = "self.features.get('pos')=='NOUN'"
-_V_FIN  = "self.features.get('pos')=='V' and self.features.get('verb_form')!='V.PTCP'"
+_V_FIN  = (
+    "self.features.get('pos')=='V'"
+    " and self.features.get('verb_form')!='V.PTCP'"
+    " and self.features.get('verb_form')!='V.ADN.PRS'"
+)
 _V_PTCP = "self.features.get('pos')=='V' and self.features.get('verb_form')=='V.PTCP'"
 
 

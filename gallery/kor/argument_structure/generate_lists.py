@@ -7,7 +7,7 @@ according to the configuration in config.yaml.
 
 from __future__ import annotations
 
-import json
+import argparse
 import sys
 from pathlib import Path
 from uuid import UUID
@@ -55,8 +55,7 @@ def load_2afc_pairs(pairs_path: Path) -> tuple[list[Item], dict[UUID, dict]]:
 
         with open(pairs_path) as f:
             for line in f:
-                data = json.loads(line)
-                item = Item(**data)
+                item = Item.model_validate_json(line)
                 items.append(item)
 
                 # Build metadata dict for constraint checking
@@ -86,6 +85,7 @@ def build_constraints(config: dict) -> tuple[list, list]:
         if constraint_type == "balance":
             list_constraints.append(
                 BalanceConstraint(
+                    constraint_type="balance",
                     property_expression=constraint_spec["property_expression"],
                     target_counts=constraint_spec.get("target_counts", {}),
                 )
@@ -93,12 +93,14 @@ def build_constraints(config: dict) -> tuple[list, list]:
         elif constraint_type == "uniqueness":
             list_constraints.append(
                 UniquenessConstraint(
-                    property_expression=constraint_spec["property_expression"]
+                    constraint_type="uniqueness",
+                    property_expression=constraint_spec["property_expression"],
                 )
             )
         elif constraint_type == "grouped_quantile":
             list_constraints.append(
                 GroupedQuantileConstraint(
+                    constraint_type="grouped_quantile",
                     property_expression=constraint_spec["property_expression"],
                     group_by_expression=constraint_spec["group_by_expression"],
                     n_quantiles=constraint_spec["n_quantiles"],
@@ -108,6 +110,7 @@ def build_constraints(config: dict) -> tuple[list, list]:
         elif constraint_type == "diversity":
             list_constraints.append(
                 DiversityConstraint(
+                    constraint_type="diversity",
                     property_expression=constraint_spec["property_expression"],
                     min_unique_values=constraint_spec["min_unique_values"],
                 )
@@ -120,6 +123,7 @@ def build_constraints(config: dict) -> tuple[list, list]:
         if constraint_type == "coverage":
             batch_constraints.append(
                 BatchCoverageConstraint(
+                    constraint_type="coverage",
                     property_expression=constraint_spec["property_expression"],
                     target_values=constraint_spec["target_values"],
                     min_coverage=constraint_spec.get("min_coverage", 1.0),
@@ -128,6 +132,7 @@ def build_constraints(config: dict) -> tuple[list, list]:
         elif constraint_type == "balance":
             batch_constraints.append(
                 BatchBalanceConstraint(
+                    constraint_type="balance",
                     property_expression=constraint_spec["property_expression"],
                     target_distribution=constraint_spec.get("target_distribution", {}),
                     tolerance=constraint_spec.get("tolerance", 0.05),
@@ -136,6 +141,7 @@ def build_constraints(config: dict) -> tuple[list, list]:
         elif constraint_type == "min_occurrence":
             batch_constraints.append(
                 BatchMinOccurrenceConstraint(
+                    constraint_type="min_occurrence",
                     property_expression=constraint_spec["property_expression"],
                     min_occurrences=constraint_spec["min_occurrences"],
                 )
@@ -143,6 +149,7 @@ def build_constraints(config: dict) -> tuple[list, list]:
         elif constraint_type == "diversity":
             batch_constraints.append(
                 BatchDiversityConstraint(
+                    constraint_type="diversity",
                     property_expression=constraint_spec["property_expression"],
                     max_lists_per_value=constraint_spec.get("max_lists_per_value"),
                 )
@@ -153,6 +160,12 @@ def build_constraints(config: dict) -> tuple[list, list]:
 
 def main() -> None:
     """Generate experiment lists from 2AFC pairs."""
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--n-lists", type=int, default=None, help="Override n_lists from config"
+    )
+    args = parser.parse_args()
+
     # Determine base directory
     base_dir = Path(__file__).parent
     config_path = base_dir / "config.yaml"
@@ -165,7 +178,7 @@ def main() -> None:
     console.rule("[1/5] Loading Configuration")
     config = load_config(config_path)
     list_config = config["lists"]
-    n_lists = list_config["n_lists"]
+    n_lists = args.n_lists if args.n_lists is not None else list_config["n_lists"]
     items_per_list = list_config["items_per_list"]
     strategy = list_config.get("strategy", "balanced")
 

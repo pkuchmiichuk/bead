@@ -3,7 +3,7 @@
 ## Quick Start
 
 ```bash
-make data          # Quick test run (100 verbs, 50 pairs)
+make data          # Quick test run (100 verbs, 50 filled templates, 2 lists)
 make data-full     # Production run (all verbs, all pairs)
 make deployment    # Generate jsPsych deployment for 2 lists (local test)
 make help          # Show all available targets
@@ -105,7 +105,7 @@ Fills each template slot exhaustively from the lexicons. Outputs one JSONL file 
 
 Pairs filled templates into two-alternative forced-choice items. Each pair contrasts two sentences that differ in argument structure (e.g. transitive vs. intransitive frame for the same verb). Pairs are scored with `EleutherAI/polyglot-ko-1.3b` to rank by LM plausibility.
 
-- `make 2afc-pairs` generates a limited sample (50 pairs, fast)
+- `make 2afc-pairs` limits to 50 filled templates (fast; still generates ~1,000+ pairs from those)
 - `make 2afc-pairs-full` generates all pairs (slow; downloads the language model on first run)
 
 Output: `items/2afc_pairs.jsonl`
@@ -115,7 +115,7 @@ Output: `items/2afc_pairs.jsonl`
 ### Stages 5–6 — Lists and Deployment
 
 ```bash
-make lists             # Partition pairs into 16 balanced experiment lists
+make lists             # Partition pairs into 2 lists (quick test; config default is 16)
 make deployment        # Build jsPsych experiment for 2 lists (local test)
 make deployment-full   # Build jsPsych experiment for all 16 lists
 ```

@@ -52,6 +52,24 @@ class UniMorphAdapter(ResourceAdapter):
         self.cache = cache
         self._datasets: dict[str, pd.DataFrame] = {}  # Cache datasets by language
 
+    def _load_dataset(self, lang_code: str) -> pd.DataFrame:
+        """Load the raw ``(lemma, form, features)`` DataFrame for a language.
+
+        Override this in a subclass to read a non-standard UniMorph file layout
+        (e.g. a language whose data ships extra columns).
+
+        Parameters
+        ----------
+        lang_code : str
+            ISO 639-3 language code.
+
+        Returns
+        -------
+        pd.DataFrame
+            DataFrame with ``lemma``, ``form``, and ``features`` columns.
+        """
+        return load_dataset(lang_code)
+
     def fetch_items(
         self,
         query: str | None = None,
@@ -113,7 +131,7 @@ class UniMorphAdapter(ResourceAdapter):
         try:
             # Load dataset for language (cached at instance level)
             if lang_code not in self._datasets:
-                self._datasets[lang_code] = load_dataset(lang_code)
+                self._datasets[lang_code] = self._load_dataset(lang_code)
 
             dataset = self._datasets[lang_code]
 

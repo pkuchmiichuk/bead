@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import didactic.api as dx
+import pandas as pd
 import pytest
 
 from bead.resources.adapters.cache import AdapterCache
@@ -122,3 +123,29 @@ def test_unimorph_adapter_feature_parsing() -> None:
     features_n = adapter._parse_features("N;PL")
     assert features_n["pos"] == "N"
     assert features_n["number"] == "PL"
+
+
+def test_load_dataset_hook_is_overridable() -> None:
+    """fetch_items loads data through the overridable _load_dataset hook.
+
+    A subclass can supply a custom DataFrame (e.g. for a non-standard file
+    layout) by overriding _load_dataset; the rest of fetch_items is inherited.
+    Runs without network access.
+    """
+
+    class _FakeAdapter(UniMorphAdapter):
+        def _load_dataset(self, lang_code: str) -> pd.DataFrame:
+            return pd.DataFrame(
+                {
+                    "lemma": ["walk"],
+                    "form": ["walks"],
+                    "features": ["V;PRS;3;SG"],
+                }
+            )
+
+    items = _FakeAdapter().fetch_items(query="walk", language_code="en")
+    assert len(items) == 1
+    assert items[0].lemma == "walk"
+    assert items[0].form == "walks"
+    assert items[0].features["tense"] == "PRS"
+    assert items[0].features["person"] == "3"

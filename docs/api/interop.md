@@ -33,7 +33,28 @@ usage.
 
 ## Resource lenses
 
+Lenses between bead's resource models and their layers counterparts: lexical
+items and lexicons to entries and collections, templates to layers templates,
+and filled templates to layers fillings.
+
 ::: bead.interop.layers.resource_lens
+    options:
+      show_root_heading: true
+      show_source: false
+
+## Judgment and list lenses
+
+Lenses between bead's response and list-composition models and their layers
+counterparts: annotation records to judgments (and judgment sets), bead list
+constraints to layers list constraints, and experiment lists to layers
+collections with their memberships and constraints.
+
+::: bead.interop.layers.judgment_lens
+    options:
+      show_root_heading: true
+      show_source: false
+
+::: bead.interop.layers.list_lens
     options:
       show_root_heading: true
       show_source: false

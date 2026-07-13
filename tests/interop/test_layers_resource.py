@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+from lairs.records import resource
+
 from bead.interop.layers.resource_lens import (
+    FILLED_TEMPLATE_FILLING,
     LEXICAL_ITEM_ENTRY,
     LEXICON_COLLECTION,
     TEMPLATE_LAYERS,
@@ -11,6 +14,7 @@ from bead.resources.constraints import Constraint
 from bead.resources.lexical_item import LexicalItem
 from bead.resources.lexicon import Lexicon
 from bead.resources.template import Slot, Template
+from bead.templates.filler import FilledTemplate
 
 
 class TestLexicalItemEntry:
@@ -105,3 +109,64 @@ class TestTemplateLayers:
         template = Template(name="t", template_string="{x}")
         view, complement = TEMPLATE_LAYERS.forward(template)
         assert TEMPLATE_LAYERS.backward(view, complement) == template
+
+
+class TestFilledTemplateFilling:
+    """FilledTemplate <-> layers filling."""
+
+    def _filled(self) -> FilledTemplate:
+        return FilledTemplate(
+            template_id="tmpl-019a",
+            template_name="transitive",
+            slot_fillers={
+                "subj": LexicalItem(
+                    lemma="dog",
+                    form="dogs",
+                    language_code="eng",
+                    features={"pos": "NOUN", "number": "plural"},
+                    source="bleached",
+                ),
+                "verb": LexicalItem(
+                    lemma="chase",
+                    form="chased",
+                    language_code="eng",
+                    features={"pos": "VERB"},
+                ),
+            },
+            rendered_text="Dogs chased.",
+            strategy_name="mlm",
+            template_slots={"subj": True, "verb": False},
+        )
+
+    def test_view_shape(self) -> None:
+        view, _ = FILLED_TEMPLATE_FILLING.forward(self._filled())
+        assert view.templateRef == "tmpl-019a"
+        assert view.strategy == "mlm"
+        assert view.renderedText == "Dogs chased."
+        names = {s.slotName for s in view.slotFillings}
+        assert names == {"subj", "verb"}
+
+    def test_roundtrip_exact(self) -> None:
+        filled = self._filled()
+        view, complement = FILLED_TEMPLATE_FILLING.forward(filled)
+        assert FILLED_TEMPLATE_FILLING.backward(view, complement) == filled
+
+    def test_roundtrip_through_serialization(self) -> None:
+        filled = self._filled()
+        view, complement = FILLED_TEMPLATE_FILLING.forward(filled)
+        view2 = resource.Filling.model_validate_json(view.model_dump_json())
+        assert FILLED_TEMPLATE_FILLING.backward(view2, complement) == filled
+
+    def test_none_form_recovered(self) -> None:
+        filled = FilledTemplate(
+            template_id="t1",
+            template_name="intransitive",
+            slot_fillers={"subj": LexicalItem(lemma="rain", language_code="eng")},
+            rendered_text="Rain.",
+            strategy_name="manual",
+            template_slots={"subj": True},
+        )
+        view, complement = FILLED_TEMPLATE_FILLING.forward(filled)
+        restored = FILLED_TEMPLATE_FILLING.backward(view, complement)
+        assert restored.slot_fillers["subj"].form is None
+        assert restored == filled

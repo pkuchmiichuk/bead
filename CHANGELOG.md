@@ -7,6 +7,89 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-07-13
+
+### Added
+
+#### N-dimensional, mixed-variable grid stratification
+
+- `bead.lists.stratification` gained a grid engine that bins items along several
+  dimensions at once. `assign_grid_cells` maps each item to a tuple of
+  per-dimension bin indices, and `assign_grid_cells_by_uuid` returns the
+  row-major flattened cell id for the stand-off annotation pattern;
+  `grid_shape`, `flatten_cell`, and `unflatten_cell` convert between cell tuples
+  and ids.
+- Each dimension declares a binning strategy via the `BinningSpec` tagged union:
+  `QuantileBinning` (equal-frequency), `EqualWidthBinning` (equal-interval),
+  `ThresholdBinning` (caller-supplied cut points), and `StdDevBinning`
+  (standard-deviation offsets) for continuous values, and `CategoricalBinning`
+  (one bin per value, with optional declared categories and a catch-all) for
+  finite discrete values.
+- `GridStratificationConstraint` and its `GridDimension` axes express a grid as a
+  list constraint; `ListPartitioner` stratifies on the grid cell and
+  `QuantileBalancer.balance_by_cell` spreads each cell uniformly across lists.
+  The one-dimensional `assign_quantiles` path is now the quantile specialization
+  of this single engine.
+
+#### Acceptability-model stratification in the `eng` gallery
+
+- The `gallery/eng/argument_structure` example trains a 2AFC acceptability model
+  on MegaAcceptability (single-item Likert ratings mapped to forced-choice pairs
+  per annotator), uses it together with the language-model score to stratify
+  items across a two-dimensional grid, and seeds the active-learning loop with
+  the pretrained model. Gallery artifacts round-trip through the `layers` schema
+  via `bead.interop.layers`.
+- `AcceptabilityScorer` in `bead.items.scoring` scores a forced-choice item by a
+  trained `ForcedChoiceModel`, returning the predicted preference margin.
+
+#### More resource and response layers lenses
+
+- `FilledTemplateFillingLens` (`FILLED_TEMPLATE_FILLING`) maps a `FilledTemplate`
+  to and from a layers `filling` record (`resource.Filling`): the template
+  reference, per-slot `SlotFilling` records, rendered text, and filling strategy
+  form the view, while the bead framework identity, source template name, slot
+  requirement map, and exact lexical-item fillers travel in the lens complement.
+- `AnnotationRecordJudgmentLens` (`ANNOTATION_RECORD_JUDGMENT`) maps an
+  `AnnotationRecord` to and from a layers `judgment.Judgment`, and
+  `records_to_judgment_set` / `judgment_set_to_records` group a single
+  annotator's records into a `judgment.JudgmentSet` (with the annotator as an
+  `AgentRef`).
+- `ListConstraintLens` (`LIST_CONSTRAINT`) maps a bead `ListConstraint` to and
+  from a layers `judgment.ListConstraint`, and `ExperimentListLens`
+  (`EXPERIMENT_LIST_LAYERS`) maps an `ExperimentList` to a layers `collection`
+  with one `collectionMembership` per item plus its list constraints.
+- `ParticipantAgentLens` (`PARTICIPANT_AGENT`) maps a bead `Participant` to and
+  from a layers `AgentRef` identity, and `participant_features` renders the
+  participant's study fields (demographics, study id, sessions, consent) as the
+  `FeatureMap` that a `judgment.JudgmentSet` documents as the home for annotator
+  demographics, session metadata, and payment info. `records_to_judgment_set`
+  now takes an optional `participant`, so a judgment set carries that annotator's
+  identity and study fields natively. A layers `persona.Persona` is an annotator
+  role and interpretive framework, not a concrete enrolled participant, so it is
+  not the target of this mapping.
+
+  All of these round-trip exactly.
+
+#### Forced-choice training: dev-set early stopping
+
+- `ForcedChoiceModel` supports early stopping on a held-out dev set. A new
+  `early_stopping_patience` config field stops training after that many epochs
+  without dev cross-entropy improvement and restores the best encoder and head.
+  The `eng` gallery holds out whole sentences (never seen during training) for the
+  dev set and, with `max_pairs_per_annotator` unset, trains over every within-rater
+  same-frame pair.
+
+### Fixed
+
+- `ForcedChoiceModel` reports train and validation accuracy, precision, recall,
+  and F1 from the model's own predict path. The shared mixed-effects trainer's
+  `evaluate()` only labels cloze batches, so it could not score forced choice, and
+  train accuracy previously always read `0.0`. `compute_binary_metrics` and
+  `compute_multiclass_metrics` no longer pass `zero_division` to `evaluate`'s F1,
+  which this version rejects.
+- Forced-choice training and prediction move the per-participant random-effects
+  parameters to the model device, so the model runs on MPS and CUDA, not only CPU.
+
 ## [0.7.0] - 2026-06-29
 
 ### Added
@@ -564,7 +647,9 @@ guards as type-checkers.
 - CI/CD: GitHub Actions for testing, docs, PyPI publishing
 - Read the Docs integration
 
-[Unreleased]: https://github.com/FACTSlab/bead/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/FACTSlab/bead/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/FACTSlab/bead/compare/v0.7.0...v0.8.0
+[0.7.0]: https://github.com/FACTSlab/bead/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/FACTSlab/bead/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/FACTSlab/bead/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/FACTSlab/bead/compare/v0.3.0...v0.4.0

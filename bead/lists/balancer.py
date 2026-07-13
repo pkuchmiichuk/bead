@@ -118,28 +118,88 @@ class QuantileBalancer:
                 f"got {items_per_quantile_per_list}"
             )
 
-        # create quantile-based strata
+        # create quantile-based strata and distribute across lists
         strata = self._create_strata(item_ids, value_func)
+        return self._distribute(
+            strata, self.n_quantiles, n_lists, items_per_quantile_per_list
+        )
 
-        # initialize lists
+    def balance_by_cell(
+        self,
+        item_ids: list[UUID],
+        cell_func: Callable[[UUID], int],
+        n_cells: int,
+        n_lists: int,
+        items_per_cell_per_list: int,
+    ) -> list[list[UUID]]:
+        """Balance items across lists by an arbitrary precomputed stratum id.
+
+        Generalizes :meth:`balance` from one-dimensional quantiles to the cells
+        of an N-dimensional stratification grid. Each item's stratum is its grid
+        cell id; items in each cell are spread uniformly across lists.
+
+        Parameters
+        ----------
+        item_ids : list[UUID]
+            UUIDs of items to balance.
+        cell_func : Callable[[UUID], int]
+            Function returning the grid cell id (0 to n_cells-1) for an item.
+        n_cells : int
+            Number of grid cells.
+        n_lists : int
+            Number of lists to create.
+        items_per_cell_per_list : int
+            Target number of items per cell per list.
+
+        Returns
+        -------
+        list[list[UUID]]
+            Balanced lists of item UUIDs.
+
+        Raises
+        ------
+        ValueError
+            If n_cells < 1, n_lists < 1, or items_per_cell_per_list < 1.
+        """
+        if n_cells < 1:
+            raise ValueError(f"n_cells must be >= 1, got {n_cells}")
+        if n_lists < 1:
+            raise ValueError(f"n_lists must be >= 1, got {n_lists}")
+        if items_per_cell_per_list < 1:
+            raise ValueError(
+                f"items_per_cell_per_list must be >= 1, got {items_per_cell_per_list}"
+            )
+
+        strata: dict[int, list[UUID]] = {c: [] for c in range(n_cells)}
+        for item_id in item_ids:
+            strata[cell_func(item_id)].append(item_id)
+
+        return self._distribute(strata, n_cells, n_lists, items_per_cell_per_list)
+
+    def _distribute(
+        self,
+        strata: dict[int, list[UUID]],
+        n_strata: int,
+        n_lists: int,
+        items_per_stratum_per_list: int,
+    ) -> list[list[UUID]]:
+        """Distribute each stratum's items uniformly across lists.
+
+        Within each stratum, items are shuffled and sliced contiguously per
+        list. If a stratum holds fewer items than ``n_lists *
+        items_per_stratum_per_list``, the later lists receive fewer items.
+        """
         lists: list[list[UUID]] = [[] for _ in range(n_lists)]
 
-        # distribute items from each quantile across lists
-        for q in range(self.n_quantiles):
-            q_items = strata[q]
+        for stratum in range(n_strata):
+            stratum_items = strata.get(stratum, [])
+            stratum_array = np.array(stratum_items, dtype=object)
+            self._rng.shuffle(stratum_array)
 
-            # shuffle items in this quantile
-            q_items_array = np.array(q_items)
-            self._rng.shuffle(q_items_array)
-
-            # distribute to lists
             for list_idx in range(n_lists):
-                # take items for this list
-                start_idx = list_idx * items_per_quantile_per_list
-                end_idx = start_idx + items_per_quantile_per_list
-                list_items = q_items_array[start_idx:end_idx].tolist()
-
-                lists[list_idx].extend(list_items)
+                start_idx = list_idx * items_per_stratum_per_list
+                end_idx = start_idx + items_per_stratum_per_list
+                lists[list_idx].extend(stratum_array[start_idx:end_idx].tolist())
 
         return lists
 

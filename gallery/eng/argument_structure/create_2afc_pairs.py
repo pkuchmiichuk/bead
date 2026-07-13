@@ -18,7 +18,9 @@ import sys
 from pathlib import Path
 from uuid import uuid4
 
+import layers_io
 import yaml
+from protocol import ACCEPTABILITY_ANCHOR_NAME
 
 from bead.cli.display import (
     confirm,
@@ -31,11 +33,10 @@ from bead.cli.display import (
     print_warning,
 )
 from bead.items.forced_choice import create_forced_choice_items_from_groups
-
-from protocol import ACCEPTABILITY_ANCHOR_NAME
 from bead.items.item import Item
-from bead.items.scoring import LanguageModelScorer
-from bead.lists.stratification import assign_quantiles_by_uuid
+from bead.items.scoring import AcceptabilityScorer, LanguageModelScorer
+from bead.lists.constraints import CategoricalBinning, QuantileBinning
+from bead.lists.stratification import assign_grid_cells_by_uuid
 from bead.templates.filler import FilledTemplate
 
 
@@ -132,6 +133,20 @@ def score_filled_items_with_lm(
     return scores
 
 
+def with_metadata(item: Item, extra: dict[str, object]) -> Item:
+    """Return a copy of ``item`` with ``extra`` merged into its metadata.
+
+    Items are frozen, so metadata is updated through ``with_`` rather than by
+    mutating the dict in place (which would not persist). ``None`` values are
+    skipped so absent fields do not fail metadata validation.
+    """
+    merged: dict[str, object] = dict(item.item_metadata)
+    for key, value in extra.items():
+        if value is not None:
+            merged[key] = value
+    return item.with_(item_metadata=merged)
+
+
 def create_forced_choice_pairs(
     items: list[Item],
     lm_scores: dict[str, float],
@@ -142,20 +157,29 @@ def create_forced_choice_pairs(
     1. Same-verb pairs (same verb, different frames)
     2. Different-verb pairs (different verbs, same frame)
     """
-    # Add scores to item metadata
-    for item in items:
-        item.item_metadata["lm_score"] = lm_scores.get(str(item.id), float("-inf"))
-
     # Create lookup dict to avoid O(n) scans for each pair
     item_lookup = {str(item.id): item for item in items}
 
     # Helper to extract text from items
     def extract_text(item: Item) -> str:
-        return item.rendered_elements.get("text", "")
+        text = item.rendered_elements.get("text", "")
+        return text if isinstance(text, str) else ""
+
+    def lm_diff(a: Item, b: Item) -> float:
+        return abs(lm_scores.get(str(a.id), 0.0) - lm_scores.get(str(b.id), 0.0))
+
+    def source_pair(fc_item: Item) -> tuple[Item, Item] | None:
+        id0 = fc_item.item_metadata.get("source_item_0_id")
+        id1 = fc_item.item_metadata.get("source_item_1_id")
+        s0 = item_lookup.get(str(id0)) if id0 is not None else None
+        s1 = item_lookup.get(str(id1)) if id1 is not None else None
+        if s0 is None or s1 is None:
+            return None
+        return s0, s1
 
     # 1. Create same-verb pairs (group by verb_lemma)
     with console.status("[bold]Creating same-verb pairs...[/bold]"):
-        same_verb_items = create_forced_choice_items_from_groups(
+        same_verb_raw = create_forced_choice_items_from_groups(
             items=items,
             group_by=lambda item: item.item_metadata.get("verb_lemma", "unknown"),
             n_alternatives=2,
@@ -163,38 +187,33 @@ def create_forced_choice_pairs(
             include_group_metadata=True,
         )
 
-    # Add pair_type and additional metadata
-    for fc_item in same_verb_items:
-        item1_id = fc_item.item_metadata.get("source_item_0_id")
-        item2_id = fc_item.item_metadata.get("source_item_1_id")
-
-        # Use lookup dict instead of list comprehension
-        source_items = [item_lookup.get(item1_id), item_lookup.get(item2_id)]
-        if all(source_items) and len(source_items) == 2:
-            fc_item.item_metadata.update(
+    same_verb_items: list[Item] = []
+    for fc_item in same_verb_raw:
+        pair = source_pair(fc_item)
+        if pair is None:
+            continue
+        s0, s1 = pair
+        same_verb_items.append(
+            with_metadata(
+                fc_item,
                 {
                     "pair_type": "same_verb",
-                    "verb": source_items[0].item_metadata.get("verb_lemma"),
-                    "template1": source_items[0].item_metadata.get(
-                        "template_structure"
-                    ),
-                    "template2": source_items[1].item_metadata.get(
-                        "template_structure"
-                    ),
-                    "lm_score_a": lm_scores.get(str(source_items[0].id), float("-inf")),
-                    "lm_score_b": lm_scores.get(str(source_items[1].id), float("-inf")),
-                    "lm_score_diff": abs(
-                        lm_scores.get(str(source_items[0].id), 0)
-                        - lm_scores.get(str(source_items[1].id), 0)
-                    ),
-                }
+                    "verb": s0.item_metadata.get("verb_lemma"),
+                    "template1": s0.item_metadata.get("template_structure"),
+                    "template2": s1.item_metadata.get("template_structure"),
+                    "lm_score_a": lm_scores.get(str(s0.id), 0.0),
+                    "lm_score_b": lm_scores.get(str(s1.id), 0.0),
+                    "lm_score_diff": lm_diff(s0, s1),
+                    "anchor": ACCEPTABILITY_ANCHOR_NAME,
+                },
             )
+        )
 
     print_success(f"Created {len(same_verb_items):,} same-verb pairs")
 
     # 2. Create different-verb pairs (group by template_id)
     with console.status("[bold]Creating different-verb pairs...[/bold]"):
-        different_verb_items = create_forced_choice_items_from_groups(
+        different_verb_raw = create_forced_choice_items_from_groups(
             items=items,
             group_by=lambda item: str(item.item_template_id),
             n_alternatives=2,
@@ -202,76 +221,131 @@ def create_forced_choice_pairs(
             include_group_metadata=True,
         )
 
-    # Add pair_type and additional metadata
-    for fc_item in different_verb_items:
-        item1_id = fc_item.item_metadata.get("source_item_0_id")
-        item2_id = fc_item.item_metadata.get("source_item_1_id")
-
-        # Use lookup dict instead of list comprehension
-        source_items = [item_lookup.get(item1_id), item_lookup.get(item2_id)]
-        if all(source_items) and len(source_items) == 2:
-            fc_item.item_metadata.update(
+    different_verb_items: list[Item] = []
+    for fc_item in different_verb_raw:
+        pair = source_pair(fc_item)
+        if pair is None:
+            continue
+        s0, s1 = pair
+        different_verb_items.append(
+            with_metadata(
+                fc_item,
                 {
                     "pair_type": "different_verb",
-                    "template_id": str(source_items[0].item_template_id),
-                    "template_structure": source_items[0].item_metadata.get(
-                        "template_structure"
-                    ),
-                    "verb1": source_items[0].item_metadata.get("verb_lemma"),
-                    "verb2": source_items[1].item_metadata.get("verb_lemma"),
-                    "lm_score_a": lm_scores.get(str(source_items[0].id), float("-inf")),
-                    "lm_score_b": lm_scores.get(str(source_items[1].id), float("-inf")),
-                    "lm_score_diff": abs(
-                        lm_scores.get(str(source_items[0].id), 0)
-                        - lm_scores.get(str(source_items[1].id), 0)
-                    ),
-                }
+                    "template_id": str(s0.item_template_id),
+                    "template_structure": s0.item_metadata.get("template_structure"),
+                    "verb1": s0.item_metadata.get("verb_lemma"),
+                    "verb2": s1.item_metadata.get("verb_lemma"),
+                    "lm_score_a": lm_scores.get(str(s0.id), 0.0),
+                    "lm_score_b": lm_scores.get(str(s1.id), 0.0),
+                    "lm_score_diff": lm_diff(s0, s1),
+                    "anchor": ACCEPTABILITY_ANCHOR_NAME,
+                },
             )
+        )
 
     print_success(f"Created {len(different_verb_items):,} different-verb pairs")
 
-    # Thread the protocol anchor name onto every pair so downstream
-    # JATOS-result → AnnotationRecord conversion can match responses
-    # back to the canonical 2AFC acceptability anchor.
-    all_pairs = same_verb_items + different_verb_items
-    for fc_item in all_pairs:
-        fc_item.item_metadata["anchor"] = ACCEPTABILITY_ANCHOR_NAME
-    return all_pairs
+    return same_verb_items + different_verb_items
 
 
-def assign_quantiles_to_pairs(
+def score_pairs_with_acceptability(
     pair_items: list[Item],
-    n_quantiles: int = 10,
+    checkpoint_dir: Path,
 ) -> list[Item]:
-    """Assign quantile bins using bead/lists/stratification.py.
+    """Score 2AFC pairs with the trained acceptability model.
 
-    Stratifies by pair_type so same-verb and different-verb pairs
-    get separate quantile distributions.
+    Returns new pairs carrying ``acceptability_score_diff`` (the predicted
+    preference margin) and ``accept_p_prefer_a``. When the checkpoint is
+    missing, the acceptability dimension is filled with zeros so the grid still
+    partitions.
+
+    Parameters
+    ----------
+    pair_items : list[Item]
+        The 2AFC pairs to score.
+    checkpoint_dir : Path
+        Directory holding the trained ForcedChoiceModel checkpoint.
+
+    Returns
+    -------
+    list[Item]
+        The scored pairs.
     """
-    with console.status(
-        "[bold]Assigning quantiles (stratified by pair_type)...[/bold]"
-    ):
-        # Build metadata dict for quantile assignment
-        item_metadata = {item.id: item.item_metadata for item in pair_items}
+    if not checkpoint_dir.exists():
+        print_warning(
+            f"Acceptability checkpoint not found at {checkpoint_dir}; "
+            "filling acceptability_score_diff with 0.0. Train the model first "
+            "with train_acceptability_model.py for grid stratification."
+        )
+        return [
+            with_metadata(
+                item,
+                {"acceptability_score_diff": 0.0, "accept_p_prefer_a": 0.5},
+            )
+            for item in pair_items
+        ]
 
-        # Get item IDs
+    with console.status("[bold]Scoring pairs with acceptability model...[/bold]"):
+        scorer = AcceptabilityScorer.from_checkpoint(checkpoint_dir)
+        scored = scorer.score_with_metadata(pair_items)
+        result = [
+            with_metadata(
+                item,
+                {
+                    "acceptability_score_diff": float(
+                        scored[item.id]["acceptability_margin"]
+                    ),
+                    "accept_p_prefer_a": float(scored[item.id]["p_first"]),
+                },
+            )
+            for item in pair_items
+        ]
+
+    print_success(f"Scored {len(pair_items):,} pairs with the acceptability model")
+    return result
+
+
+def assign_grid_cells_to_pairs(
+    pair_items: list[Item],
+    n_quantiles: int = 5,
+) -> list[Item]:
+    """Stratify pairs across a grid of acceptability margin x LM score x pair type.
+
+    Bins the acceptability-model margin and the language-model score difference
+    into quantiles and crosses them with the categorical pair type, storing the
+    flattened grid cell id as ``stratum_cell`` on each returned pair.
+    """
+    with console.status("[bold]Assigning grid cells (acceptability x LM)...[/bold]"):
+        item_metadata = {item.id: dict(item.item_metadata) for item in pair_items}
         item_ids = [item.id for item in pair_items]
 
-        # Assign quantiles stratified by pair_type
-        quantile_assignments = assign_quantiles_by_uuid(
+        cell_ids = assign_grid_cells_by_uuid(
             item_ids=item_ids,
             item_metadata=item_metadata,
-            property_key="lm_score_diff",
-            n_quantiles=n_quantiles,
-            stratify_by_key="pair_type",
+            property_keys=[
+                "acceptability_score_diff",
+                "lm_score_diff",
+                "pair_type",
+            ],
+            binnings=[
+                QuantileBinning(binning="quantile", n_quantiles=n_quantiles),
+                QuantileBinning(binning="quantile", n_quantiles=n_quantiles),
+                CategoricalBinning(
+                    binning="categorical",
+                    categories=("same_verb", "different_verb"),
+                ),
+            ],
         )
 
-        # Add quantile to each item's metadata
-        for item in pair_items:
-            item.item_metadata["quantile"] = quantile_assignments[item.id]
+        result = [
+            with_metadata(item, {"stratum_cell": cell_ids[item.id]})
+            for item in pair_items
+        ]
 
-    print_success(f"Assigned quantiles to {len(pair_items):,} pairs")
-    return pair_items
+    n_cells = len(set(cell_ids.values()))
+    print_success(f"Assigned {len(pair_items):,} pairs across {n_cells} grid cells")
+    return result
 
 
 def main(
@@ -373,15 +447,19 @@ def main(
 
         console.print()
 
-        # Assign quantiles
-        quantile_bins = config["lists"].get("quantile_bins", 10)
-        pair_items = assign_quantiles_to_pairs(pair_items, n_quantiles=quantile_bins)
+        # Score with the acceptability model, then stratify across the grid of
+        # acceptability margin x language-model score x pair type.
+        checkpoint_dir = base_dir / config["acceptability_model"]["checkpoint_dir"]
+        pair_items = score_pairs_with_acceptability(pair_items, checkpoint_dir)
+        quantile_bins = config["lists"].get("quantile_bins", 5)
+        pair_items = assign_grid_cells_to_pairs(pair_items, n_quantiles=quantile_bins)
         console.print()
     except Exception as e:
         print_error(f"Failed to create pairs: {e}")
         sys.exit(1)
 
-    # Save
+    # Save: a bead-native JSONL plus the canonical layers fragment and an
+    # Arrow/Parquet corpus through the bead lairs codec.
     print_header("Saving Results")
     try:
         output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -389,8 +467,25 @@ def main(
             with open(output_path, "w") as f:
                 for item in pair_items:
                     f.write(item.model_dump_json() + "\n")
+        print_success(f"Saved {len(pair_items):,} 2AFC pairs to {output_path.name}")
 
-        print_success(f"Saved {len(pair_items):,} 2AFC pairs\n")
+        if config.get("layers", {}).get("enabled", True):
+            fragment_path = base_dir / config["paths"]["2afc_pairs_fragment"]
+            corpus_dir = (
+                base_dir / config["paths"]["2afc_corpus_dir"]
+                if config["layers"].get("materialize", True)
+                else None
+            )
+            with console.status("[bold]Encoding layers fragment + corpus...[/bold]"):
+                layers_io.write_items(
+                    pair_items,
+                    name="argument_structure_2afc",
+                    fragment_path=fragment_path,
+                    materialize_dir=corpus_dir,
+                )
+            print_success(f"Wrote layers fragment to {fragment_path.name}")
+            if corpus_dir is not None:
+                print_success(f"Materialized layers corpus to {corpus_dir.name}\n")
     except Exception as e:
         print_error(f"Failed to save output: {e}")
         sys.exit(1)

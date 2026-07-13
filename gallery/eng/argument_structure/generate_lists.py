@@ -7,12 +7,12 @@ according to the configuration in config.yaml.
 
 from __future__ import annotations
 
-import json
 import sys
 import traceback
 from pathlib import Path
 from uuid import UUID, uuid4
 
+import layers_io
 import yaml
 
 from bead.cli.display import (
@@ -26,8 +26,15 @@ from bead.cli.display import (
 from bead.items.item import Item
 from bead.lists import (
     BalanceConstraint,
+    CategoricalBinning,
     DiversityConstraint,
+    EqualWidthBinning,
+    GridDimension,
+    GridStratificationConstraint,
     ListCollection,
+    QuantileBinning,
+    StdDevBinning,
+    ThresholdBinning,
     UniquenessConstraint,
 )
 from bead.lists.constraints import (
@@ -35,7 +42,7 @@ from bead.lists.constraints import (
     BatchCoverageConstraint,
     BatchDiversityConstraint,
     BatchMinOccurrenceConstraint,
-    GroupedQuantileConstraint,
+    BinningSpec,
 )
 from bead.lists.partitioner import ListPartitioner
 
@@ -60,8 +67,10 @@ def load_2afc_pairs(pairs_path: Path) -> tuple[list[Item], dict[UUID, dict]]:
 
         with open(pairs_path) as f:
             for line in f:
-                data = json.loads(line)
-                item = Item(**data)
+                line = line.strip()
+                if not line:
+                    continue
+                item = Item.model_validate_json(line)
                 items.append(item)
 
                 # Build metadata dict for constraint checking
@@ -71,6 +80,48 @@ def load_2afc_pairs(pairs_path: Path) -> tuple[list[Item], dict[UUID, dict]]:
 
     print_success(f"Loaded {len(items)} 2AFC pairs")
     return items, metadata_dict
+
+
+def build_binning(spec: dict) -> BinningSpec:
+    """Build a binning strategy from a config dict.
+
+    Parameters
+    ----------
+    spec : dict
+        Mapping with a ``type`` key (quantile, equal_width, threshold, stddev,
+        or categorical) and strategy-specific parameters.
+
+    Returns
+    -------
+    BinningSpec
+        The constructed binning strategy.
+    """
+    binning_type = spec["type"]
+    if binning_type == "quantile":
+        return QuantileBinning(
+            binning="quantile", n_quantiles=spec.get("n_quantiles", 5)
+        )
+    if binning_type == "equal_width":
+        return EqualWidthBinning(
+            binning="equal_width",
+            n_bins=spec.get("n_bins", 5),
+            range_min=spec.get("range_min"),
+            range_max=spec.get("range_max"),
+        )
+    if binning_type == "threshold":
+        return ThresholdBinning(binning="threshold", edges=tuple(spec["edges"]))
+    if binning_type == "stddev":
+        return StdDevBinning(
+            binning="stddev", k_values=tuple(spec.get("k_values", (-1.0, 0.0, 1.0)))
+        )
+    if binning_type == "categorical":
+        categories = spec.get("categories")
+        return CategoricalBinning(
+            binning="categorical",
+            categories=tuple(categories) if categories else None,
+            include_other=spec.get("include_other", False),
+        )
+    raise ValueError(f"Unknown binning type: {binning_type}")
 
 
 def build_constraints(config: dict) -> tuple[list, list]:
@@ -91,28 +142,37 @@ def build_constraints(config: dict) -> tuple[list, list]:
         if constraint_type == "balance":
             list_constraints.append(
                 BalanceConstraint(
+                    constraint_type="balance",
                     property_expression=constraint_spec["property_expression"],
-                    target_counts=constraint_spec.get("target_counts", {}),
+                    target_counts=constraint_spec.get("target_counts"),
                 )
             )
         elif constraint_type == "uniqueness":
             list_constraints.append(
                 UniquenessConstraint(
-                    property_expression=constraint_spec["property_expression"]
+                    constraint_type="uniqueness",
+                    property_expression=constraint_spec["property_expression"],
                 )
             )
-        elif constraint_type == "grouped_quantile":
+        elif constraint_type == "grid_stratification":
             list_constraints.append(
-                GroupedQuantileConstraint(
-                    property_expression=constraint_spec["property_expression"],
-                    group_by_expression=constraint_spec["group_by_expression"],
-                    n_quantiles=constraint_spec["n_quantiles"],
-                    items_per_quantile=constraint_spec["items_per_quantile"],
+                GridStratificationConstraint(
+                    constraint_type="grid_stratification",
+                    dimensions=tuple(
+                        GridDimension(
+                            property_expression=dim["property_expression"],
+                            binning=build_binning(dim["binning"]),
+                        )
+                        for dim in constraint_spec["dimensions"]
+                    ),
+                    group_by_expression=constraint_spec.get("group_by_expression"),
+                    items_per_cell=constraint_spec.get("items_per_cell", 2),
                 )
             )
         elif constraint_type == "diversity":
             list_constraints.append(
                 DiversityConstraint(
+                    constraint_type="diversity",
                     property_expression=constraint_spec["property_expression"],
                     min_unique_values=constraint_spec["min_unique_values"],
                 )
@@ -125,14 +185,16 @@ def build_constraints(config: dict) -> tuple[list, list]:
         if constraint_type == "coverage":
             batch_constraints.append(
                 BatchCoverageConstraint(
+                    constraint_type="coverage",
                     property_expression=constraint_spec["property_expression"],
-                    target_values=constraint_spec["target_values"],
+                    target_values=tuple(constraint_spec["target_values"]),
                     min_coverage=constraint_spec.get("min_coverage", 1.0),
                 )
             )
         elif constraint_type == "balance":
             batch_constraints.append(
                 BatchBalanceConstraint(
+                    constraint_type="balance",
                     property_expression=constraint_spec["property_expression"],
                     target_distribution=constraint_spec.get("target_distribution", {}),
                     tolerance=constraint_spec.get("tolerance", 0.05),
@@ -141,6 +203,7 @@ def build_constraints(config: dict) -> tuple[list, list]:
         elif constraint_type == "min_occurrence":
             batch_constraints.append(
                 BatchMinOccurrenceConstraint(
+                    constraint_type="min_occurrence",
                     property_expression=constraint_spec["property_expression"],
                     min_occurrences=constraint_spec["min_occurrences"],
                 )
@@ -148,6 +211,7 @@ def build_constraints(config: dict) -> tuple[list, list]:
         elif constraint_type == "diversity":
             batch_constraints.append(
                 BatchDiversityConstraint(
+                    constraint_type="diversity",
                     property_expression=constraint_spec["property_expression"],
                     max_lists_per_value=constraint_spec.get("max_lists_per_value"),
                 )
@@ -179,10 +243,18 @@ def main() -> None:
     console.print(f"  - Items per list: [cyan]{items_per_list}[/cyan]")
     console.print(f"  - Strategy: [cyan]{strategy}[/cyan]\n")
 
-    # Load 2AFC pairs
+    # Load 2AFC pairs, preferring the canonical layers fragment
     print_header("[2/5] Loading 2AFC Pairs")
+    fragment_path = base_dir / config["paths"].get("2afc_pairs_fragment", "")
     pairs_path = base_dir / config["paths"]["2afc_pairs"]
-    items, metadata_dict = load_2afc_pairs(pairs_path)
+    if config["paths"].get("2afc_pairs_fragment") and fragment_path.exists():
+        print_success(f"Loading from layers fragment {fragment_path.name}")
+        items = layers_io.read_items(fragment_path)
+        metadata_dict = {
+            item.id: {"metadata": dict(item.item_metadata)} for item in items
+        }
+    else:
+        items, metadata_dict = load_2afc_pairs(pairs_path)
 
     # Build constraints
     console.print()
@@ -262,7 +334,15 @@ def main() -> None:
     # Save as JSONL
     list_collection.to_jsonl(output_path)
 
-    print_success(f"Saved {len(experiment_lists)} lists to {output_path}\n")
+    print_success(f"Saved {len(experiment_lists)} lists to {output_path}")
+
+    # also persist the lists as layers collection aggregates
+    fragment_rel = config["paths"].get("experiment_lists_fragment")
+    if fragment_rel:
+        fragment_path = base_dir / fragment_rel
+        layers_io.write_experiment_lists_layers(list(experiment_lists), fragment_path)
+        print_success(f"Wrote layers list collections to {fragment_path.name}")
+    console.print()
 
     # Print summary table
     print_header("Summary")

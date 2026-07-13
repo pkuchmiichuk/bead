@@ -8,6 +8,7 @@ import argparse
 import sys
 from pathlib import Path
 
+import layers_io
 from utils.template_generator import generate_templates_for_all_verbs
 from utils.verbnet_parser import VerbNetExtractor
 
@@ -83,6 +84,11 @@ def main(verb_limit: int | None = None, *, yes: bool = False) -> None:
                     progress.advance(task)
 
         print_success(f"Saved {len(templates):,} templates to {output_path}")
+
+        # also persist as layers resource templates
+        layers_path = output_path.with_suffix(".layers.json")
+        layers_io.write_templates_layers(list(templates), layers_path)
+        print_success(f"Wrote layers templates to {layers_path}")
 
         # summary statistics
         print_header("Template Generation Complete")

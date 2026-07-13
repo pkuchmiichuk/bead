@@ -22,6 +22,8 @@ What is mapped:
 - bead's resources to their layers counterparts: ``LexicalItem`` to an
   ``entry``, ``Lexicon`` to a ``collection``, and ``Template`` to a ``template``
   (see ``resource_lens``).
+- a ``Participant`` to a layers ``agentRef`` identity, with its study fields
+  rendered as the ``featureMap`` of a ``judgmentSet`` (see ``participant_lens``).
 """
 
 from __future__ import annotations
@@ -55,16 +57,37 @@ from bead.interop.layers.item_bridge import (
     ItemLayersLens,
     item_to_layers,
 )
+from bead.interop.layers.judgment_lens import (
+    ANNOTATION_RECORD_JUDGMENT,
+    AnnotationRecordJudgmentLens,
+    judgment_set_to_records,
+    records_to_judgment_set,
+)
+from bead.interop.layers.list_lens import (
+    EXPERIMENT_LIST_LAYERS,
+    LIST_CONSTRAINT,
+    ExperimentListLayers,
+    ExperimentListLens,
+    ListConstraintLens,
+)
 from bead.interop.layers.parse_lens import (
     PARSED_SENTENCE_LAYERS,
     ParsedSentenceLayers,
     ParsedSentenceLayersIso,
     parse_to_layers,
 )
+from bead.interop.layers.participant_lens import (
+    PARTICIPANT_AGENT,
+    ParticipantAgentLens,
+    agent_ref_of,
+    participant_features,
+)
 from bead.interop.layers.resource_lens import (
+    FILLED_TEMPLATE_FILLING,
     LEXICAL_ITEM_ENTRY,
     LEXICON_COLLECTION,
     TEMPLATE_LAYERS,
+    FilledTemplateFillingLens,
     LexicalItemEntryLens,
     LexiconCollectionLens,
     LexiconLayers,
@@ -72,24 +95,36 @@ from bead.interop.layers.resource_lens import (
 )
 
 __all__ = [
+    "ANNOTATION_RECORD_JUDGMENT",
     "CORPUS_GRAPH_LAYERS",
+    "EXPERIMENT_LIST_LAYERS",
+    "FILLED_TEMPLATE_FILLING",
     "ITEM_LAYERS",
     "LEXICAL_ITEM_ENTRY",
     "LEXICON_COLLECTION",
+    "LIST_CONSTRAINT",
     "PARSED_SENTENCE_LAYERS",
+    "PARTICIPANT_AGENT",
     "RECORD_EXPRESSION",
     "TEMPLATE_LAYERS",
+    "AnnotationRecordJudgmentLens",
     "BeadCodec",
     "CorpusGraphLayers",
     "CorpusGraphLayersLens",
+    "ExperimentListLayers",
+    "ExperimentListLens",
+    "FilledTemplateFillingLens",
     "ItemLayersLens",
     "LexicalItemEntryLens",
     "LexiconCollectionLens",
     "LexiconLayers",
+    "ListConstraintLens",
     "ParsedSentenceLayers",
     "ParsedSentenceLayersIso",
+    "ParticipantAgentLens",
     "RecordExpressionLens",
     "TemplateLayersLens",
+    "agent_ref_of",
     "corpus_to_graph",
     "corpus_to_items",
     "corpus_to_records",
@@ -98,10 +133,13 @@ __all__ = [
     "graph_to_layers",
     "item_to_layers",
     "items_to_corpus",
+    "judgment_set_to_records",
     "load_layers_corpus",
     "materialize_corpus",
     "parse_to_layers",
+    "participant_features",
     "publish_corpus",
     "record_to_expression",
+    "records_to_judgment_set",
     "save_corpus_repo",
 ]

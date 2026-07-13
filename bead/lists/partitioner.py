@@ -8,6 +8,7 @@ and stratified. Uses stand-off annotation (works with UUIDs only).
 from __future__ import annotations
 
 from collections import Counter, defaultdict
+from collections.abc import Callable, Hashable
 from typing import Any
 from uuid import UUID
 
@@ -22,12 +23,15 @@ from bead.lists.constraints import (
     BatchCoverageConstraint,
     BatchDiversityConstraint,
     BatchMinOccurrenceConstraint,
+    GridDimension,
+    GridStratificationConstraint,
     ListConstraint,
     QuantileConstraint,
     SizeConstraint,
     UniquenessConstraint,
 )
 from bead.lists.experiment_list import ExperimentList, MetadataValue
+from bead.lists.stratification import assign_grid_cells, flatten_cell, grid_shape
 from bead.resources.constraints import ContextValue
 
 # Type aliases for clarity
@@ -262,7 +266,17 @@ class ListPartitioner:
         list[ExperimentList]
             Partitioned lists.
         """
-        # Find quantile constraints
+        # Prefer an N-dimensional grid constraint when present
+        grid_constraints = [
+            c for c in constraints if isinstance(c, GridStratificationConstraint)
+        ]
+        if grid_constraints:
+            balanced_lists = self._balance_grid(
+                items, grid_constraints[0], n_lists, metadata
+            )
+            return self._build_lists(balanced_lists, constraints, metadata)
+
+        # Otherwise stratify on the first one-dimensional quantile constraint
         quantile_constraints = [
             c for c in constraints if isinstance(c, QuantileConstraint)
         ]
@@ -292,7 +306,15 @@ class ListPartitioner:
             items, value_func, n_lists, qc.items_per_quantile
         )
 
-        # Convert to ExperimentList objects
+        return self._build_lists(balanced_lists, constraints, metadata)
+
+    def _build_lists(
+        self,
+        balanced_lists: list[list[UUID]],
+        constraints: list[ListConstraint],
+        metadata: MetadataDict,
+    ) -> list[ExperimentList]:
+        """Wrap balanced UUID lists in ``ExperimentList`` objects with metrics."""
         lists: list[ExperimentList] = []
         for i, item_ids in enumerate(balanced_lists):
             exp_list = ExperimentList(
@@ -309,6 +331,63 @@ class ListPartitioner:
             lists.append(exp_list)
 
         return lists
+
+    def _balance_grid(
+        self,
+        items: list[UUID],
+        constraint: GridStratificationConstraint,
+        n_lists: int,
+        metadata: MetadataDict,
+    ) -> list[list[UUID]]:
+        """Distribute items across lists by their N-dimensional grid cell.
+
+        Bins each item along every grid dimension (continuous bins computed
+        within ``group_by_expression`` groups when set), flattens the cell to a
+        single id, and spreads each cell uniformly across lists.
+        """
+        getters = [
+            self._make_dimension_getter(dim, metadata) for dim in constraint.dimensions
+        ]
+        binnings = [dim.binning for dim in constraint.dimensions]
+
+        stratify_func: Callable[[UUID], Hashable] | None
+        if constraint.group_by_expression is not None:
+            group_expr = constraint.group_by_expression
+
+            def group_getter(item_id: UUID) -> Hashable:
+                return self._extract_property_value(
+                    item_id, group_expr, constraint.context, metadata
+                )
+
+            stratify_func = group_getter
+        else:
+            stratify_func = None
+
+        coords = assign_grid_cells(items, getters, binnings, stratify_func)
+        shape = grid_shape(items, getters, binnings)
+        n_cells = int(np.prod(shape)) if shape else 1
+        cell_ids = {item_id: flatten_cell(coords[item_id], shape) for item_id in items}
+
+        balancer = QuantileBalancer(n_quantiles=2, random_seed=self.random_seed)
+        return balancer.balance_by_cell(
+            items,
+            lambda item_id: cell_ids[item_id],
+            n_cells,
+            n_lists,
+            constraint.items_per_cell,
+        )
+
+    def _make_dimension_getter(
+        self, dimension: GridDimension, metadata: MetadataDict
+    ) -> Callable[[UUID], float | str]:
+        """Build a value accessor for one grid dimension via its DSL expression."""
+
+        def getter(item_id: UUID) -> float | str:
+            return self._extract_property_value(
+                item_id, dimension.property_expression, dimension.context, metadata
+            )
+
+        return getter
 
     def _find_best_list_index(
         self,

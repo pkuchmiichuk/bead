@@ -13,6 +13,7 @@ import logging
 import sys
 from pathlib import Path
 
+import layers_io
 import yaml
 from utils.renderers import OtherNounRenderer
 
@@ -304,6 +305,11 @@ def main() -> None:
         output_path.parent.mkdir(parents=True, exist_ok=True)
         write_jsonlines(filled_templates, output_path)
         print_success(f"Saved filled templates to {output_path}")
+
+        # also persist as layers filling records
+        layers_path = output_path.with_suffix(".layers.json")
+        layers_io.write_fillings_layers(filled_templates, layers_path)
+        print_success(f"Wrote layers fillings to {layers_path}")
     except Exception as e:
         print_error(f"Failed to save output: {e}")
         sys.exit(1)

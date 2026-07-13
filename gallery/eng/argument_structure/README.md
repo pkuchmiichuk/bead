@@ -22,7 +22,7 @@ This project implements a human-in-the-loop active learning pipeline for studyin
 1. **Extracts verb-specific templates** from VerbNet with detailed frame information
 2. **Generates generic frame structures** by abstracting across verb-specific patterns
 3. **Tests all verbs in all frame structures** using a full cross-product design
-4. **Generates 2AFC (two-alternative forced choice) pairs** stratified by language model scores
+4. **Generates 2AFC (two-alternative forced choice) pairs** stratified across a grid of a MegaAcceptability-trained acceptability model and language model scores
 5. **Iteratively collects human judgments** through web-based experiments
 6. **Trains predictive models** that converge to human inter-annotator agreement
 7. **Detects convergence** using Krippendorff's alpha and other reliability metrics
@@ -183,7 +183,7 @@ The pipeline consists of 10 main scripts organized into 4 stages:
 │     ├─ Load filled templates from previous step                 │
 │     ├─ Score with language model (GPT-2)                        │
 │     ├─ Create minimal pairs (same_verb, different_verb)         │
-│     └─ Stratify by LM score quantiles                           │
+│     └─ Stratify by acceptability x LM score grid                │
 │     → Output: items/2afc_pairs.jsonl                            │
 │                                                                 │
 │  7. generate_lists.py                                           │
@@ -625,9 +625,19 @@ We create two types of pairs: same_verb pairs test alternations by using the sam
 
 This format has several advantages over Likert scales. It eliminates scale bias and increases inter-rater reliability, forces relative rather than absolute judgments (making it more sensitive to acceptability gradients), speeds up annotation by removing multi-point scale deliberation, and feels like a natural task that aligns with linguistic intuitions.
 
-### Stratified Sampling
+### Acceptability Model
 
-Items are stratified into 10 quantiles based on language model score differences. Quantiles 1-3 contain easy pairs with large LM score differences, quantiles 4-7 have medium pairs with moderate differences, and quantiles 8-10 include hard pairs with small differences near the ceiling. This ensures the model learns across the full difficulty spectrum.
+A 2AFC acceptability classifier trained on the MegaAcceptability dataset informs stratification. MegaAcceptability collects single-sentence ordinal (1-7) ratings from many annotators, so `prepare_megaacceptability.py` converts those Likert ratings into 2AFC training pairs by per-annotator within-rater pairing: for each annotator, two sentences they both rated become a forced-choice pair whose gold label is the sentence they rated higher, and the annotator id rides along as a participant id so the model uses participant random effects. `train_acceptability_model.py` then trains a `ForcedChoiceModel` on these pairs. Its predicted preference margin scores each constructed pair (`AcceptabilityScorer`), and it seeds the active-learning loop, which fine-tunes it on collected human judgments.
+
+### Grid Stratification
+
+Pairs are stratified across a grid of two signals rather than one. The acceptability-model margin and the language-model score difference are each binned into quantiles and crossed with the categorical pair type, so every experiment list spans the full difficulty space along both signals at once. The grid is expressed as a `grid_stratification` list constraint over `acceptability_score_diff` (quantile), `lm_score_diff` (quantile), and `pair_type` (categorical); each pair stores its flattened grid cell as `stratum_cell`. Grid stratification is general: a dimension can use quantile, equal-width, threshold, or standard-deviation binning for continuous values, or categorical binning for discrete values.
+
+### Layers Interop
+
+Every artifact that has a `layers` representation is persisted through the `layers` schema and the `bead` lairs codec, alongside the bead-native JSONL. Lexicons become resource collections, templates become resource templates, filled templates become resource fillings, item sets (the verb x frame cross product and the 2AFC pairs) become layers fragments plus materialized Arrow/Parquet corpora, and experiment lists become `stimulus-pool` collections with one membership per item and their list constraints; the MegaAcceptability source and the derived training pairs are emitted as corpora too. Downstream scripts reload from the canonical fragment. The codec round-trip is law-verified, so identity and construction metadata survive losslessly.
+
+Collected human responses map onto layers judgments (`AnnotationRecord` to `judgment.Judgment`, grouped per annotator into a `judgment.JudgmentSet`). A study `Participant` is intentionally not mapped: a layers `persona.Persona` is an annotator role and interpretive framework, not a concrete enrolled participant.
 
 ## Quick Start
 
@@ -902,7 +912,7 @@ python create_2afc_pairs.py --limit 200
 **Input:** `filled_templates/generic_frames_filled.jsonl`
 **Output:** `items/2afc_pairs.jsonl`
 
-This script loads filled templates from the previous step, scores each filled sentence with a language model (GPT-2), and creates forced-choice pairs. The scoring uses `LanguageModelScorer` to compute log probabilities with caching for efficiency. Pairs are created using `create_forced_choice_items_from_groups`, generating both same_verb pairs (same verb in different frames, testing alternations) and different_verb pairs (different verbs in same frame, testing verb licensing). After pairing, score differences are computed and items are stratified into 10 quantiles using `assign_quantiles_by_uuid`, ensuring the model learns across the full difficulty spectrum.
+This script loads filled templates from the previous step, scores each filled sentence with a language model (GPT-2), and creates forced-choice pairs. The scoring uses `LanguageModelScorer` to compute log probabilities with caching for efficiency. Pairs are created using `create_forced_choice_items_from_groups`, generating both same_verb pairs (same verb in different frames, testing alternations) and different_verb pairs (different verbs in same frame, testing verb licensing). Each pair is then scored by the trained acceptability model (`AcceptabilityScorer`, its predicted preference margin stored as `acceptability_score_diff`) and stratified across a grid of the acceptability margin, the language-model score difference, and the pair type using `assign_grid_cells_by_uuid`; the flattened grid cell is stored as `stratum_cell`. The pairs are saved as a bead-native JSONL and as a canonical layers fragment plus an Arrow/Parquet corpus.
 
 **Example pair:**
 ```json
@@ -920,7 +930,9 @@ This script loads filled templates from the previous step, scores each filled se
     "lm_score1": -27.59,
     "lm_score2": -30.18,
     "lm_score_diff": 2.59,
-    "quantile": 3,
+    "acceptability_score_diff": 0.42,
+    "accept_p_prefer_a": 0.71,
+    "stratum_cell": 18,
     "template_id": "019a2bbc-4c41-7b33-befc-248335924f3f",
     "template_structure": "{subj} {verb}.",
     "verb1": "giggle",
@@ -960,10 +972,15 @@ lists:
       target_counts: {same_verb: 50, different_verb: 50}
     - type: "uniqueness"
       property_expression: "item.metadata.verb_lemma"
-    - type: "grouped_quantile"
-      property_expression: "item.metadata.lm_score_diff"
-      group_by_expression: "item.metadata.pair_type"
-      n_quantiles: 10
+    - type: "grid_stratification"
+      items_per_cell: 2
+      dimensions:
+        - property_expression: "item.metadata.acceptability_score_diff"
+          binning: {type: "quantile", n_quantiles: 5}
+        - property_expression: "item.metadata.lm_score_diff"
+          binning: {type: "quantile", n_quantiles: 5}
+        - property_expression: "item.metadata.pair_type"
+          binning: {type: "categorical", categories: ["same_verb", "different_verb"]}
   batch_constraints:
     - type: "coverage"
       property_expression: "item.metadata.template_id"
@@ -1202,17 +1219,22 @@ template:
 lists:
   n_lists: 8                          # number of experimental lists
   items_per_list: 100                 # items per list
-  quantile_bins: 10                   # stratification bins
+  quantile_bins: 5                    # per-dimension stratification bins
   constraints:
     - type: "balance"
       property_expression: "item.metadata.pair_type"
       target_counts: {same_verb: 50, different_verb: 50}
     - type: "uniqueness"
       property_expression: "item.metadata.verb_lemma"
-    - type: "grouped_quantile"
-      property_expression: "item.metadata.lm_score_diff"
-      group_by_expression: "item.metadata.pair_type"
-      n_quantiles: 10
+    - type: "grid_stratification"        # cross acceptability x LM score x pair type
+      items_per_cell: 2
+      dimensions:
+        - property_expression: "item.metadata.acceptability_score_diff"
+          binning: {type: "quantile", n_quantiles: 5}
+        - property_expression: "item.metadata.lm_score_diff"
+          binning: {type: "quantile", n_quantiles: 5}
+        - property_expression: "item.metadata.pair_type"
+          binning: {type: "categorical", categories: ["same_verb", "different_verb"]}
 ```
 
 ### 11. Run Production Pipeline

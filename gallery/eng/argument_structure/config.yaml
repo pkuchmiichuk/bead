@@ -27,7 +27,12 @@ paths:
   filled_templates_dir: "filled_templates"
   cross_product_items: "items/cross_product_items.jsonl"
   2afc_pairs: "items/2afc_pairs.jsonl"
+  # canonical layers artifacts: every item set is persisted as a layers
+  # fragment (bead layers encode) plus a materialized Arrow/Parquet corpus
+  2afc_pairs_fragment: "items/2afc_pairs.layers.json"
+  2afc_corpus_dir: "items/2afc_corpus"
   experiment_lists: "lists/experiment_lists.jsonl"
+  experiment_lists_fragment: "lists/experiment_lists.layers.json"
 
 # resources
 resources:
@@ -151,11 +156,78 @@ items:
     - "template_structure"
     - "pair_type"
     - "lm_score_diff"
+    - "acceptability_score_diff"
+    - "accept_p_prefer_a"
+    - "stratum_cell"
     - "quantile"
+
+# acceptability judgment model
+#
+# A 2AFC classifier trained on MegaAcceptability. Its predicted preference
+# margin is one stratification dimension (paired with the language-model score
+# in the grid above) and it seeds the active-learning loop, which fine-tunes it
+# on collected human data.
+acceptability_model:
+  # MegaAcceptability source: a local CSV path, or a URL fetched into cache_dir
+  source_path: null
+  source_url: null
+  columns:
+    verb: "verb"
+    frame: "frame"
+    sentence: "sentence"
+    participant_id: "participant"
+    rating: "response"
+
+  # Likert -> 2AFC conversion: per-annotator within-rater pairing
+  pairing_strategy: "per_annotator"
+  pairing_scope: "same_frame"   # all, same_verb, or same_frame
+  drop_ties: true
+  # no cap: use every within-rater same-frame pair (different verbs, one frame).
+  # MegaAcceptability lists have no repeated verb or frame, so same-frame pairs
+  # come from a rater seeing each frame once per list across their lists.
+  max_pairs_per_annotator: null
+  seed: 42
+
+  # dev split: hold out this fraction of unique sentences (and all their
+  # ratings) so the dev set contains only sentences unseen during training;
+  # used for early stopping
+  dev_fraction: 0.15
+
+  # derived training set artifacts (read by prepare/train scripts)
+  paths:
+    training_items: "items/megaacceptability_2afc.jsonl"
+    dev_items: "items/megaacceptability_2afc_dev.jsonl"
+    raw_corpus_dir: "items/megaacceptability_raw_corpus"
+    training_corpus_dir: "items/megaacceptability_2afc_corpus"
+
+  # model + training
+  model_name: "bert-base-uncased"
+  encoder_mode: "single_encoder"
+  mixed_effects_mode: "random_intercepts"
+  learning_rate: 2e-5
+  batch_size: 16
+  epochs: 10
+  early_stopping_patience: 2   # stop after N dev epochs without improvement
+  device: "mps"   # Apple Silicon GPU; the ~760k-pair set is impractical on CPU
+  checkpoint_dir: "checkpoints/acceptability_init"
+
+# layers / lairs interop
+#
+# Every item artifact is persisted as a layers fragment and a materialized
+# Arrow/Parquet corpus through the bead lairs codec.
+layers:
+  enabled: true
+  materialize: true
+  corpus_authority: "local"
+  # opt-in PDS publish (dry run by default)
+  publish:
+    enabled: false
+    to_did: null
+    dry_run: true
 
 # list partitioning
 lists:
-  strategy: "quantile_balanced_minimal_pairs"
+  strategy: "stratified"  # grid-cell stratification (see grid_stratification below)
   n_lists: 16
   items_per_list: 50
   quantile_bins: 10
@@ -170,11 +242,21 @@ lists:
       property_expression: "item.metadata.get('verb1', item.metadata.get('verb'))"
       # no verb appears multiple times in same list
 
-    - type: "grouped_quantile"
-      property_expression: "item.metadata.lm_score_diff"
-      group_by_expression: "item.metadata.pair_type"
-      n_quantiles: 10
-      items_per_quantile: 5
+    # stratify across a grid of the acceptability-model margin and the
+    # language-model score, split by pair type. Items are spread uniformly
+    # across the occupied grid cells so each list spans the full difficulty
+    # space along both signals.
+    - type: "grid_stratification"
+      items_per_cell: 2
+      dimensions:
+        - property_expression: "item.metadata.acceptability_score_diff"
+          binning: { type: "quantile", n_quantiles: 5 }
+        - property_expression: "item.metadata.lm_score_diff"
+          binning: { type: "quantile", n_quantiles: 5 }
+        - property_expression: "item.metadata.pair_type"
+          binning:
+            type: "categorical"
+            categories: ["same_verb", "different_verb"]
 
     - type: "diversity"
       property_expression: "item.metadata.template_id"

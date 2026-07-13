@@ -72,9 +72,9 @@ def compute_binary_metrics(eval_pred: EvalPrediction) -> dict[str, float]:
     recall = recall_metric.compute(
         predictions=preds, references=labels, average="binary", zero_division=0
     )["recall"]
-    f1 = f1_metric.compute(
-        predictions=preds, references=labels, average="binary", zero_division=0
-    )["f1"]
+    # f1's compute() does not accept zero_division in this evaluate version;
+    # the underlying sklearn f1 defaults undefined cases to 0.0.
+    f1 = f1_metric.compute(predictions=preds, references=labels, average="binary")["f1"]
 
     return {
         "accuracy": accuracy,
@@ -214,11 +214,12 @@ def compute_multiclass_metrics(
         average="macro",
         zero_division=0,
     )["recall"]
+    # f1's compute() does not accept zero_division in this evaluate version;
+    # the underlying sklearn f1 defaults undefined cases to 0.0.
     f1 = f1_metric.compute(
         predictions=preds,
         references=labels,
         average="macro",
-        zero_division=0,
     )["f1"]
 
     return {

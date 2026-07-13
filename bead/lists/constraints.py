@@ -24,9 +24,18 @@ ListConstraintType = typing.Literal[
     "balance",
     "quantile",
     "grouped_quantile",
+    "grid_stratification",
     "diversity",
     "size",
     "ordering",
+]
+
+BinningType = typing.Literal[
+    "quantile",
+    "equal_width",
+    "threshold",
+    "stddev",
+    "categorical",
 ]
 
 BatchConstraintType = typing.Literal[
@@ -242,6 +251,206 @@ class GroupedQuantileConstraint(ListConstraint):
     @dx.validates("property_expression", "group_by_expression")
     def _check_expr(self, value: str) -> str:
         return _check_non_empty(type(self), value)
+
+
+class BinningSpec(BeadBaseModel, dx.TaggedUnion, discriminator="binning"):
+    """Discriminated union root for per-dimension binning strategies.
+
+    A binning strategy maps one dimension's value to a non-negative bin index.
+    Continuous strategies (``quantile``, ``equal_width``, ``threshold``,
+    ``stddev``) bin numeric values; the ``categorical`` strategy bins finite
+    discrete values. Each strategy has a fixed bin count given its parameters
+    and the data, which is used to flatten an N-dimensional grid cell to a
+    single integer id.
+    """
+
+
+class QuantileBinning(BinningSpec):
+    """Equal-frequency bins over the empirical quantiles of a numeric value.
+
+    Attributes
+    ----------
+    n_quantiles : int
+        Number of equal-frequency bins (>= 2).
+    """
+
+    binning: typing.Literal["quantile"]
+    n_quantiles: int = 5
+
+    __axioms__ = (dx.axiom("n_quantiles >= 2", message="n_quantiles must be >= 2"),)
+
+
+class EqualWidthBinning(BinningSpec):
+    """Equal-interval bins over the range of a numeric value.
+
+    Attributes
+    ----------
+    n_bins : int
+        Number of equal-width bins (>= 2).
+    range_min : float | None
+        Lower edge of the binned range. ``None`` uses the data minimum.
+    range_max : float | None
+        Upper edge of the binned range. ``None`` uses the data maximum.
+    """
+
+    binning: typing.Literal["equal_width"]
+    n_bins: int = 5
+    range_min: float | None = None
+    range_max: float | None = None
+
+    __axioms__ = (
+        dx.axiom("n_bins >= 2", message="n_bins must be >= 2"),
+        dx.axiom(
+            "range_min == None or range_max == None or range_min < range_max",
+            message="range_min must be < range_max",
+        ),
+    )
+
+
+class ThresholdBinning(BinningSpec):
+    """Bins delimited by caller-supplied cut points.
+
+    ``edges`` of length ``k`` yields ``k + 1`` bins: a value below the first
+    edge falls in bin 0, a value at or above the last edge in bin ``k``.
+
+    Attributes
+    ----------
+    edges : tuple[float, ...]
+        Strictly increasing cut points (at least one).
+    """
+
+    binning: typing.Literal["threshold"]
+    edges: tuple[float, ...]
+
+    @dx.validates("edges")
+    def _check_edges(self, value: tuple[float, ...]) -> tuple[float, ...]:
+        if len(value) < 1:
+            raise ValueError("edges must contain at least one cut point")
+        if any(b <= a for a, b in zip(value, value[1:], strict=False)):
+            raise ValueError("edges must be strictly increasing")
+        return value
+
+
+class StdDevBinning(BinningSpec):
+    """Bins delimited by standard-deviation offsets from the mean.
+
+    ``k_values`` of length ``k`` yields ``k + 1`` bins with edges at
+    ``mean + k_i * sd``.
+
+    Attributes
+    ----------
+    k_values : tuple[float, ...]
+        Strictly increasing standard-deviation offsets (at least one).
+    """
+
+    binning: typing.Literal["stddev"]
+    k_values: tuple[float, ...] = (-1.0, 0.0, 1.0)
+
+    @dx.validates("k_values")
+    def _check_k_values(self, value: tuple[float, ...]) -> tuple[float, ...]:
+        if len(value) < 1:
+            raise ValueError("k_values must contain at least one offset")
+        if any(b <= a for a, b in zip(value, value[1:], strict=False)):
+            raise ValueError("k_values must be strictly increasing")
+        return value
+
+
+class CategoricalBinning(BinningSpec):
+    """One bin per distinct discrete value.
+
+    Attributes
+    ----------
+    categories : tuple[str, ...] | None
+        Ordered category values, one bin each. ``None`` discovers the
+        categories from the data (sorted for determinism).
+    include_other : bool
+        Add a trailing catch-all bin for values outside ``categories``.
+        Ignored when ``categories`` is ``None``.
+    """
+
+    binning: typing.Literal["categorical"]
+    categories: tuple[str, ...] | None = None
+    include_other: bool = False
+
+    @dx.validates("categories")
+    def _check_categories(
+        self, value: tuple[str, ...] | None
+    ) -> tuple[str, ...] | None:
+        if value is None:
+            return value
+        if len(value) < 1:
+            raise ValueError("categories must contain at least one value")
+        if len(set(value)) != len(value):
+            raise ValueError("categories must be unique")
+        return value
+
+
+class GridDimension(BeadBaseModel):
+    """One axis of a stratification grid: a value plus a binning strategy.
+
+    Attributes
+    ----------
+    property_expression : str
+        DSL expression returning the value to bin (e.g.
+        ``"item['acceptability_score_diff']"``).
+    binning : BinningSpec
+        Strategy mapping the value to a bin index.
+    context : dict[str, ContextValue]
+        Extra DSL evaluation context.
+    """
+
+    property_expression: str
+    binning: dx.Embed[BinningSpec]
+    context: dict[str, ContextValue] = dx.field(default_factory=dict)
+
+    @dx.validates("property_expression")
+    def _check_property_expression(self, value: str) -> str:
+        return _check_non_empty(type(self), value)
+
+
+class GridStratificationConstraint(ListConstraint):
+    """Uniform distribution across the cells of an N-dimensional bin grid.
+
+    Each dimension bins one value (continuous or discrete) by its own
+    strategy; the Cartesian product of the per-dimension bins forms a grid,
+    and items are distributed uniformly across the occupied cells. This is the
+    N-dimensional, mixed-variable generalization of :class:`QuantileConstraint`
+    and :class:`GroupedQuantileConstraint`.
+
+    Attributes
+    ----------
+    dimensions : tuple[GridDimension, ...]
+        Grid axes (at least one).
+    group_by_expression : str | None
+        Optional DSL expression; continuous bins are computed within each
+        group when set.
+    context : dict[str, ContextValue]
+        Extra DSL evaluation context.
+    items_per_cell : int
+        Target items per grid cell per list (>= 1).
+    priority : int
+        Constraint priority.
+    """
+
+    constraint_type: typing.Literal["grid_stratification"]
+    dimensions: tuple[dx.Embed[GridDimension], ...]
+    group_by_expression: str | None = None
+    context: dict[str, ContextValue] = dx.field(default_factory=dict)
+    items_per_cell: int = 2
+    priority: int = 1
+
+    __axioms__ = (
+        dx.axiom("items_per_cell >= 1", message="items_per_cell must be >= 1"),
+        dx.axiom("priority >= 1", message="priority must be >= 1"),
+    )
+
+    @dx.validates("dimensions")
+    def _check_dimensions(
+        self, value: tuple[GridDimension, ...]
+    ) -> tuple[GridDimension, ...]:
+        if len(value) < 1:
+            raise ValueError("at least one dimension is required")
+        return value
 
 
 class DiversityConstraint(ListConstraint):
@@ -573,9 +782,19 @@ type ListConstraintUnion = (
     | BalanceConstraint
     | QuantileConstraint
     | GroupedQuantileConstraint
+    | GridStratificationConstraint
     | DiversityConstraint
     | SizeConstraint
     | OrderingConstraint
+)
+
+# Union of the binning-strategy variants for a stratification grid dimension.
+type BinningSpecUnion = (
+    QuantileBinning
+    | EqualWidthBinning
+    | ThresholdBinning
+    | StdDevBinning
+    | CategoricalBinning
 )
 
 type BatchConstraintUnion = (

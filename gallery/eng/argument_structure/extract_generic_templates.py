@@ -14,6 +14,7 @@ import sys
 from collections import defaultdict
 from pathlib import Path
 
+import layers_io
 from utils.constraint_builder import (
     build_be_participle_constraint,
     build_be_subject_agreement_constraint,
@@ -281,6 +282,11 @@ def main(
                 f.write(template_json + "\n")
 
         print_success(f"Saved {len(all_templates)} templates to {output_path}")
+
+        # also persist as layers resource templates
+        layers_path = output_path.with_suffix(".layers.json")
+        layers_io.write_templates_layers(list(all_templates), layers_path)
+        print_success(f"Wrote layers templates to {layers_path}")
 
         # Summary statistics
         print_header("Summary")

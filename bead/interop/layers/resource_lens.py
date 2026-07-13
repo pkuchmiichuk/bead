@@ -6,14 +6,18 @@ Maps bead's lexical and template resources to their canonical
 - ``LexicalItem`` <-> a layers ``entry``
 - ``Lexicon`` <-> a layers ``collection`` with its ``entry`` records
 - ``Template`` <-> a layers ``template`` (with its slots and constraints)
+- ``FilledTemplate`` <-> a layers ``filling`` (with its per-slot fillings)
 
 Each lens produces a layers-shaped view from the generated models and keeps the
 fields that have no layers equivalent (the bead framework identity, tags, the
-``LexicalItem`` original ``form`` / free-text ``source``, and the bead DSL
-constraint context) in the lens complement, so reconstruction is exact.
+``LexicalItem`` original ``form`` / free-text ``source``, the bead DSL
+constraint context, and the filled-template slot requirement map) in the lens
+complement, so reconstruction is exact.
 """
 
 from __future__ import annotations
+
+from typing import cast
 
 import didactic.api as dx
 from lairs.records import defs, resource
@@ -24,6 +28,7 @@ from bead.interop.layers._convert import (
     dumps_meta,
     feature_map,
     identity_of,
+    j_bool,
     j_list,
     j_obj,
     j_str,
@@ -35,6 +40,7 @@ from bead.resources.constraints import Constraint
 from bead.resources.lexical_item import LexicalItem
 from bead.resources.lexicon import Lexicon
 from bead.resources.template import Slot, Template
+from bead.templates.filler import FilledTemplate
 
 _LEXICON_KIND = "lexicon"
 
@@ -267,3 +273,72 @@ class TemplateLayersLens(dx.Lens[Template, resource.Template, JsonValue]):
 
 
 TEMPLATE_LAYERS = TemplateLayersLens()
+
+
+class FilledTemplateFillingLens(dx.Lens[FilledTemplate, resource.Filling, JsonValue]):
+    """Lossless lens ``FilledTemplate <-> (layers filling, complement)``.
+
+    The layers ``filling`` record (``resource.Filling``) is the canonical
+    representation of a filled template: it carries the template reference, the
+    per-slot fillings, the rendered text, and the filling strategy. The bead-only
+    remainder (identity, the source template name, the slot requirement map, and
+    the exact lexical-item fillers) travels in the lens complement.
+    """
+
+    def forward(self, filled: FilledTemplate) -> tuple[resource.Filling, JsonValue]:
+        """Project a filled template to a layers filling and complement."""
+        slot_fillings: list[resource.SlotFilling] = []
+        filler_complements: dict[str, JsonValue] = {}
+        for slot_name, item in filled.slot_fillers.items():
+            slot_fillings.append(
+                resource.SlotFilling(
+                    slotName=slot_name,
+                    literalValue=item.lemma,
+                    renderedForm=item.form if item.form is not None else item.lemma,
+                    features=feature_map(item.features),
+                )
+            )
+            filler_complements[slot_name] = item.model_dump_json()
+        view = resource.Filling(
+            templateRef=filled.template_id,
+            slotFillings=tuple(slot_fillings),
+            renderedText=filled.rendered_text,
+            strategy=filled.strategy_name,
+            createdAt=filled.created_at,
+        )
+        complement: JsonValue = {
+            "identity": identity_of(filled),
+            "template_id": filled.template_id,
+            "template_name": filled.template_name,
+            "template_slots": cast("dict[str, JsonValue]", dict(filled.template_slots)),
+            "slot_order": tuple(filled.slot_fillers),
+            "filler_complements": filler_complements,
+        }
+        return view, complement
+
+    def backward(self, view: resource.Filling, complement: JsonValue) -> FilledTemplate:
+        """Reconstruct a filled template from its layers filling and complement."""
+        comp = j_obj(complement)
+        filler_complements = j_obj(comp["filler_complements"])
+        slot_fillers: dict[str, LexicalItem] = {}
+        for slot_name_value in j_list(comp["slot_order"]):
+            slot_name = j_str(slot_name_value)
+            slot_fillers[slot_name] = LexicalItem.model_validate_json(
+                j_str(filler_complements[slot_name])
+            )
+        template_slots = {
+            slot_name: j_bool(required)
+            for slot_name, required in j_obj(comp["template_slots"]).items()
+        }
+        filled = FilledTemplate(
+            template_id=j_str(comp["template_id"]),
+            template_name=j_str(comp["template_name"]),
+            slot_fillers=slot_fillers,
+            rendered_text=view.renderedText if view.renderedText is not None else "",
+            strategy_name=view.strategy if view.strategy is not None else "",
+            template_slots=template_slots,
+        )
+        return apply_identity(filled, comp["identity"])
+
+
+FILLED_TEMPLATE_FILLING = FilledTemplateFillingLens()

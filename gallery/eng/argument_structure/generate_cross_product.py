@@ -12,6 +12,8 @@ import json
 import sys
 from pathlib import Path
 
+import layers_io
+
 from bead.cli.display import (
     confirm,
     console,
@@ -105,6 +107,7 @@ def main(
         total_combinations = min(output_limit, total_combinations)
 
     items_generated = 0
+    items_for_layers: list[Item] = []
 
     try:
         with open(output_path, "w") as f:
@@ -134,8 +137,9 @@ def main(
                             },
                         )
 
-                        # Write to file
+                        # Write to file and buffer for the layers corpus
                         f.write(item.model_dump_json() + "\n")
+                        items_for_layers.append(item)
                         items_generated += 1
 
                         # Check limit
@@ -148,6 +152,18 @@ def main(
                         break
 
         print_success(f"Generated {items_generated:,} cross-product items\n")
+
+        # also persist as a canonical layers fragment and Arrow/Parquet corpus
+        fragment_path = output_dir / "cross_product_items.layers.json"
+        corpus_dir = output_dir / "cross_product_corpus"
+        with console.status("[bold]Encoding layers fragment + corpus...[/bold]"):
+            layers_io.write_items(
+                items_for_layers,
+                name="argument_structure_cross_product",
+                fragment_path=fragment_path,
+                materialize_dir=corpus_dir,
+            )
+        print_success(f"Wrote layers fragment to {fragment_path}\n")
     except Exception as e:
         print_error(f"Failed to generate items: {e}")
         sys.exit(1)

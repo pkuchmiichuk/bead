@@ -3,12 +3,20 @@
 from __future__ import annotations
 
 import tempfile
+from collections.abc import Callable
 from pathlib import Path
 
 import numpy as np
 import torch
 import torch.nn as nn
-from transformers import AutoModel, AutoTokenizer, TrainingArguments
+from transformers import (
+    AutoModel,
+    AutoTokenizer,
+    TrainerCallback,
+    TrainerControl,
+    TrainerState,
+    TrainingArguments,
+)
 
 from bead.active_learning.config import MixedEffectsConfig, VarianceComponents
 from bead.active_learning.models.base import ActiveLearningModel, ModelPrediction
@@ -22,6 +30,84 @@ from bead.items.item import Item
 from bead.items.item_template import ItemTemplate, TaskType
 
 __all__ = ["ForcedChoiceModel"]
+
+
+class _DevEarlyStopping(TrainerCallback):
+    """Early-stop forced-choice training on a held-out dev set.
+
+    The shared mixed-effects trainer's evaluation emits no usable loss or
+    accuracy for forced choice, so the dev set is scored through the model's own
+    predict path at the end of each epoch. Training stops after ``patience``
+    consecutive epochs without dev cross-entropy improvement, and the best
+    encoder and classifier head seen so far are restored.
+    """
+
+    def __init__(
+        self,
+        *,
+        predict_proba: Callable[[list[Item], list[str]], np.ndarray],
+        encoder: nn.Module,
+        classifier_head: nn.Module,
+        dev_items: list[Item],
+        dev_participant_ids: list[str],
+        dev_y: list[int],
+        patience: int,
+    ) -> None:
+        self._predict_proba = predict_proba
+        self._encoder = encoder
+        self._classifier_head = classifier_head
+        self._dev_items = dev_items
+        self._dev_participant_ids = dev_participant_ids
+        self._dev_y = np.asarray(dev_y)
+        self._patience = patience
+        self._best_loss = float("inf")
+        self._best_state: (
+            tuple[dict[str, torch.Tensor], dict[str, torch.Tensor]] | None
+        ) = None
+        self._wait = 0
+
+    def _dev_cross_entropy(self) -> float:
+        proba = self._predict_proba(self._dev_items, self._dev_participant_ids)
+        chosen = np.clip(proba[np.arange(len(self._dev_y)), self._dev_y], 1e-9, 1.0)
+        return float(-np.mean(np.log(chosen)))
+
+    def on_epoch_end(
+        self,
+        args: TrainingArguments,
+        state: TrainerState,
+        control: TrainerControl,
+        **kwargs: object,
+    ) -> None:
+        loss = self._dev_cross_entropy()
+        if loss < self._best_loss - 1e-4:
+            self._best_loss = loss
+            self._best_state = (
+                {
+                    k: v.detach().cpu().clone()
+                    for k, v in self._encoder.state_dict().items()
+                },
+                {
+                    k: v.detach().cpu().clone()
+                    for k, v in self._classifier_head.state_dict().items()
+                },
+            )
+            self._wait = 0
+        else:
+            self._wait += 1
+            if self._wait >= self._patience:
+                control.should_training_stop = True
+
+    def on_train_end(
+        self,
+        args: TrainingArguments,
+        state: TrainerState,
+        control: TrainerControl,
+        **kwargs: object,
+    ) -> None:
+        if self._best_state is not None:
+            encoder_state, head_state = self._best_state
+            self._encoder.load_state_dict(encoder_state)
+            self._classifier_head.load_state_dict(head_state)
 
 
 class ForcedChoiceModel(ActiveLearningModel):
@@ -479,22 +565,18 @@ class ForcedChoiceModel(ActiveLearningModel):
             max_length=self.config.max_length,
         )
 
-        # Create validation dataset if provided
-        eval_dataset = None
-        if validation_items is not None and validation_labels is not None:
+        # Prepare a held-out dev set for early stopping, if provided
+        has_dev = validation_items is not None and validation_labels is not None
+        val_y_numeric: list[int] = []
+        val_participant_ids: list[str] = []
+        if has_dev:
+            assert validation_items is not None and validation_labels is not None
             label_to_idx = {label: idx for idx, label in enumerate(self.option_names)}
             val_y_numeric = [label_to_idx[label] for label in validation_labels]
             val_participant_ids = (
                 ["_validation_"] * len(validation_items)
                 if self.config.mixed_effects.mode != "fixed"
                 else ["_fixed_"] * len(validation_items)
-            )
-            eval_dataset = items_to_dataset(
-                items=validation_items,
-                labels=val_y_numeric,
-                participant_ids=val_participant_ids,
-                tokenizer=self.tokenizer,
-                max_length=self.config.max_length,
             )
 
         # Create wrapper model for Trainer
@@ -504,10 +586,6 @@ class ForcedChoiceModel(ActiveLearningModel):
 
         # Create data collator
         data_collator = MixedEffectsDataCollator(tokenizer=self.tokenizer)
-
-        # Create metrics computation function
-        def compute_metrics_fn(eval_pred: object) -> dict[str, float]:
-            return compute_multiclass_metrics(eval_pred, num_labels=self.num_classes)
 
         # Create training arguments with checkpointing
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -521,10 +599,8 @@ class ForcedChoiceModel(ActiveLearningModel):
                 per_device_eval_batch_size=self.config.batch_size,
                 learning_rate=self.config.learning_rate,
                 logging_steps=10,
-                eval_strategy="epoch" if eval_dataset is not None else "no",
-                save_strategy="epoch",
-                save_total_limit=1,
-                load_best_model_at_end=False,
+                eval_strategy="no",
+                save_strategy="no",
                 report_to="none",
                 remove_unused_columns=False,
                 use_cpu=self.config.device == "cpu",
@@ -540,37 +616,54 @@ class ForcedChoiceModel(ActiveLearningModel):
                 model=wrapped_model,
                 args=training_args,
                 train_dataset=train_dataset,
-                eval_dataset=eval_dataset,
+                eval_dataset=None,
                 data_collator=data_collator,
                 tokenizer=self.tokenizer,
                 random_effects_manager=self.random_effects,
-                compute_metrics=compute_metrics_fn,
             )
+            # Early-stop on the dev set, scored through the model's own predict
+            # path (the shared trainer's evaluate emits no usable loss or
+            # accuracy for forced choice); the best encoder and head are restored.
+            if has_dev:
+                assert validation_items is not None
+                trainer.add_callback(
+                    _DevEarlyStopping(
+                        predict_proba=self._do_predict_proba,
+                        encoder=self.encoder,
+                        classifier_head=self.classifier_head,
+                        dev_items=validation_items,
+                        dev_participant_ids=val_participant_ids,
+                        dev_y=val_y_numeric,
+                        patience=self.config.early_stopping_patience,
+                    )
+                )
 
-            # Train
             train_result = trainer.train()
 
-            # Get training metrics
-            train_metrics = trainer.evaluate(eval_dataset=train_dataset)
-            metrics: dict[str, float] = {
-                "train_loss": float(train_result.training_loss),
-                "train_accuracy": train_metrics.get("eval_accuracy", 0.0),
-                "train_precision": train_metrics.get("eval_precision", 0.0),
-                "train_recall": train_metrics.get("eval_recall", 0.0),
-                "train_f1": train_metrics.get("eval_f1", 0.0),
-            }
-
-            # Get validation metrics if eval_dataset was provided
-            if eval_dataset is not None:
-                val_metrics = trainer.evaluate(eval_dataset=eval_dataset)
-                metrics.update(
-                    {
-                        "val_accuracy": val_metrics.get("eval_accuracy", 0.0),
-                        "val_precision": val_metrics.get("eval_precision", 0.0),
-                        "val_recall": val_metrics.get("eval_recall", 0.0),
-                        "val_f1": val_metrics.get("eval_f1", 0.0),
-                    }
-                )
+        # Score train (and dev) metrics through the model's own predict path,
+        # which applies the fitted random effects. trainer.evaluate cannot score
+        # accuracy here (its shared prediction step only labels cloze batches).
+        train_scores = self._classification_metrics(items, participant_ids, y_numeric)
+        metrics: dict[str, float] = {
+            "train_loss": float(train_result.training_loss),
+            "train_accuracy": train_scores["accuracy"],
+            "train_precision": train_scores["precision"],
+            "train_recall": train_scores["recall"],
+            "train_f1": train_scores["f1"],
+        }
+        if has_dev:
+            assert validation_items is not None
+            val_scores = self._classification_metrics(
+                validation_items, val_participant_ids, val_y_numeric
+            )
+            metrics.update(
+                {
+                    "val_accuracy": val_scores["accuracy"],
+                    "val_precision": val_scores["precision"],
+                    "val_recall": val_scores["recall"],
+                    "val_f1": val_scores["f1"],
+                }
+            )
 
         # Estimate variance components
         if self.config.mixed_effects.estimate_variance_components:
@@ -583,6 +676,38 @@ class ForcedChoiceModel(ActiveLearningModel):
                     metrics["n_participants"] = var_comp.n_groups
 
         return metrics
+
+    def _classification_metrics(
+        self,
+        items: list[Item],
+        participant_ids: list[str],
+        y_numeric: list[int],
+    ) -> dict[str, float]:
+        """Accuracy, precision, recall, and F1 from the model's own predictions.
+
+        Predictions come from the model's predict path (which applies the fitted
+        random effects), so the reported metrics reflect the deployed model
+        rather than the shared trainer's cloze-only evaluation.
+
+        Parameters
+        ----------
+        items : list[Item]
+            Items to score.
+        participant_ids : list[str]
+            Participant id per item.
+        y_numeric : list[int]
+            True class indices.
+
+        Returns
+        -------
+        dict[str, float]
+            Keys ``accuracy``, ``precision``, ``recall``, ``f1``.
+        """
+        from transformers import EvalPrediction  # noqa: PLC0415
+
+        proba = self._do_predict_proba(items, participant_ids)
+        eval_pred = EvalPrediction(predictions=proba, label_ids=np.asarray(y_numeric))
+        return compute_multiclass_metrics(eval_pred, num_labels=self.num_classes)
 
     def _train_with_custom_loop(
         self,
@@ -843,14 +968,16 @@ class ForcedChoiceModel(ActiveLearningModel):
                         param_name="mu",
                         create_if_missing=False,
                     )
-                    logits[i] = logits[i] + bias
+                    # Random-effects params live on CPU; move to the logits
+                    # device (matters on mps/cuda).
+                    logits[i] = logits[i] + bias.to(logits.device)
 
             elif self.config.mixed_effects.mode == "random_slopes":
                 logits_list = []
                 for i, pid in enumerate(participant_ids):
                     participant_head = self.random_effects.get_slopes(
                         pid, fixed_head=self.classifier_head, create_if_missing=False
-                    )
+                    ).to(embeddings.device)
                     logits_i = participant_head(embeddings[i : i + 1])
                     logits_list.append(logits_i)
                 logits = torch.cat(logits_list, dim=0)

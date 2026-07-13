@@ -48,6 +48,7 @@ class BaseEncoderModelConfig(dx.Model):
     batch_size: int = 16
     num_epochs: int = 3
     device: Literal["cpu", "cuda", "mps"] = "cpu"
+    early_stopping_patience: int = 2
     mixed_effects: dx.Embed[MixedEffectsConfig] = dx.field(
         default_factory=_default_mixed_effects
     )

@@ -16,6 +16,7 @@
 # Python interpreter (use uv run with project root for dependency management)
 PROJECT_ROOT := $(shell cd ../../.. && pwd)
 PYTHON := uv run --project $(PROJECT_ROOT) python
+BEAD := uv run --project $(PROJECT_ROOT) bead
 
 # Directories
 ITEMS_DIR := items
@@ -168,6 +169,46 @@ lists: ## Partition 2AFC pairs into experiment lists
 	@echo "$(BLUE)[7/7] Generating experiment lists...$(NC)"
 	$(PYTHON) generate_lists.py
 	@echo "$(GREEN)✓ Experiment lists generated$(NC)"
+
+# ============================================================================
+# Acceptability Model Targets (MegaAcceptability -> 2AFC classifier)
+# ============================================================================
+
+.PHONY: acceptability-data
+acceptability-data: ## Map MegaAcceptability Likert ratings to 2AFC training pairs
+	@echo "$(BLUE)Preparing MegaAcceptability 2AFC pairs...$(NC)"
+	$(PYTHON) prepare_megaacceptability.py -y
+	@echo "$(GREEN)✓ Acceptability training pairs prepared$(NC)"
+
+.PHONY: acceptability-train
+acceptability-train: ## Train the acceptability model (needs torch; slow on CPU)
+	@echo "$(BLUE)Training acceptability model...$(NC)"
+	$(PYTHON) train_acceptability_model.py -y
+	@echo "$(GREEN)✓ Acceptability model trained$(NC)"
+
+.PHONY: acceptability
+acceptability: acceptability-data acceptability-train ## Prepare data and train the acceptability model
+	@echo "$(GREEN)✓ Acceptability model ready for stratification$(NC)"
+
+# ============================================================================
+# Layers / lairs Interop Targets
+# ============================================================================
+
+.PHONY: layers-encode
+layers-encode: ## Encode the 2AFC item collection as a layers fragment
+	@echo "$(BLUE)Encoding 2AFC items as a layers fragment...$(NC)"
+	$(BEAD) layers encode items/2afc_pairs.jsonl --out items/2afc_pairs.layers.json
+	@echo "$(GREEN)✓ Layers fragment written$(NC)"
+
+.PHONY: layers-materialize
+layers-materialize: ## Materialize the 2AFC items as an Arrow/Parquet corpus
+	@echo "$(BLUE)Materializing 2AFC items as a layers corpus...$(NC)"
+	$(BEAD) layers materialize items/2afc_pairs.jsonl --out items/2afc_corpus
+	@echo "$(GREEN)✓ Layers corpus materialized$(NC)"
+
+.PHONY: layers
+layers: layers-encode layers-materialize ## Produce all layers artifacts for the 2AFC items
+	@echo "$(GREEN)✓ Layers artifacts produced$(NC)"
 
 .PHONY: deployment
 deployment: ## Generate jsPsych/JATOS deployment files

@@ -15,6 +15,7 @@ import sys
 from pathlib import Path
 from uuid import UUID
 
+import layers_io
 import pandas as pd
 from utils.morphology import MorphologyExtractor
 from utils.verbnet_parser import VerbNetExtractor
@@ -102,7 +103,7 @@ def main(verb_limit: int | None = None) -> None:
         )
 
         output_path = lexicons_dir / "verbnet_verbs.jsonl"
-        verb_lexicon.to_jsonl(str(output_path))
+        layers_io.save_lexicon(verb_lexicon, output_path)
         print_success(f"Saved to {output_path}")
 
         # 2. generate bleached nouns lexicon
@@ -125,7 +126,7 @@ def main(verb_limit: int | None = None) -> None:
         )
 
         output_path = lexicons_dir / "bleached_nouns.jsonl"
-        noun_lexicon.to_jsonl(str(output_path))
+        layers_io.save_lexicon(noun_lexicon, output_path)
         print_success(f"Saved to {output_path}")
 
         # 3. generate bleached verbs lexicon
@@ -147,7 +148,7 @@ def main(verb_limit: int | None = None) -> None:
         print_success(f"Loaded {verb_count:,} bleached verbs from {csv_path}")
 
         output_path = lexicons_dir / "bleached_verbs.jsonl"
-        bleached_verb_lexicon.to_jsonl(str(output_path))
+        layers_io.save_lexicon(bleached_verb_lexicon, output_path)
         print_success(f"Saved to {output_path}")
 
         # 4. generate bleached adjectives lexicon
@@ -170,7 +171,7 @@ def main(verb_limit: int | None = None) -> None:
         )
 
         output_path = lexicons_dir / "bleached_adjectives.jsonl"
-        adj_lexicon.to_jsonl(str(output_path))
+        layers_io.save_lexicon(adj_lexicon, output_path)
         print_success(f"Saved to {output_path}")
 
         # 5. generate prepositions lexicon
@@ -193,7 +194,7 @@ def main(verb_limit: int | None = None) -> None:
         )
 
         output_path = lexicons_dir / "prepositions.jsonl"
-        prep_lexicon.to_jsonl(str(output_path))
+        layers_io.save_lexicon(prep_lexicon, output_path)
         print_success(f"Saved to {output_path}")
 
         # 6. generate determiners lexicon
@@ -214,7 +215,7 @@ def main(verb_limit: int | None = None) -> None:
         print_success(f"Loaded {len(det_lexicon.items):,} determiners from {csv_path}")
 
         output_path = lexicons_dir / "determiners.jsonl"
-        det_lexicon.to_jsonl(str(output_path))
+        layers_io.save_lexicon(det_lexicon, output_path)
         print_success(f"Saved to {output_path}")
 
         # 7. generate "be" verb forms lexicon
@@ -253,7 +254,7 @@ def main(verb_limit: int | None = None) -> None:
         )
 
         output_path = lexicons_dir / "be_forms.jsonl"
-        be_lexicon.to_jsonl(str(output_path))
+        layers_io.save_lexicon(be_lexicon, output_path)
         print_success(f"Saved to {output_path}")
 
         # summary

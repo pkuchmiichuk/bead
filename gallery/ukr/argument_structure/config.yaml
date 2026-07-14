@@ -1,0 +1,78 @@
+# ============================================================================
+# Ukrainian argument structure pipeline configuration
+# ============================================================================
+# Design principle: test every verb in every frame (full cross-product), so
+# both licensed and unlicensed verb-frame combinations are judged.
+# ============================================================================
+
+project:
+  name: "argument_structure"
+  language_code: "ukr"
+
+paths:
+  cache_dir: ".cache"
+
+resources:
+  templates:
+    - path: "templates/generic_frames.jsonl"
+      name: "generic_frames"
+      description: "Argument-structure frames constructed manually"
+
+  lexicons:
+    - path: "lexicons/verbs.jsonl"
+      name: "verbs"
+      description: "Present-tense verbs from VESUM"
+
+    - path: "lexicons/bleached_nouns.jsonl"
+      name: "bleached_nouns"
+      description: "Bleached subject and object nouns in their case forms"
+
+template:
+  # Strategy type: "exhaustive", "mlm", or "mixed"
+  filling_strategy: "mixed"
+
+  # Output path for filled templates
+  output_path: "items/filled.jsonl"
+
+  # Masked language model settings, used only by slots whose strategy is "mlm".
+  # Not yet finalized; unused while every slot below is exhaustive.
+  mlm:
+    model_name: "youscan/ukr-roberta-base"
+    beam_size: 5
+    top_k: 10
+    device: "cpu"
+    cache_enabled: true
+
+  # Per-slot strategies:
+  # - exhaustive: use all lexicon items that satisfy the slot's constraints
+  # - mlm: let the model select contextually appropriate fillers
+  #     max_fills: keep the top-N items by model probability
+  #     enforce_unique: each beam hypothesis uses different items for this slot
+  slot_strategies:
+    subj_nom:
+      strategy: "exhaustive"
+      description: "The bleached subject in the nominative"
+
+    verb:
+      strategy: "exhaustive"
+      description: "All present-tense verbs (cross-product with all frames)"
+
+    obj_acc:
+      strategy: "exhaustive"
+      description: "Accusative objects"
+
+    obj_gen:
+      strategy: "exhaustive"
+      description: "Genitive objects"
+
+    obj_dat:
+      strategy: "exhaustive"
+      description: "Dative objects"
+
+    obj_ins:
+      strategy: "exhaustive"
+      description: "Instrumental objects"
+
+logging:
+  level: "WARNING"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"

@@ -11,6 +11,7 @@ project:
 
 paths:
   cache_dir: ".cache"
+  2afc_pairs: "items/2afc_pairs.jsonl"
 
 resources:
   templates:
@@ -72,6 +73,34 @@ template:
     obj_ins:
       strategy: "exhaustive"
       description: "Instrumental objects"
+
+items:
+  judgment_type: "forced_choice"
+  n_alternatives: 2
+
+  # Sentence-acceptability scoring models. Exactly one entry sets
+  # use_for_scoring: true (override with --model). Masked models are scored by
+  # pseudo-log-likelihood, causal models by sentence log-probability.
+  models:
+    - name: "benjamin/roberta-large-wechsel-ukrainian"
+      type: "masked"
+      device: "cpu"
+      use_for_scoring: true
+
+    - name: "lapa-llm/lapa-12b-pt"
+      type: "causal"
+      device: "cuda"
+      use_for_scoring: false
+
+  # Minimal pairs contrast the case of a verb's object while holding the verb
+  # and the noun fixed. Pairs whose two sentences render identically (case
+  # syncretism) are dropped.
+  construction:
+    group_by: ["verb_lemma", "object_class"]
+    drop_identical: true
+
+lists:
+  quantile_bins: 10
 
 logging:
   level: "WARNING"

@@ -15,14 +15,17 @@ Writes two files:
 The VESUM file (~7.5M rows) is parsed once and both lexicons are built from that
 single in-memory frame.
 
-Some object nouns collapse case forms (e.g. подія shares one form for genitive
-and dative, події). Those forms are still emitted, each tagged with its true
-case; disambiguating collapsed cases in the rendered stimulus is left for later.
+Object forms are chosen to be unambiguous: for each case a form is preferred
+whose surface realizes no other case that could be read as an object. Two nouns
+have no such form for the genitive and are kept deliberately: людина (людини is
+also accusative plural) and випадок (випадку is also dative singular). Their
+genitive carries a ``case_collides_with`` feature naming the competing reading.
 """
 
 from __future__ import annotations
 
 import argparse
+from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -54,28 +57,43 @@ class NounSpec:
         Argument role the noun fills (``"subject"`` or ``"object"``).
     semantic_class : str
         Coarse meaning label carried through the pipeline.
+    gloss : str
+        English gloss, carried through as ``eng_gloss``.
     """
 
     lemma: str
     role: str
     semantic_class: str
+    gloss: str
 
 
-# One animate subject and four objects spanning the core meaning classes. The
-# subject only ever appears in the nominative; objects appear in each case an
-# object frame governs.
+# One subject and a set of objects spanning the core meaning classes. The
+# subject appears only in the nominative; objects in each case a frame governs.
 NOUN_SPECS: tuple[NounSpec, ...] = (
-    NounSpec("людина", "subject", "animate"),
-    NounSpec("група", "object", "animate"),
-    NounSpec("предмет", "object", "inanimate_object"),
-    NounSpec("місце", "object", "location"),
-    NounSpec("подія", "object", "event"),
+    NounSpec("людина", "subject", "animate", "person"),
+    NounSpec("гурт", "object", "group", "group"),
+    NounSpec("людина", "object", "animate", "person"),
+    NounSpec("інструмент", "object", "inanimate_object", "instrument"),
+    NounSpec("зразок", "object", "abstract", "sample"),
+    NounSpec("двір", "object", "location", "yard"),
+    NounSpec("день", "object", "temporal", "day"),
+    NounSpec("шматок", "object", "quantity", "piece"),
+    NounSpec("випадок", "object", "event", "incident"),
 )
 
 CASES_BY_ROLE: dict[str, tuple[str, ...]] = {
     "subject": ("NOM",),
     "object": ("ACC", "GEN", "DAT", "INS"),
 }
+
+# Readings a bare form could carry in object position, used only to detect
+# ambiguity. Plural cells count because a singular form that also spells a
+# plural (людини is genitive singular and accusative plural) is ambiguous.
+COMPETING_READINGS: frozenset[str] = frozenset(
+    f"{case}.{number}"
+    for case in ("ACC", "GEN", "DAT", "INS")
+    for number in ("SG", "PL")
+)
 
 
 def build_verb_lexicon(
@@ -160,22 +178,45 @@ def build_noun_lexicon(
     for spec in NOUN_SPECS:
         wanted = CASES_BY_ROLE[spec.role]
         rows = frame[frame["lemma"] == spec.lemma]
-        seen: set[str] = set()
+
+        readings: dict[str, set[str]] = defaultdict(set)
+        candidates: dict[str, list[str]] = defaultdict(list)
+        parsed_by_form: dict[tuple[str, str], dict[str, str]] = {}
         for row in rows.itertuples(index=False):
             parsed = adapter._parse_features(str(row.features))
-            case = parsed.get("case")
-            if parsed.get("pos") != "N" or parsed.get("number") != "SG":
+            case_name, number = parsed.get("case"), parsed.get("number")
+            if parsed.get("pos") != "N" or case_name is None or number is None:
                 continue
-            if case is None or case not in wanted or case in seen:
+            form = str(row.form)
+            readings[form].add(f"{case_name}.{number}")
+            if number == "SG" and case_name in wanted:
+                if form not in candidates[case_name]:
+                    candidates[case_name].append(form)
+                parsed_by_form[case_name, form] = parsed
+
+        for case_name in wanted:
+            forms = candidates.get(case_name)
+            if not forms:
                 continue
-            seen.add(case)
-            features = dict(parsed)
+            cell = f"{case_name}.SG"
+            unambiguous = [
+                form
+                for form in forms
+                if readings[form] & COMPETING_READINGS == {cell}
+            ]
+            form = unambiguous[0] if unambiguous else forms[0]
+
+            features = dict(parsed_by_form[case_name, form])
             features["semantic_class"] = spec.semantic_class
             features["role"] = spec.role
+            features["eng_gloss"] = spec.gloss
+            collisions = sorted((readings[form] & COMPETING_READINGS) - {cell})
+            if collisions:
+                features["case_collides_with"] = ",".join(collisions)
             items.append(
                 LexicalItem(
                     lemma=spec.lemma,
-                    form=str(row.form),
+                    form=form,
                     language_code=LANGUAGE,
                     features=features,
                     source="UniMorph:ukr.xz",

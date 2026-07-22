@@ -133,6 +133,9 @@ class LanguageModelScorer(ItemScorer):
         Key in item.rendered_elements to use as text (default: "text").
     model_version : str
         Version string for cache tracking.
+    dtype : str
+        Torch dtype to load the weights in, such as ``"bfloat16"``. Defaults to
+        ``"auto"``, keeping the dtype the checkpoint was saved in.
 
     Examples
     --------
@@ -154,12 +157,14 @@ class LanguageModelScorer(ItemScorer):
         device: str = "cpu",
         text_key: str = "text",
         model_version: str = "unknown",
+        dtype: str = "auto",
     ) -> None:
         self.model_name = model_name
         self.cache_dir = Path(cache_dir) if cache_dir else None
         self.device = device
         self.text_key = text_key
         self.model_version = model_version
+        self.dtype = dtype
 
         # lazy loading of model and cache
         self._model: HuggingFaceLanguageModel | None = None
@@ -192,6 +197,7 @@ class LanguageModelScorer(ItemScorer):
                 cache=self._cache,
                 device=self.device,  # type: ignore[arg-type]
                 model_version=self.model_version,
+                dtype=self.dtype,
             )
 
         return self._model

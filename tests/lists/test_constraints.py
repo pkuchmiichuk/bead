@@ -9,6 +9,12 @@ from didactic.api import ValidationError
 
 from bead.lists.constraints import (
     BalanceConstraint,
+    BatchBalanceConstraint,
+    BatchCoverageConstraint,
+    BatchDiversityConstraint,
+    BatchMinOccurrenceConstraint,
+    DiversityConstraint,
+    GroupedQuantileConstraint,
     OrderingConstraint,
     OrderingPair,
     QuantileConstraint,
@@ -725,3 +731,66 @@ class TestListConstraintUnion:
         for constraint in constraints:
             data = constraint.model_dump()
             assert "constraint_type" in data
+
+
+class TestConstraintTypeDefault:
+    """Tests that constraint_type defaults to each class's own discriminator."""
+
+    def test_uniqueness_defaults(self) -> None:
+        """Test UniquenessConstraint infers its constraint_type."""
+        constraint = UniquenessConstraint(property_expression="item['verb']")
+        assert constraint.constraint_type == "uniqueness"
+
+    def test_balance_defaults(self) -> None:
+        """Test BalanceConstraint infers its constraint_type."""
+        constraint = BalanceConstraint(property_expression="item['pair_type']")
+        assert constraint.constraint_type == "balance"
+
+    def test_grouped_quantile_defaults(self) -> None:
+        """Test GroupedQuantileConstraint infers its constraint_type."""
+        constraint = GroupedQuantileConstraint(
+            property_expression="item['score']",
+            group_by_expression="item['contrast']",
+        )
+        assert constraint.constraint_type == "grouped_quantile"
+
+    def test_diversity_defaults(self) -> None:
+        """Test DiversityConstraint infers its constraint_type."""
+        constraint = DiversityConstraint(
+            property_expression="item['noun']", min_unique_values=3
+        )
+        assert constraint.constraint_type == "diversity"
+
+    def test_batch_coverage_defaults(self) -> None:
+        """Test BatchCoverageConstraint infers its constraint_type."""
+        constraint = BatchCoverageConstraint(property_expression="item['contrast']")
+        assert constraint.constraint_type == "coverage"
+
+    def test_batch_balance_defaults(self) -> None:
+        """Test BatchBalanceConstraint infers its constraint_type."""
+        constraint = BatchBalanceConstraint(
+            property_expression="item['pair_type']",
+            target_distribution={"same": 0.5, "different": 0.5},
+        )
+        assert constraint.constraint_type == "balance"
+
+    def test_batch_diversity_defaults(self) -> None:
+        """Test BatchDiversityConstraint infers its constraint_type."""
+        constraint = BatchDiversityConstraint(
+            property_expression="item['verb']", max_lists_per_value=4
+        )
+        assert constraint.constraint_type == "diversity"
+
+    def test_batch_min_occurrence_defaults(self) -> None:
+        """Test BatchMinOccurrenceConstraint infers its constraint_type."""
+        constraint = BatchMinOccurrenceConstraint(
+            property_expression="item['quantile']", min_occurrences=2
+        )
+        assert constraint.constraint_type == "min_occurrence"
+
+    def test_explicit_constraint_type_still_accepted(self) -> None:
+        """Test passing constraint_type explicitly remains valid."""
+        constraint = UniquenessConstraint(
+            constraint_type="uniqueness", property_expression="item['verb']"
+        )
+        assert constraint.constraint_type == "uniqueness"

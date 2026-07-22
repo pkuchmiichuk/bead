@@ -26,7 +26,10 @@ from bead.cli.display import (
     print_success,
     print_warning,
 )
-from bead.items.forced_choice import create_filtered_forced_choice_items
+from bead.items.forced_choice import (
+    create_filtered_forced_choice_items,
+    create_forced_choice_item,
+)
 from bead.items.item import Item
 from bead.items.scoring import ItemScorer, LanguageModelScorer
 from bead.lists.stratification import assign_quantiles_by_uuid
@@ -238,6 +241,73 @@ def make_pairs(items: list[Item]) -> list[Item]:
     return enriched
 
 
+def make_anchor_pairs(items: list[Item], anchors: dict[str, str]) -> list[Item]:
+    """Pair each verb against the anchor verb for its case, noun held fixed.
+
+    The anchor's government is known, so the comparison puts test verbs on a
+    scale shared across verbs and exposes verbs that fit no frame at all.
+
+    Parameters
+    ----------
+    items : list[Item]
+        Scored, object-bearing items.
+    anchors : dict[str, str]
+        Anchor lemma for each case.
+
+    Returns
+    -------
+    list[Item]
+        Forced-choice pairs contrasting a verb with its case's anchor.
+    """
+    by_key = {
+        (
+            item.item_metadata["verb_lemma"],
+            item.item_metadata["case"],
+            item.item_metadata["object_lemma"],
+        ): item
+        for item in items
+    }
+
+    pairs: list[Item] = []
+    for item in items:
+        case_name = item.item_metadata["case"]
+        verb = item.item_metadata["verb_lemma"]
+        anchor_lemma = anchors.get(str(case_name))
+        if anchor_lemma is None or verb == anchor_lemma:
+            continue
+        key = (anchor_lemma, case_name, item.item_metadata["object_lemma"])
+        anchor = by_key.get(key)
+        if anchor is None:
+            continue
+
+        text = item.rendered_elements.get("text", "")
+        anchor_text = anchor.rendered_elements.get("text", "")
+        if text == anchor_text:
+            continue
+        score = item.item_metadata["lm_score"]
+        anchor_score = anchor.item_metadata["lm_score"]
+        pairs.append(
+            create_forced_choice_item(
+                text,
+                anchor_text,
+                metadata={
+                    "pair_type": "anchor_contrast",
+                    "verb": verb,
+                    "anchor": anchor_lemma,
+                    "case": case_name,
+                    "contrast": f"anchor-{case_name}",
+                    "object_lemma": item.item_metadata["object_lemma"],
+                    "object_class": item.item_metadata["object_class"],
+                    "lm_score_a": score,
+                    "lm_score_b": anchor_score,
+                    "lm_score_diff": abs(score - anchor_score),
+                    "source_item_ids": (str(item.id), str(anchor.id)),
+                },
+            )
+        )
+    return pairs
+
+
 def main(
     config_path: Path,
     limit: int | None = None,
@@ -286,8 +356,15 @@ def main(
         for item, score in zip(items, scores, strict=True)
     ]
 
-    pairs = make_pairs(items)
-    print_success(f"Built {len(pairs):,} case-contrast pairs")
+    case_pairs = make_pairs(items)
+    anchor_pairs = make_anchor_pairs(
+        items, config["items"]["construction"]["anchors"]
+    )
+    pairs = case_pairs + anchor_pairs
+    print_success(
+        f"Built {len(case_pairs):,} case-contrast and "
+        f"{len(anchor_pairs):,} anchor pairs"
+    )
     if not pairs:
         print_warning("No pairs were created.")
         return

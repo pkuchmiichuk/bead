@@ -12,6 +12,7 @@ project:
 paths:
   cache_dir: ".cache"
   2afc_pairs: "items/2afc_pairs.jsonl"
+  experiment_lists: "lists/experiment_lists.jsonl"
 
 resources:
   templates:
@@ -114,7 +115,47 @@ items:
       INS: "цікавитися"
 
 lists:
+  strategy: "balanced"
+  n_lists: 16
+  items_per_list: 50
   quantile_bins: 10
+  random_seed: 42
+
+  # "item" is the pair's metadata dict, so properties are read as item['key'].
+  # The balance target_counts also fix how many of each pair type are drawn.
+  constraints:
+    - type: "balance"
+      property_expression: "item['pair_type']"
+      target_counts:
+        case_contrast: 40
+        anchor_contrast: 10
+
+    - type: "uniqueness"
+      property_expression: "item['verb']"
+
+  batch_constraints:
+    - type: "coverage"
+      property_expression: "item['contrast']"
+      target_values:
+        - "ACC-GEN"
+        - "ACC-DAT"
+        - "ACC-INS"
+        - "DAT-GEN"
+        - "GEN-INS"
+        - "DAT-INS"
+        - "anchor-ACC"
+        - "anchor-GEN"
+        - "anchor-DAT"
+        - "anchor-INS"
+      min_coverage: 1.0
+
+    - type: "min_occurrence"
+      property_expression: "item['quantile']"
+      min_occurrences: 20
+
+    - type: "diversity"
+      property_expression: "item['verb']"
+      max_lists_per_value: 6
 
 logging:
   level: "WARNING"

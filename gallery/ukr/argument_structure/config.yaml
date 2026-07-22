@@ -102,8 +102,16 @@ items:
   # and the noun fixed. Pairs whose two sentences render identically (case
   # syncretism) are dropped.
   construction:
-    group_by: ["verb_lemma", "object_class"]
+    group_by: ["verb_lemma", "object_lemma"]
     drop_identical: true
+
+    # Verbs with known government, paired against a test verb in the same frame
+    # so verbs share a scale. Chosen to combine with every bleached noun.
+    anchors:
+      ACC: "вивчати"
+      GEN: "стосуватися"
+      DAT: "радіти"
+      INS: "цікавитися"
 
 lists:
   quantile_bins: 10

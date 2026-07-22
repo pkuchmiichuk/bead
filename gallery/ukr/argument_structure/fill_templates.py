@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+from collections.abc import Iterable
 from itertools import islice
 from pathlib import Path
 
@@ -110,7 +111,11 @@ def build_strategy(config: dict) -> MixedFillingStrategy:
 
 
 def limit_verbs(
-    lexicon: Lexicon, limit: int, *, by_frequency: bool = False
+    lexicon: Lexicon,
+    limit: int,
+    *,
+    by_frequency: bool = False,
+    keep: Iterable[str] = (),
 ) -> Lexicon:
     """Return a lexicon keeping only ``limit`` unique verb lemmas.
 
@@ -123,11 +128,14 @@ def limit_verbs(
     by_frequency : bool
         Keep the most frequent lemmas instead of the first ones, since VESUM is
         alphabetical and the first lemmas are rare rather than everyday verbs.
+    keep : Iterable[str]
+        Lemmas retained whatever the limit, for the anchor verbs the pair stage
+        compares against.
 
     Returns
     -------
     Lexicon
-        Lexicon restricted to ``limit`` lemmas.
+        Lexicon restricted to ``limit`` lemmas plus ``keep``.
     """
     if by_frequency:
         allowed = set(most_frequent((item.lemma for item in lexicon.items), limit))
@@ -139,6 +147,7 @@ def limit_verbs(
             if len(lemmas) >= limit:
                 break
         allowed = set(lemmas)
+    allowed |= set(keep)
     return lexicon.filter(lambda item: item.lemma in allowed)
 
 
@@ -187,11 +196,14 @@ def main(
             str(BASE_DIR / lex_config["path"]), lex_config["name"]
         )
         if limit is not None and lex_config["name"] == "verbs":
-            lexicon = limit_verbs(lexicon, limit, by_frequency=by_frequency)
+            anchors = config["items"]["construction"]["anchors"].values()
+            lexicon = limit_verbs(
+                lexicon, limit, by_frequency=by_frequency, keep=anchors
+            )
             selection = "most frequent" if by_frequency else "first"
             print_warning(
                 f"Limited verbs to the {selection} {limit} lemmas "
-                f"({len(lexicon)} forms)"
+                f"plus {len(set(anchors))} anchors ({len(lexicon)} forms)"
             )
         lexicons.append(lexicon)
         print_info(f"Loaded {len(lexicon)} items from {lex_config['name']}")

@@ -84,6 +84,7 @@ class ListPartitioner:
         self._rng = np.random.default_rng(random_seed)
         self.dsl_evaluator = DSLEvaluator()
         self._unresolved_expressions: set[str] = set()
+        self._unenforced_types: set[str] = set()
 
     def partition(
         self,
@@ -452,6 +453,8 @@ class ListPartitioner:
             elif isinstance(constraint, SizeConstraint):
                 if not self._check_size(exp_list, constraint):
                     is_violated = True
+            else:
+                self._warn_unenforced(str(constraint.constraint_type))
 
             if is_violated:
                 priority = constraint.priority
@@ -581,9 +584,9 @@ class ListPartitioner:
     def _warn_unresolved(self, property_expression: str, error: Exception) -> None:
         """Report a property expression that cannot be evaluated.
 
-        Batch scoring skips items whose property cannot be read. Without a
-        warning a misconfigured constraint scores zero on every iteration and
-        silently has no effect, so each expression is reported once.
+        Scoring skips items whose property cannot be read. Without a warning a
+        misconfigured constraint scores zero on every iteration and silently has
+        no effect, so each expression is reported once.
 
         Parameters
         ----------
@@ -596,10 +599,30 @@ class ListPartitioner:
             return
         self._unresolved_expressions.add(property_expression)
         logger.warning(
-            "Batch constraint property expression %r could not be evaluated (%s). "
+            "Constraint property expression %r could not be evaluated (%s). "
             "The constraint cannot be satisfied and is being ignored.",
             property_expression,
             error,
+        )
+
+    def _warn_unenforced(self, constraint_type: str) -> None:
+        """Report a constraint type that assignment cannot enforce.
+
+        Unhandled types are stored on the list and serialised, so without a
+        warning a configured constraint appears active while having no effect.
+
+        Parameters
+        ----------
+        constraint_type : str
+            Discriminator of the constraint that is not enforced.
+        """
+        if constraint_type in self._unenforced_types:
+            return
+        self._unenforced_types.add(constraint_type)
+        logger.warning(
+            "List constraint type %r is not enforced during assignment. It is "
+            "recorded on the list but does not influence partitioning.",
+            constraint_type,
         )
 
     def _extract_property_value(

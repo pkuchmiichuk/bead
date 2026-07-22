@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from uuid import UUID, uuid4
 
 import didactic.api as dx
@@ -11,6 +12,7 @@ from bead.dsl.errors import EvaluationError
 from bead.lists import ExperimentList
 from bead.lists.constraints import (
     BalanceConstraint,
+    GroupedQuantileConstraint,
     QuantileConstraint,
     SizeConstraint,
     UniquenessConstraint,
@@ -573,3 +575,28 @@ def test_constraint_priority_default() -> None:
         constraint_type="quantile", property_expression="item['score']"
     )
     assert constraint4.priority == 1
+
+
+class TestUnenforcedConstraintWarning:
+    """Tests that constraint types the partitioner cannot enforce are reported."""
+
+    def test_unenforced_constraint_type_warns(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Test an unenforced constraint type warns instead of passing silently."""
+        partitioner = ListPartitioner(random_seed=42)
+        items = [uuid4() for _ in range(4)]
+        metadata: dict[UUID, ItemMetadata] = {uid: {"score": 1.0} for uid in items}
+        exp_list = ExperimentList(name="list_0", list_number=0, item_refs=tuple(items))
+        constraint = GroupedQuantileConstraint(
+            property_expression="item['score']",
+            group_by_expression="item['score']",
+        )
+
+        with caplog.at_level(logging.WARNING, logger="bead.lists.partitioner"):
+            partitioner._count_violations(exp_list, [constraint], metadata)
+
+        assert caplog.records, "expected a warning about the unenforced constraint"
+        assert any(
+            "grouped_quantile" in record.getMessage() for record in caplog.records
+        )

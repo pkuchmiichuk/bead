@@ -41,6 +41,52 @@ def test_gpt2_initialization(
     assert adapter.cache is in_memory_cache
 
 
+def test_gpt2_loads_with_requested_dtype(
+    mocker: MockerFixture,
+    mock_gpt2_model: pytest.fixture,
+    mock_gpt2_tokenizer: pytest.fixture,
+    in_memory_cache: ModelOutputCache,
+) -> None:
+    """Test the requested dtype is passed through when loading the model."""
+    load = mocker.patch(
+        "bead.items.adapters.huggingface.AutoModelForCausalLM.from_pretrained",
+        return_value=mock_gpt2_model,
+    )
+    mocker.patch(
+        "bead.items.adapters.huggingface.AutoTokenizer.from_pretrained",
+        return_value=mock_gpt2_tokenizer,
+    )
+
+    adapter = HuggingFaceLanguageModel(
+        "gpt2", in_memory_cache, device="cpu", dtype="bfloat16"
+    )
+    adapter._load_model()
+
+    assert load.call_args.kwargs["dtype"] == "bfloat16"
+
+
+def test_gpt2_defaults_to_checkpoint_dtype(
+    mocker: MockerFixture,
+    mock_gpt2_model: pytest.fixture,
+    mock_gpt2_tokenizer: pytest.fixture,
+    in_memory_cache: ModelOutputCache,
+) -> None:
+    """Test the checkpoint's own dtype is used when none is requested."""
+    load = mocker.patch(
+        "bead.items.adapters.huggingface.AutoModelForCausalLM.from_pretrained",
+        return_value=mock_gpt2_model,
+    )
+    mocker.patch(
+        "bead.items.adapters.huggingface.AutoTokenizer.from_pretrained",
+        return_value=mock_gpt2_tokenizer,
+    )
+
+    adapter = HuggingFaceLanguageModel("gpt2", in_memory_cache, device="cpu")
+    adapter._load_model()
+
+    assert load.call_args.kwargs["dtype"] == "auto"
+
+
 def test_gpt2_compute_log_probability(
     mocker: MockerFixture,
     mock_gpt2_model: pytest.fixture,

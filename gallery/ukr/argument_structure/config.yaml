@@ -35,6 +35,12 @@ template:
   # Output path for filled templates
   output_path: "items/filled.jsonl"
 
+  # Excluded from the verb slot.
+  verb_stoplist:
+    - "бути"      # copula
+    - "могти"     # modal
+    - "смеркати"  # impersonal
+
   # Masked language model settings, used only by slots whose strategy is "mlm".
   # Not yet finalized; unused while every slot below is exhaustive.
   mlm:

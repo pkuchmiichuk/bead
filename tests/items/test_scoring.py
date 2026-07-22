@@ -93,6 +93,18 @@ class TestLanguageModelScorer:
 
         assert scorer.cache_dir == Path(".cache/test")
 
+    def test_dtype_defaults_to_auto(self) -> None:
+        """Test the scorer keeps the checkpoint's own dtype by default."""
+        scorer = LanguageModelScorer(model_name="gpt2", device="cpu")
+
+        assert scorer.dtype == "auto"
+
+    def test_dtype_is_configurable(self) -> None:
+        """Test a requested dtype is recorded for the adapter."""
+        scorer = LanguageModelScorer(model_name="gpt2", device="cpu", dtype="bfloat16")
+
+        assert scorer.dtype == "bfloat16"
+
     def test_initialization_with_none_cache_dir(self) -> None:
         """Test initialization with None cache_dir."""
         scorer = LanguageModelScorer(model_name="gpt2", cache_dir=None, device="cpu")

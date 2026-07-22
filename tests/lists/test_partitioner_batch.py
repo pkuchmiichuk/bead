@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import logging
 from uuid import uuid4
+
+import pytest
 
 from bead.lists.constraints import (
     BatchBalanceConstraint,
@@ -515,3 +518,31 @@ class TestImproveBatchConstraint:
         )
 
         assert improved is False
+
+
+class TestBatchConstraintDiagnostics:
+    """Tests that unusable batch constraints are reported rather than ignored."""
+
+    def test_unresolvable_property_expression_warns(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Test a batch constraint on a missing metadata key logs a warning."""
+        partitioner = ListPartitioner(random_seed=42)
+        items = [uuid4() for _ in range(20)]
+        metadata = {uid: {"template_id": i % 4} for i, uid in enumerate(items)}
+        constraint = BatchCoverageConstraint(
+            constraint_type="coverage",
+            property_expression="item['absent_key']",
+            target_values=[0, 1, 2, 3],
+        )
+
+        with caplog.at_level(logging.WARNING, logger="bead.lists.partitioner"):
+            partitioner.partition_with_batch_constraints(
+                items=items,
+                n_lists=4,
+                batch_constraints=[constraint],
+                metadata=metadata,
+            )
+
+        assert caplog.records, "expected a warning about the unusable constraint"
+        assert any("absent_key" in record.getMessage() for record in caplog.records)

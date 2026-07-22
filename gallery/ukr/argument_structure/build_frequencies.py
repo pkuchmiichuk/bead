@@ -37,10 +37,7 @@ def main() -> None:
     lexicon = Lexicon.from_jsonl(str(BASE_DIR / "lexicons" / "verbs.jsonl"), "verbs")
     lemmas = {item.lemma for item in lexicon.items}
     attested = sorted(
-        (
-            (lemma, zipf_frequency(lemma, WORDFREQ_LANGUAGE))
-            for lemma in lemmas
-        ),
+        ((lemma, zipf_frequency(lemma, WORDFREQ_LANGUAGE)) for lemma in lemmas),
         key=lambda row: (-row[1], row[0]),
     )
     attested = [(lemma, zipf) for lemma, zipf in attested if zipf > 0.0]

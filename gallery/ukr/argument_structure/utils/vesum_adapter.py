@@ -57,13 +57,9 @@ class VesumUniMorphAdapter(UniMorphAdapter):
         """
         unimorph.download_unimorph(lang_code)
         path = unimorph.UNIMORPH_DIR / lang_code / self.VESUM_FILE
-        raw = pd.read_csv(
-            path, sep="\t", header=None, dtype=str, keep_default_na=False
-        )
+        raw = pd.read_csv(path, sep="\t", header=None, dtype=str, keep_default_na=False)
         features = raw.iloc[:, 2:].apply(
             lambda row: ";".join(tag for tag in row if isinstance(tag, str) and tag),
             axis=1,
         )
-        return pd.DataFrame(
-            {"lemma": raw[0], "form": raw[1], "features": features}
-        )
+        return pd.DataFrame({"lemma": raw[0], "form": raw[1], "features": features})

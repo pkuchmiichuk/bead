@@ -360,9 +360,7 @@ def main(
     ]
 
     case_pairs = make_pairs(items)
-    anchor_pairs = make_anchor_pairs(
-        items, config["items"]["construction"]["anchors"]
-    )
+    anchor_pairs = make_anchor_pairs(items, config["items"]["construction"]["anchors"])
     pairs = case_pairs + anchor_pairs
     print_success(
         f"Built {len(case_pairs):,} case-contrast and "

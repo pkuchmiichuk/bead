@@ -7,6 +7,7 @@ and stratified. Uses stand-off annotation (works with UUIDs only).
 
 from __future__ import annotations
 
+import logging
 from collections import Counter, defaultdict
 from collections.abc import Callable, Hashable
 from typing import Any
@@ -42,6 +43,8 @@ type MetadataDict = dict[UUID, ItemMetadata]  # Metadata indexed by UUID
 # the field declaration so that ``with_(balance_metrics=...)`` type-checks
 # without dict-invariance noise.
 type BalanceMetrics = dict[str, "MetadataValue"]
+
+logger = logging.getLogger(__name__)
 
 
 class ListPartitioner:
@@ -80,6 +83,7 @@ class ListPartitioner:
         self.random_seed = random_seed
         self._rng = np.random.default_rng(random_seed)
         self.dsl_evaluator = DSLEvaluator()
+        self._unresolved_expressions: set[str] = set()
 
     def partition(
         self,
@@ -574,6 +578,30 @@ class ListPartitioner:
 
         return True
 
+    def _warn_unresolved(self, property_expression: str, error: Exception) -> None:
+        """Report a property expression that cannot be evaluated.
+
+        Batch scoring skips items whose property cannot be read. Without a
+        warning a misconfigured constraint scores zero on every iteration and
+        silently has no effect, so each expression is reported once.
+
+        Parameters
+        ----------
+        property_expression : str
+            The expression that failed to evaluate.
+        error : Exception
+            The failure raised while evaluating it.
+        """
+        if property_expression in self._unresolved_expressions:
+            return
+        self._unresolved_expressions.add(property_expression)
+        logger.warning(
+            "Batch constraint property expression %r could not be evaluated (%s). "
+            "The constraint cannot be satisfied and is being ignored.",
+            property_expression,
+            error,
+        )
+
     def _extract_property_value(
         self,
         item_id: UUID,
@@ -1034,7 +1062,8 @@ class ListPartitioner:
                         metadata,
                     )
                     observed_values.add(value)
-                except Exception:
+                except Exception as error:
+                    self._warn_unresolved(constraint.property_expression, error)
                     continue
 
         # Compute coverage
@@ -1085,7 +1114,8 @@ class ListPartitioner:
                     )
                     counts[value] += 1
                     total += 1
-                except Exception:
+                except Exception as error:
+                    self._warn_unresolved(constraint.property_expression, error)
                     continue
 
         if total == 0:
@@ -1140,7 +1170,8 @@ class ListPartitioner:
                         metadata,
                     )
                     value_to_lists[value].add(list_idx)
-                except Exception:
+                except Exception as error:
+                    self._warn_unresolved(constraint.property_expression, error)
                     continue
 
         if not value_to_lists:
@@ -1193,7 +1224,8 @@ class ListPartitioner:
                         metadata,
                     )
                     counts[value] += 1
-                except Exception:
+                except Exception as error:
+                    self._warn_unresolved(constraint.property_expression, error)
                     continue
 
         if not counts:

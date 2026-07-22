@@ -59,6 +59,10 @@ class HuggingFaceLanguageModel(HuggingFaceAdapterMixin, ModelAdapter):
         Device to run model on. Falls back to CPU if device unavailable.
     model_version : str
         Version string for cache tracking.
+    dtype : str
+        Torch dtype to load the weights in, such as ``"bfloat16"``. Defaults to
+        ``"auto"``, which keeps the dtype the checkpoint was saved in; loading a
+        half-precision checkpoint as float32 would double its memory.
 
     Examples
     --------
@@ -77,9 +81,11 @@ class HuggingFaceLanguageModel(HuggingFaceAdapterMixin, ModelAdapter):
         cache: ModelOutputCache,
         device: DeviceType = "cpu",
         model_version: str = "unknown",
+        dtype: str = "auto",
     ) -> None:
         super().__init__(model_name, cache, model_version)
         self.device = self._validate_device(device)
+        self.dtype = dtype
         self._model: PreTrainedModel | None = None
         self._tokenizer: PreTrainedTokenizerBase | None = None
 
@@ -87,7 +93,9 @@ class HuggingFaceLanguageModel(HuggingFaceAdapterMixin, ModelAdapter):
         """Load model and tokenizer lazily on first use."""
         if self._model is None:
             logger.info(f"Loading causal LM: {self.model_name}")
-            self._model = AutoModelForCausalLM.from_pretrained(self.model_name)
+            self._model = AutoModelForCausalLM.from_pretrained(
+                self.model_name, dtype=self.dtype
+            )
             self._model.to(self.device)
             self._model.eval()
 

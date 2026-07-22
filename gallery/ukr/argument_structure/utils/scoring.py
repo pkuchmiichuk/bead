@@ -62,7 +62,9 @@ class MaskedLanguageModelScorer(ItemScorer):
             The cached masked-language-model adapter.
         """
         if self._model is None:
-            from bead.items.adapters.huggingface import HuggingFaceMaskedLanguageModel
+            from bead.items.adapters.huggingface import (  # noqa: PLC0415
+                HuggingFaceMaskedLanguageModel,
+            )
 
             cache = ModelOutputCache(cache_dir=self.cache_dir or Path(".cache/temp"))
             self._model = HuggingFaceMaskedLanguageModel(

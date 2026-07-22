@@ -79,8 +79,10 @@ def build_strategy(config: dict) -> MixedFillingStrategy:
     model_adapter = None
     cache = None
     if any(sc["strategy"] == "mlm" for sc in slot_configs.values()):
-        from bead.templates.adapters.cache import ModelOutputCache
-        from bead.templates.adapters.huggingface import HuggingFaceMLMAdapter
+        from bead.templates.adapters.cache import ModelOutputCache  # noqa: PLC0415
+        from bead.templates.adapters.huggingface import (  # noqa: PLC0415
+            HuggingFaceMLMAdapter,
+        )
 
         print_info(f"Loading MLM model: {mlm['model_name']}...")
         model_adapter = HuggingFaceMLMAdapter(
@@ -235,8 +237,7 @@ def main(
                         rendered_text=rendered,
                         strategy_name="mixed",
                         template_slots={
-                            name: slot.required
-                            for name, slot in template.slots.items()
+                            name: slot.required for name, slot in template.slots.items()
                         },
                     )
                 )

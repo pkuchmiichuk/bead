@@ -175,7 +175,10 @@ def build_scorer(model: dict, cache_dir: Path) -> ItemScorer:
             model_name=model["name"], cache_dir=cache_dir, device=device
         )
     return LanguageModelScorer(
-        model_name=model["name"], cache_dir=cache_dir, device=device
+        model_name=model["name"],
+        cache_dir=cache_dir,
+        device=device,
+        dtype=model.get("dtype", "auto"),
     )
 
 

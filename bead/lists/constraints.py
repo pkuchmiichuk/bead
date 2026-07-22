@@ -72,7 +72,7 @@ class UniquenessConstraint(ListConstraint):
         Higher values are weighted more heavily during partitioning.
     """
 
-    constraint_type: typing.Literal["uniqueness"]
+    constraint_type: typing.Literal["uniqueness"] = "uniqueness"
     property_expression: str
     context: dict[str, ContextValue] = dx.field(default_factory=dict)
     allow_null: bool = False
@@ -102,7 +102,7 @@ class ConditionalUniquenessConstraint(ListConstraint):
         Constraint priority.
     """
 
-    constraint_type: typing.Literal["conditional_uniqueness"]
+    constraint_type: typing.Literal["conditional_uniqueness"] = "conditional_uniqueness"
     property_expression: str
     condition_expression: str
     context: dict[str, ContextValue] = dx.field(default_factory=dict)
@@ -131,7 +131,7 @@ class BalanceConstraint(ListConstraint):
         Constraint priority.
     """
 
-    constraint_type: typing.Literal["balance"]
+    constraint_type: typing.Literal["balance"] = "balance"
     property_expression: str
     context: dict[str, ContextValue] = dx.field(default_factory=dict)
     target_counts: dict[str, int] | None = None
@@ -182,7 +182,7 @@ class QuantileConstraint(ListConstraint):
         Constraint priority.
     """
 
-    constraint_type: typing.Literal["quantile"]
+    constraint_type: typing.Literal["quantile"] = "quantile"
     property_expression: str
     context: dict[str, ContextValue] = dx.field(default_factory=dict)
     n_quantiles: int = 5
@@ -222,7 +222,7 @@ class GroupedQuantileConstraint(ListConstraint):
         Constraint priority.
     """
 
-    constraint_type: typing.Literal["grouped_quantile"]
+    constraint_type: typing.Literal["grouped_quantile"] = "grouped_quantile"
     property_expression: str
     group_by_expression: str
     context: dict[str, ContextValue] = dx.field(default_factory=dict)
@@ -259,7 +259,7 @@ class DiversityConstraint(ListConstraint):
         Constraint priority.
     """
 
-    constraint_type: typing.Literal["diversity"]
+    constraint_type: typing.Literal["diversity"] = "diversity"
     property_expression: str
     min_unique_values: int
     context: dict[str, ContextValue] = dx.field(default_factory=dict)
@@ -296,7 +296,7 @@ class SizeConstraint(ListConstraint):
         Constraint priority.
     """
 
-    constraint_type: typing.Literal["size"]
+    constraint_type: typing.Literal["size"] = "size"
     min_size: int | None = None
     max_size: int | None = None
     exact_size: int | None = None
@@ -371,7 +371,7 @@ class OrderingConstraint(ListConstraint):
         Constraint priority (unused for static partitioning).
     """
 
-    constraint_type: typing.Literal["ordering"]
+    constraint_type: typing.Literal["ordering"] = "ordering"
     precedence_pairs: tuple[dx.Embed[OrderingPair], ...] = ()
     no_adjacent_property: str | None = None
     block_by_property: str | None = None
@@ -428,7 +428,7 @@ class BatchCoverageConstraint(BatchConstraint):
         Constraint priority.
     """
 
-    constraint_type: typing.Literal["coverage"]
+    constraint_type: typing.Literal["coverage"] = "coverage"
     property_expression: str
     context: dict[str, ContextValue] = dx.field(default_factory=dict)
     target_values: tuple[str | int | float, ...] | None = None
@@ -464,7 +464,7 @@ class BatchBalanceConstraint(BatchConstraint):
         Constraint priority.
     """
 
-    constraint_type: typing.Literal["balance"]
+    constraint_type: typing.Literal["balance"] = "balance"
     property_expression: str
     target_distribution: dict[str, float]
     context: dict[str, ContextValue] = dx.field(default_factory=dict)
@@ -515,7 +515,7 @@ class BatchDiversityConstraint(BatchConstraint):
         Constraint priority.
     """
 
-    constraint_type: typing.Literal["diversity"]
+    constraint_type: typing.Literal["diversity"] = "diversity"
     property_expression: str
     max_lists_per_value: int
     context: dict[str, ContextValue] = dx.field(default_factory=dict)
@@ -548,7 +548,7 @@ class BatchMinOccurrenceConstraint(BatchConstraint):
         Constraint priority.
     """
 
-    constraint_type: typing.Literal["min_occurrence"]
+    constraint_type: typing.Literal["min_occurrence"] = "min_occurrence"
     property_expression: str
     min_occurrences: int
     context: dict[str, ContextValue] = dx.field(default_factory=dict)

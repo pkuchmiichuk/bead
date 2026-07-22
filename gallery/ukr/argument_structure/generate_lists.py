@@ -265,9 +265,7 @@ def main(config_path: Path, output: Path | None = None) -> None:
     print_success(f"Loaded {len(pairs):,} pairs")
     pool = draw_pool(pairs, target_counts, n_lists, seed)
 
-    metadata: MetadataDict = {
-        pair.id: dict(pair.item_metadata) for pair in pool
-    }
+    metadata: MetadataDict = {pair.id: dict(pair.item_metadata) for pair in pool}
     partitioner = ListPartitioner(random_seed=seed)
     lists = partitioner.partition_with_batch_constraints(
         items=[pair.id for pair in pool],

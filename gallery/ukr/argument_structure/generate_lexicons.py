@@ -200,9 +200,7 @@ def build_noun_lexicon(
                 continue
             cell = f"{case_name}.SG"
             unambiguous = [
-                form
-                for form in forms
-                if readings[form] & COMPETING_READINGS == {cell}
+                form for form in forms if readings[form] & COMPETING_READINGS == {cell}
             ]
             form = unambiguous[0] if unambiguous else forms[0]
 

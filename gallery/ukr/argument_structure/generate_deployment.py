@@ -137,9 +137,7 @@ def _inject_instructions_plugin(html_path: Path) -> None:
     html_path.write_text(html, encoding="utf-8")
 
 
-def main(
-    config_path: Path, n_lists: int | None = None, no_jatos: bool = False
-) -> None:
+def main(config_path: Path, n_lists: int | None = None, no_jatos: bool = False) -> None:
     """Generate the deployment builds and package them for JATOS.
 
     Parameters
@@ -199,9 +197,7 @@ def main(
             for index, exp_list in enumerate(selected, start=1):
                 list_dir = output_dir / version / f"list_{index:02d}"
                 # Ship only the pairs this list references, not the whole pool.
-                used = {
-                    ref: pairs[ref] for ref in exp_list.item_refs if ref in pairs
-                }
+                used = {ref: pairs[ref] for ref in exp_list.item_refs if ref in pairs}
                 JsPsychExperimentGenerator(
                     config=experiment_config,
                     output_dir=list_dir,

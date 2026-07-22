@@ -16,6 +16,7 @@ from itertools import islice
 from pathlib import Path
 
 import yaml
+from utils.frequency import most_frequent
 from utils.renderers import UkrainianRenderer
 
 from bead.cli.display import (
@@ -108,8 +109,10 @@ def build_strategy(config: dict) -> MixedFillingStrategy:
     return MixedFillingStrategy(slot_strategies=slot_strategies)
 
 
-def limit_verbs(lexicon: Lexicon, limit: int) -> Lexicon:
-    """Return a lexicon keeping only the first ``limit`` unique verb lemmas.
+def limit_verbs(
+    lexicon: Lexicon, limit: int, *, by_frequency: bool = False
+) -> Lexicon:
+    """Return a lexicon keeping only ``limit`` unique verb lemmas.
 
     Parameters
     ----------
@@ -117,19 +120,25 @@ def limit_verbs(lexicon: Lexicon, limit: int) -> Lexicon:
         Verb lexicon.
     limit : int
         Number of unique lemmas to keep.
+    by_frequency : bool
+        Keep the most frequent lemmas instead of the first ones, since VESUM is
+        alphabetical and the first lemmas are rare rather than everyday verbs.
 
     Returns
     -------
     Lexicon
-        Lexicon restricted to the first ``limit`` lemmas.
+        Lexicon restricted to ``limit`` lemmas.
     """
-    lemmas: list[str] = []
-    for item in lexicon.items:
-        if item.lemma not in lemmas:
-            lemmas.append(item.lemma)
-        if len(lemmas) >= limit:
-            break
-    allowed = set(lemmas)
+    if by_frequency:
+        allowed = set(most_frequent((item.lemma for item in lexicon.items), limit))
+    else:
+        lemmas: list[str] = []
+        for item in lexicon.items:
+            if item.lemma not in lemmas:
+                lemmas.append(item.lemma)
+            if len(lemmas) >= limit:
+                break
+        allowed = set(lemmas)
     return lexicon.filter(lambda item: item.lemma in allowed)
 
 
@@ -138,6 +147,8 @@ def main(
     limit: int | None = None,
     max_per_template: int | None = None,
     output: Path | None = None,
+    *,
+    by_frequency: bool = False,
 ) -> None:
     """Fill every frame and write the sentences to the output path.
 
@@ -151,6 +162,8 @@ def main(
         Keep at most this many sentences per frame.
     output : Path | None
         Override the output path from the config.
+    by_frequency : bool
+        Select the most frequent verbs rather than the first ones.
     """
     config = load_config(config_path)
     logging.basicConfig(
@@ -174,8 +187,12 @@ def main(
             str(BASE_DIR / lex_config["path"]), lex_config["name"]
         )
         if limit is not None and lex_config["name"] == "verbs":
-            lexicon = limit_verbs(lexicon, limit)
-            print_warning(f"Limited verbs to {limit} lemmas ({len(lexicon)} forms)")
+            lexicon = limit_verbs(lexicon, limit, by_frequency=by_frequency)
+            selection = "most frequent" if by_frequency else "first"
+            print_warning(
+                f"Limited verbs to the {selection} {limit} lemmas "
+                f"({len(lexicon)} forms)"
+            )
         lexicons.append(lexicon)
         print_info(f"Loaded {len(lexicon)} items from {lex_config['name']}")
 
@@ -252,10 +269,16 @@ if __name__ == "__main__":
         default=None,
         help="Override the output path from the config.",
     )
+    parser.add_argument(
+        "--by-frequency",
+        action="store_true",
+        help="Select the most frequent verbs rather than the first ones.",
+    )
     args = parser.parse_args()
     main(
         config_path=args.config,
         limit=args.limit,
         max_per_template=args.max_per_template,
         output=args.output,
+        by_frequency=args.by_frequency,
     )

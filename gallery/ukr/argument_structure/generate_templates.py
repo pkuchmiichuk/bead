@@ -12,17 +12,38 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+import yaml
+
 from bead.cli.display import (
     display_file_stats,
     print_header,
     print_info,
     print_success,
 )
+from bead.resources.constraint_builders import SetMembershipConstraintBuilder
 from bead.resources.constraints import Constraint
 from bead.resources.template import Slot, Template, slots_match_template
 from bead.resources.template_collection import TemplateCollection
 
+BASE_DIR = Path(__file__).parent
 LANGUAGE = "ukr"
+
+
+def load_config(path: Path) -> dict:
+    """Load the YAML configuration file.
+
+    Parameters
+    ----------
+    path : Path
+        Path to the configuration file.
+
+    Returns
+    -------
+    dict
+        Parsed configuration.
+    """
+    with path.open(encoding="utf-8") as f:
+        return yaml.safe_load(f)
 
 
 @dataclass(frozen=True)
@@ -122,27 +143,48 @@ def _arg_slot(arg: ArgSlot) -> Slot:
     )
 
 
-def _verb_slot() -> Slot:
-    """Return a slot constrained to present-tense verbs."""
+def _verb_slot(stoplist: tuple[str, ...] = ()) -> Slot:
+    """Return a slot constrained to present-tense verbs outside the stoplist.
+
+    Parameters
+    ----------
+    stoplist : tuple[str, ...]
+        Lemmas the slot must not accept.
+
+    Returns
+    -------
+    Slot
+        The verb slot.
+    """
     expression = (
         "self.features.get('pos') == 'V' and self.features.get('tense') == 'PRS'"
     )
+    constraints = [Constraint(expression=expression, description="Present-tense verb")]
+    if stoplist:
+        constraints.append(
+            SetMembershipConstraintBuilder().build(
+                slot_name="self",
+                property_path="lemma",
+                forbidden_values=set(stoplist),
+                description="Excluded from the verb slot",
+            )
+        )
     return Slot(
         name="verb",
         description="present-tense verb",
-        constraints=(
-            Constraint(expression=expression, description="Present-tense verb"),
-        ),
+        constraints=tuple(constraints),
     )
 
 
-def make_frame(spec: FrameSpec) -> Template:
+def make_frame(spec: FrameSpec, stoplist: tuple[str, ...] = ()) -> Template:
     """Build the ``Template`` for one frame specification.
 
     Parameters
     ----------
     spec : FrameSpec
         The frame to build.
+    stoplist : tuple[str, ...]
+        Lemmas the verb slot must not accept.
 
     Returns
     -------
@@ -150,7 +192,7 @@ def make_frame(spec: FrameSpec) -> Template:
         A frame with a verb slot and one constrained slot per argument.
     """
     slots: dict[str, Slot] = {arg.name: _arg_slot(arg) for arg in spec.args}
-    slots["verb"] = _verb_slot()
+    slots["verb"] = _verb_slot(stoplist)
 
     template = Template(
         name=spec.name,
@@ -168,7 +210,12 @@ def main() -> None:
     """Build the frames and write them to ``templates/generic_frames.jsonl``."""
     print_header("Sentence Frames")
 
-    templates = [make_frame(spec) for spec in FRAME_SPECS]
+    config = load_config(BASE_DIR / "config.yaml")
+    stoplist = tuple(config["template"].get("verb_stoplist", ()))
+    if stoplist:
+        print_info(f"Excluding {len(stoplist)} verbs: {', '.join(stoplist)}")
+
+    templates = [make_frame(spec, stoplist) for spec in FRAME_SPECS]
     for template in templates:
         print_info(f"{template.name}: {template.template_string}")
 
@@ -177,7 +224,7 @@ def main() -> None:
     ).with_templates(templates)
     print_success(f"Built {len(templates)} frames")
 
-    output_path = Path(__file__).parent / "templates" / "generic_frames.jsonl"
+    output_path = BASE_DIR / "templates" / "generic_frames.jsonl"
     output_path.parent.mkdir(parents=True, exist_ok=True)
     collection.to_jsonl(str(output_path))
     display_file_stats(output_path, len(templates), "frames")

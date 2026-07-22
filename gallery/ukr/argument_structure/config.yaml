@@ -159,6 +159,36 @@ lists:
       property_expression: "item['verb']"
       max_lists_per_value: 6
 
+deployment:
+  platform: "jatos"
+  n_lists_to_deploy: 16
+  random_seed: 42
+  output_dir: "deployment"
+
+  experiment:
+    title: "Оцінювання прийнятності речень"
+    description: "Порівняйте два речення й оберіть те, яке звучить природніше"
+    instructions: >-
+      У кожному завданні ви побачите два речення.
+      Оберіть те, яке звучить для вас більш природно.
+    prompt: "Яке речення звучить природніше?"
+    estimated_duration_minutes: 15
+
+  jspsych:
+    version: "8.0.0"
+    use_jatos: true
+    prolific_completion_code: null
+    randomize_order: true
+    randomize_choices: true
+
+  participants:
+    n_per_list: 30
+    qualifications:
+      - "Native Ukrainian speaker"
+      - "Age 18+"
+      - "Approval rate > 95%"
+    payment_usd: 2.50
+
 logging:
   level: "WARNING"
   format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
